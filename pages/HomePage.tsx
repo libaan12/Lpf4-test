@@ -13,6 +13,9 @@ const HomePage: React.FC = () => {
     navigate(path);
   };
 
+  // Level Logic: 10 points per level
+  const level = Math.floor((profile?.points || 0) / 10) + 1;
+
   return (
     <div className="min-h-full bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors pb-6">
       {/* Header */}
@@ -32,7 +35,7 @@ const HomePage: React.FC = () => {
             <div className="flex gap-4">
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl flex-1 text-white">
                 <div className="text-xs opacity-75">Level</div>
-                <div className="text-2xl font-bold">{Math.floor((profile?.points || 0) / 100) + 1}</div>
+                <div className="text-2xl font-bold">{level}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl flex-1 text-white">
                 <div className="text-xs opacity-75">Points</div>

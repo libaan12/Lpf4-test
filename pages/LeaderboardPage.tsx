@@ -85,6 +85,9 @@ const LeaderboardPage: React.FC = () => {
             {players.length === 0 && <div className="text-center text-gray-500 dark:text-gray-400">No players found.</div>}
             {players.map((p, idx) => {
                 const isMe = p.uid === user?.uid;
+                // Update: Level based on 10 points
+                const level = Math.floor(p.points / 10) + 1;
+                
                 return (
                     <div key={p.uid} className={`flex items-center p-4 rounded-xl border-2 shadow-sm ${getRankStyle(idx, isMe)} animate__animated animate__fadeInUp`} style={{animationDelay: `${idx * 0.05}s`}}>
                         <div className="w-8 text-center text-xl mr-2">
@@ -96,7 +99,7 @@ const LeaderboardPage: React.FC = () => {
                                 {p.name}
                                 {isMe && <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-[10px] px-2 py-0.5 rounded-full">YOU</span>}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Level {Math.floor(p.points/100) + 1}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Level {level}</div>
                         </div>
                         <div className="font-mono font-bold text-somali-blue dark:text-blue-400">{p.points} pts</div>
                     </div>

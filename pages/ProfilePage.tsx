@@ -60,8 +60,11 @@ const ProfilePage: React.FC = () => {
 
   if (!profile) return null;
 
-  const level = Math.floor(profile.points / 100) + 1;
-  const progress = profile.points % 100;
+  // Level Logic: 10 points per level
+  const level = Math.floor(profile.points / 10) + 1;
+  const pointsInCurrentLevel = profile.points % 10;
+  const progressPercent = (pointsInCurrentLevel / 10) * 100;
+  const pointsToNext = 10 - pointsInCurrentLevel;
 
   return (
     <div className="min-h-full bg-gray-50 dark:bg-gray-900 p-6 flex flex-col transition-colors max-w-3xl mx-auto w-full">
@@ -122,13 +125,16 @@ const ProfilePage: React.FC = () => {
             <span className="font-bold text-gray-700 dark:text-gray-300">Level {level}</span>
             <span className="text-somali-blue font-bold">{profile.points} Total Points</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden relative">
+             {/* Progress Bar Background */}
             <div 
-                className="bg-somali-blue h-4 rounded-full transition-all duration-1000 ease-out" 
-                style={{ width: `${progress}%` }}
-            ></div>
+                className="bg-somali-blue h-4 rounded-full transition-all duration-1000 ease-out relative overflow-hidden" 
+                style={{ width: `${progressPercent}%` }}
+            >
+                <div className="absolute top-0 left-0 bottom-0 right-0 bg-white/20 animate-[pulse_2s_infinite]"></div>
+            </div>
         </div>
-        <div className="text-right text-xs text-gray-400 mt-1">{100 - progress} pts to next level</div>
+        <div className="text-right text-xs text-gray-400 mt-1">{pointsToNext} pts to Level {level + 1}</div>
       </Card>
 
       {/* Settings Section */}

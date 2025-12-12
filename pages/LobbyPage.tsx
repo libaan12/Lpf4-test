@@ -10,7 +10,10 @@ import { Subject, Chapter } from '../types';
 
 const LobbyPage: React.FC = () => {
   const { user } = useContext(UserContext);
-  const [activeTab, setActiveTab] = useState<'auto' | 'custom'>('auto');
+  const navigate = useNavigate();
+  
+  // VIEW MODE: 'selection' | 'auto' | 'custom'
+  const [viewMode, setViewMode] = useState<'selection' | 'auto' | 'custom'>('selection');
   
   // Selection State
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -71,7 +74,7 @@ const LobbyPage: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Auto Match Logic
+  // --- LOGIC: Auto Match ---
   const handleAutoMatch = async () => {
     if (!user) return;
     if (!selectedChapter) {
@@ -83,63 +86,49 @@ const LobbyPage: React.FC = () => {
     setMatchStatus('Searching for opponent...');
     playSound('click');
 
-    // Queue is specific to the Chapter ID
     const queueRef = ref(db, `queue/${selectedChapter}`);
-    
-    // Check queue
     const snapshot = await get(queueRef);
     let foundOpponent = false;
 
     if (snapshot.exists()) {
       const queueData = snapshot.val();
-      // Find someone who isn't me
       const opponentKey = Object.keys(queueData).find(key => queueData[key].uid !== user.uid);
 
       if (opponentKey) {
           foundOpponent = true;
           const opponentUid = queueData[opponentKey].uid;
-
-          // Remove opponent from queue to "claim" them
           await remove(ref(db, `queue/${selectedChapter}/${opponentKey}`));
 
-          // Create Match
           const matchId = `match_${Date.now()}`;
           const matchData = {
             matchId,
             status: 'active',
-            turn: user.uid, // Creator goes first
+            turn: user.uid, 
             currentQ: 0,
             scores: { [user.uid]: 0, [opponentUid]: 0 },
-            subject: selectedChapter, // IMPORTANT: Using ChapterID as the subject for questions
+            subject: selectedChapter,
             players: {
-              [user.uid]: { name: user.displayName, avatar: '' }, // Avatar fetched in game
+              [user.uid]: { name: user.displayName, avatar: '' },
               [opponentUid]: { name: 'Opponent', avatar: '' }
             },
             createdAt: Date.now()
           };
 
           await set(ref(db, `matches/${matchId}`), matchData);
-
-          // Notify users (Update their activeMatch)
           await set(ref(db, `users/${user.uid}/activeMatch`), matchId);
           await set(ref(db, `users/${opponentUid}/activeMatch`), matchId);
-          
-          // Listener in App.tsx will handle redirect
           return;
       }
     }
     
     if (!foundOpponent) {
-      // Add self to queue
       const newRef = push(queueRef);
       setQueueKey(newRef.key);
       await set(newRef, { uid: user.uid });
       setMatchStatus('Waiting for opponent...');
 
-      // Timeout logic
       timerRef.current = setTimeout(async () => {
         if (isSearching) {
-          // Check if I am still in queue (wasn't picked up)
           const checkRef = await get(newRef);
           if (checkRef.exists()) {
              await remove(newRef);
@@ -169,7 +158,7 @@ const LobbyPage: React.FC = () => {
     }
   };
 
-  // Custom Room: Create
+  // --- LOGIC: Custom Room ---
   const createRoom = async () => {
     if(!user) return;
     if (!selectedChapter) {
@@ -184,11 +173,10 @@ const LobbyPage: React.FC = () => {
     await set(ref(db, `rooms/${code}`), {
       host: user.uid,
       sid: selectedSubject,
-      lid: selectedChapter, // Storing Chapter ID as 'lid' (Level ID)
+      lid: selectedChapter,
       createdAt: Date.now()
     });
 
-    // Listen for room deletion (means someone joined)
     const roomRef = ref(db, `rooms/${code}`);
     onValue(roomRef, (snap) => {
        if (!snap.exists()) {
@@ -204,7 +192,6 @@ const LobbyPage: React.FC = () => {
     }
   };
 
-  // Custom Room: Join (No selection needed)
   const joinRoom = async () => {
     if (!user || !roomCode) return;
     playSound('click');
@@ -214,19 +201,15 @@ const LobbyPage: React.FC = () => {
     
     if (snapshot.exists()) {
       const roomData = snapshot.val();
-      
       if (roomData.host === user.uid) {
         showNotify("You cannot join your own room.", "error");
         return;
       }
 
       const hostUid = roomData.host;
-      const chapterId = roomData.lid; // Retrieve the chapter ID set by host
-      
-      // Delete room to signal join
+      const chapterId = roomData.lid;
       await remove(roomRef);
 
-      // Create Match
       const matchId = `match_${Date.now()}`;
       await set(ref(db, `matches/${matchId}`), {
         matchId,
@@ -234,7 +217,7 @@ const LobbyPage: React.FC = () => {
         turn: hostUid,
         currentQ: 0,
         scores: { [hostUid]: 0, [user.uid]: 0 },
-        subject: chapterId, // Match uses the chapter ID to fetch questions
+        subject: chapterId,
         players: {
             [hostUid]: { name: 'Host', avatar: '' },
             [user.uid]: { name: user.displayName, avatar: '' }
@@ -261,7 +244,7 @@ const LobbyPage: React.FC = () => {
     }
   };
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -274,7 +257,18 @@ const LobbyPage: React.FC = () => {
     };
   }, [hostedCode, queueKey, selectedChapter]);
 
-  // UI Helper for Selection
+  // Handle Back Navigation
+  const goBack = () => {
+      if (isSearching) cancelSearch();
+      if (hostedCode) {
+        remove(ref(db, `rooms/${hostedCode}`));
+        setHostedCode(null);
+      }
+      setViewMode('selection');
+  };
+
+  // --- RENDER COMPONENTS ---
+
   const SelectionUI = () => (
       <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">1. Select Subject</label>
@@ -315,7 +309,7 @@ const LobbyPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col p-6 min-h-full relative pb-8 max-w-4xl mx-auto w-full">
+    <div className="flex flex-col min-h-full relative pb-8 w-full">
       {/* Notification Toast */}
        {notification && (
          <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-2 rounded-full shadow-lg font-bold text-white flex items-center gap-2 animate__animated animate__fadeInDown ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
@@ -324,95 +318,155 @@ const LobbyPage: React.FC = () => {
          </div>
        )}
 
-      <div className="sticky top-0 z-30 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md -mx-6 px-6 py-4 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
-        <h1 className="text-2xl font-bold dark:text-white">Battle Lobby</h1>
-      </div>
+      {/* --- SCENE 1: MODE SELECTION (Full Screen) --- */}
+      {viewMode === 'selection' && (
+        <div className="flex flex-col items-center justify-center p-6 min-h-[85vh] animate__animated animate__fadeIn">
+             <div className="w-full max-w-4xl mx-auto">
+                 <div className="flex items-center gap-4 mb-8">
+                     <button onClick={() => navigate('/')} className="w-12 h-12 rounded-full bg-white dark:bg-gray-800 shadow-md flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-somali-blue transition-colors">
+                        <i className="fas fa-arrow-left fa-lg"></i>
+                     </button>
+                     <h1 className="text-3xl font-extrabold dark:text-white">Choose Battle Mode</h1>
+                 </div>
 
-      <div className="flex bg-gray-200 dark:bg-gray-700 rounded-xl p-1 mb-6">
-        <button 
-          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'auto' ? 'bg-white dark:bg-gray-600 shadow-sm text-somali-blue dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}
-          onClick={() => setActiveTab('auto')}
-        >
-          Auto Match
-        </button>
-        <button 
-          className={`flex-1 py-2 rounded-lg font-bold transition-all ${activeTab === 'custom' ? 'bg-white dark:bg-gray-600 shadow-sm text-somali-blue dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}
-          onClick={() => setActiveTab('custom')}
-        >
-          Custom Room
-        </button>
-      </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     {/* Auto Match Card */}
+                     <button 
+                        onClick={() => { playSound('click'); setViewMode('auto'); }}
+                        className="group relative h-64 rounded-3xl overflow-hidden shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl text-left"
+                     >
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 opacity-90 transition-opacity group-hover:opacity-100"></div>
+                        {/* Decor */}
+                        <i className="fas fa-bolt text-9xl text-white absolute -bottom-8 -right-8 opacity-20 rotate-12 group-hover:scale-110 transition-transform duration-500"></i>
+                        
+                        <div className="relative z-10 p-8 h-full flex flex-col justify-between">
+                            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white mb-4">
+                                <i className="fas fa-search text-3xl"></i>
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-bold text-white mb-2">Quick Match</h2>
+                                <p className="text-blue-100 font-medium">Find a random opponent instantly based on subject.</p>
+                            </div>
+                        </div>
+                     </button>
 
-      <div className="flex-1 flex flex-col">
-        {activeTab === 'auto' ? (
-          <>
-            {!isSearching && <SelectionUI />}
-            <Card className="text-center py-10 animate__animated animate__fadeIn">
-               <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                 <i className={`fas fa-search text-4xl text-somali-blue dark:text-blue-300 ${isSearching ? 'animate-bounce' : ''}`}></i>
-               </div>
-               <h2 className="text-xl font-bold mb-2 dark:text-white">Find Opponent</h2>
-               <p className="text-gray-500 dark:text-gray-400 mb-6">{matchStatus || "Select a topic and find a match!"}</p>
-               
-               {isSearching ? (
-                  <Button fullWidth onClick={cancelSearch} variant="danger">
-                    Cancel Search
-                  </Button>
-               ) : (
-                  <Button fullWidth onClick={handleAutoMatch} disabled={!selectedChapter}>
-                    Find Match
-                  </Button>
-               )}
-            </Card>
-          </>
-        ) : (
-          <div className="space-y-4 animate__animated animate__fadeIn">
-            <Card className="text-center">
-              <h3 className="font-bold mb-4 dark:text-white">Host a Game</h3>
-              
-              {!hostedCode && <div className="mb-4 text-left"><SelectionUI /></div>}
+                     {/* Custom Room Card */}
+                     <button 
+                        onClick={() => { playSound('click'); setViewMode('custom'); }}
+                        className="group relative h-64 rounded-3xl overflow-hidden shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl text-left"
+                     >
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-red-500 opacity-90 transition-opacity group-hover:opacity-100"></div>
+                        {/* Decor */}
+                        <i className="fas fa-users text-9xl text-white absolute -bottom-8 -right-8 opacity-20 -rotate-12 group-hover:scale-110 transition-transform duration-500"></i>
+                        
+                        <div className="relative z-10 p-8 h-full flex flex-col justify-between">
+                            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white mb-4">
+                                <i className="fas fa-key text-3xl"></i>
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-bold text-white mb-2">Custom Room</h2>
+                                <p className="text-orange-100 font-medium">Create a private lobby or join a friend's room.</p>
+                            </div>
+                        </div>
+                     </button>
+                 </div>
+             </div>
+        </div>
+      )}
 
-              {hostedCode ? (
-                <div className="bg-yellow-100 dark:bg-yellow-900/50 p-4 rounded-xl border-2 border-yellow-400 mb-4 relative">
-                  <p className="text-xs uppercase text-yellow-700 dark:text-yellow-300 font-bold">Room Code</p>
-                  <div className="flex items-center justify-center gap-3">
-                    <p className="text-4xl font-mono tracking-widest text-black dark:text-white">{hostedCode}</p>
-                    <button onClick={handleCopyCode} className="w-10 h-10 flex items-center justify-center rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 hover:scale-110 transition-transform shadow-sm" title="Copy Code">
-                       <i className="fas fa-copy"></i>
-                    </button>
-                  </div>
-                  <p className="text-xs mt-2 animate-pulse text-gray-600 dark:text-gray-300">Waiting for player...</p>
-                </div>
+      {/* --- SCENE 2: SPECIFIC MODE UI --- */}
+      {viewMode !== 'selection' && (
+          <div className="p-6 max-w-4xl mx-auto w-full animate__animated animate__fadeInRight">
+              <div className="sticky top-0 z-30 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md -mx-6 px-6 py-4 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
+                <button onClick={goBack} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
+                    <i className="fas fa-arrow-left fa-lg"></i>
+                </button>
+                <h1 className="text-2xl font-bold dark:text-white">
+                    {viewMode === 'auto' ? 'Quick Match' : 'Custom Room'}
+                </h1>
+              </div>
+
+              {viewMode === 'auto' ? (
+                  // AUTO MATCH UI
+                  <>
+                    {!isSearching && <SelectionUI />}
+                    <Card className="text-center py-10">
+                        <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i className={`fas fa-search text-4xl text-somali-blue dark:text-blue-300 ${isSearching ? 'animate-bounce' : ''}`}></i>
+                        </div>
+                        <h2 className="text-xl font-bold mb-2 dark:text-white">Find Opponent</h2>
+                        <p className="text-gray-500 dark:text-gray-400 mb-6">{matchStatus || "Select a topic and find a match!"}</p>
+                        
+                        {isSearching ? (
+                            <Button fullWidth onClick={cancelSearch} variant="danger">
+                                Cancel Search
+                            </Button>
+                        ) : (
+                            <Button fullWidth onClick={handleAutoMatch} disabled={!selectedChapter}>
+                                Find Match
+                            </Button>
+                        )}
+                    </Card>
+                  </>
               ) : (
-                <Button fullWidth onClick={createRoom} disabled={!selectedChapter}>Generate Code</Button>
-              )}
-            </Card>
-            
-            <div className="flex items-center gap-2 text-gray-400">
-                <div className="h-px bg-gray-300 dark:bg-gray-600 flex-1"></div>
-                <span>OR</span>
-                <div className="h-px bg-gray-300 dark:bg-gray-600 flex-1"></div>
-            </div>
+                  // CUSTOM ROOM UI
+                  <div className="space-y-6">
+                      <Card className="text-center">
+                        <h3 className="font-bold mb-4 dark:text-white text-lg">Host a Game</h3>
+                        
+                        {!hostedCode && <div className="mb-4 text-left"><SelectionUI /></div>}
 
-            <Card className="text-center">
-              <h3 className="font-bold mb-4 dark:text-white">Join a Game</h3>
-              <Input 
-                placeholder="Enter 4-digit code" 
-                className="text-center text-xl tracking-widest font-mono"
-                maxLength={4}
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value)}
-                rightElement={
-                  <button onClick={handlePasteCode} className="text-gray-400 hover:text-somali-blue dark:hover:text-white transition-colors p-2" title="Paste Code">
-                      <i className="fas fa-paste"></i>
-                  </button>
-                }
-              />
-              <Button fullWidth variant="secondary" onClick={joinRoom} disabled={roomCode.length !== 4}>Join Room</Button>
-            </Card>
+                        {hostedCode ? (
+                            <div className="bg-yellow-100 dark:bg-yellow-900/50 p-6 rounded-2xl border-2 border-yellow-400 mb-4 relative">
+                                <p className="text-xs uppercase text-yellow-700 dark:text-yellow-300 font-bold tracking-widest mb-2">Room Code</p>
+                                <div className="flex items-center justify-center gap-3 mb-2">
+                                    <p className="text-5xl font-mono tracking-widest text-black dark:text-white font-black">{hostedCode}</p>
+                                </div>
+                                <div className="flex justify-center">
+                                    <button onClick={handleCopyCode} className="text-sm flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-bold hover:underline">
+                                       <i className="fas fa-copy"></i> Copy Code
+                                    </button>
+                                </div>
+                                <div className="mt-4 flex justify-center items-center gap-2 text-gray-500 dark:text-gray-400 animate-pulse">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                    <span className="text-sm">Waiting for player to join...</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <Button fullWidth onClick={createRoom} disabled={!selectedChapter}>
+                                <i className="fas fa-plus-circle mr-2"></i> Generate Code
+                            </Button>
+                        )}
+                      </Card>
+                      
+                      <div className="relative flex py-2 items-center">
+                            <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+                            <span className="flex-shrink-0 mx-4 text-gray-400 dark:text-gray-500 font-bold">OR</span>
+                            <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+                      </div>
+
+                      <Card className="text-center">
+                        <h3 className="font-bold mb-4 dark:text-white text-lg">Join a Game</h3>
+                        <Input 
+                            placeholder="0000" 
+                            className="text-center text-3xl tracking-[1rem] font-mono h-16 font-bold"
+                            maxLength={4}
+                            value={roomCode}
+                            onChange={(e) => setRoomCode(e.target.value)}
+                            rightElement={
+                            <button onClick={handlePasteCode} className="text-gray-400 hover:text-somali-blue dark:hover:text-white transition-colors p-3" title="Paste Code">
+                                <i className="fas fa-paste text-xl"></i>
+                            </button>
+                            }
+                        />
+                        <Button fullWidth variant="secondary" onClick={joinRoom} disabled={roomCode.length !== 4}>
+                            Join Room
+                        </Button>
+                      </Card>
+                  </div>
+              )}
           </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
