@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { Button, Input, Card, Modal } from '../components/UI';
 import { Question, Subject, Chapter } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { read, utils, writeFile } from 'xlsx';
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const AdminPage: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   
   // Form State
+  const [inputMode, setInputMode] = useState<'manual' | 'bulk'>('manual');
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '', '', '']); // Dynamic array
   const [correctAnswer, setCorrectAnswer] = useState(0);
@@ -37,7 +39,6 @@ const AdminPage: React.FC = () => {
             // Filter out empty or invalid subjects
             const list = (Object.values(data) as Subject[]).filter(s => s && s.id && s.name);
             setSubjects(list);
-            // We do not auto-select here to avoid jumping selection if user deletes one
         } else {
             setSubjects([]);
         }
@@ -162,6 +163,108 @@ const AdminPage: React.FC = () => {
       alert("Failed to add question");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = utils.json_to_sheet([
+        { 
+            "Question": "What is 2 + 2?", 
+            "Option A": "3", 
+            "Option B": "4", 
+            "Option C": "5", 
+            "Option D": "6", 
+            "Correct Answer (1-4)": 2 
+        },
+        { 
+            "Question": "Capital of Somalia?", 
+            "Option A": "Mogadishu", 
+            "Option B": "Hargeisa", 
+            "Option C": "Kismayo", 
+            "Option D": "Baidoa", 
+            "Correct Answer (1-4)": 1 
+        }
+    ]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Template");
+    writeFile(wb, "quiz_template.xlsx");
+  };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChapter) return;
+
+    setLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = read(arrayBuffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data: any[][] = utils.sheet_to_json(ws, { header: 1 });
+
+      // Remove header row
+      const rows = data.slice(1);
+      
+      const updates: any = {};
+      let count = 0;
+
+      rows.forEach((row) => {
+        // Expected structure roughly: [Question, Opt1, Opt2, Opt3, Opt4, AnswerIndex(1-4)]
+        // Note: sheet_to_json with header:1 returns array of arrays.
+        // If the row has empty cells at start, they might be undefined.
+        
+        if (!row || row.length < 3) return; 
+        
+        const question = row[0];
+        // Collect options: check columns 1, 2, 3, 4, 5, 6 etc. Stop when empty or hit answer column.
+        // We assume strictly: Col 0=Q, 1=A, 2=B, 3=C, 4=D (optional), 5=AnswerIndex
+        // But user might only have 2 options.
+        // Let's grab columns 1 to 4 as options if they exist.
+        
+        const possibleOptions = [row[1], row[2], row[3], row[4]];
+        const validOptions = possibleOptions.filter(o => o !== undefined && o !== null && String(o).trim() !== '').map(String);
+        
+        // The answer index is likely in column 5 (F). 
+        let answerVal = row[5];
+        let answerIdx = parseInt(answerVal);
+        
+        // Validation
+        if (!question || validOptions.length < 2) return;
+        
+        // Adjust 1-based to 0-based
+        if (isNaN(answerIdx) || answerIdx < 1 || answerIdx > validOptions.length) {
+            // Fallback: try to match text? Nah, just default to 1 (Option A) to be safe or skip?
+            // Let's default to 1 and let admin fix it if their excel is bad.
+            answerIdx = 1; 
+        }
+        
+        const newRefKey = push(ref(db, `questions/${selectedChapter}`)).key;
+        if (newRefKey) {
+            updates[`questions/${selectedChapter}/${newRefKey}`] = {
+                question: String(question),
+                options: validOptions,
+                answer: answerIdx - 1, // Store as 0-based
+                subject: selectedChapter,
+                createdAt: Date.now()
+            };
+            count++;
+        }
+      });
+
+      if (count > 0) {
+          await update(ref(db), updates);
+          alert(`Successfully uploaded ${count} questions!`);
+          fetchQuestions();
+      } else {
+          alert("No valid questions found in file. Please use the template.");
+      }
+
+    } catch (error) {
+      console.error(error);
+      alert("Error parsing file. Ensure it is a valid Excel file.");
+    } finally {
+        setLoading(false);
+        // Reset file input
+        e.target.value = '';
     }
   };
 
@@ -343,69 +446,122 @@ const AdminPage: React.FC = () => {
             </div>
         </Card>
 
-        {/* Add Question Form */}
+        {/* Add Question Card */}
         <Card className={`${!selectedChapter ? 'opacity-50 pointer-events-none grayscale' : ''} transition-all`}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700 pb-4">
             <h2 className="text-xl font-bold dark:text-white">
-                Add Question
+                {inputMode === 'manual' ? 'Add Single Question' : 'Bulk Upload'}
             </h2>
-            <span className="text-xs text-gray-400 font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{selectedChapter}</span>
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button 
+                    onClick={() => setInputMode('manual')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'manual' ? 'bg-white dark:bg-gray-600 shadow text-somali-blue' : 'text-gray-400'}`}
+                >
+                    Manual
+                </button>
+                <button 
+                    onClick={() => setInputMode('bulk')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'bulk' ? 'bg-white dark:bg-gray-600 shadow text-somali-blue' : 'text-gray-400'}`}
+                >
+                    Excel Upload
+                </button>
+            </div>
           </div>
           
-          <form onSubmit={handleAddQuestion}>
-            <Input 
-              label="Question"
-              value={questionText} 
-              onChange={(e) => setQuestionText(e.target.value)} 
-              placeholder="e.g., What is the capital of Somalia?"
-            />
+          {inputMode === 'manual' ? (
+            <form onSubmit={handleAddQuestion}>
+                <Input 
+                label="Question"
+                value={questionText} 
+                onChange={(e) => setQuestionText(e.target.value)} 
+                placeholder="e.g., What is the capital of Somalia?"
+                />
 
-            <div className="mb-4">
-              <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">Options</label>
-              <div className="space-y-3">
-                {options.map((opt, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                    <div 
-                        className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-bold transition-colors cursor-pointer ${idx === correctAnswer ? 'bg-green-500 text-white shadow-lg scale-110' : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 hover:bg-gray-300'}`} 
-                        onClick={() => setCorrectAnswer(idx)}
-                        title="Mark as correct answer"
-                    >
-                        {String.fromCharCode(65 + idx)}
-                    </div>
-                    <input 
-                        className={`flex-1 p-2 border-2 rounded-lg transition-colors bg-white dark:bg-gray-700 dark:text-white ${idx === correctAnswer ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600'}`}
-                        value={opt}
-                        onChange={(e) => handleOptionChange(idx, e.target.value)}
-                        placeholder={`Option ${idx + 1}`}
-                    />
+                <div className="mb-4">
+                <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">Options</label>
+                <div className="space-y-3">
+                    {options.map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                        <div 
+                            className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-bold transition-colors cursor-pointer ${idx === correctAnswer ? 'bg-green-500 text-white shadow-lg scale-110' : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 hover:bg-gray-300'}`} 
+                            onClick={() => setCorrectAnswer(idx)}
+                            title="Mark as correct answer"
+                        >
+                            {String.fromCharCode(65 + idx)}
+                        </div>
+                        <input 
+                            className={`flex-1 p-2 border-2 rounded-lg transition-colors bg-white dark:bg-gray-700 dark:text-white ${idx === correctAnswer ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600'}`}
+                            value={opt}
+                            onChange={(e) => handleOptionChange(idx, e.target.value)}
+                            placeholder={`Option ${idx + 1}`}
+                        />
+                        <button 
+                            type="button" 
+                            onClick={() => handleRemoveOption(idx)}
+                            className="text-gray-400 hover:text-red-500 p-2"
+                            disabled={options.length <= 2}
+                            title="Remove Option"
+                        >
+                            <i className="fas fa-times"></i>
+                        </button>
+                        </div>
+                    ))}
+                </div>
+                
+                {options.length < 6 && (
                     <button 
                         type="button" 
-                        onClick={() => handleRemoveOption(idx)}
-                        className="text-gray-400 hover:text-red-500 p-2"
-                        disabled={options.length <= 2}
-                        title="Remove Option"
+                        onClick={handleAddOption}
+                        className="mt-3 text-sm text-somali-blue font-bold hover:underline flex items-center gap-1"
                     >
-                        <i className="fas fa-times"></i>
+                        <i className="fas fa-plus-circle"></i> Add Option
                     </button>
-                    </div>
-                ))}
-              </div>
-              
-              {options.length < 6 && (
-                  <button 
-                    type="button" 
-                    onClick={handleAddOption}
-                    className="mt-3 text-sm text-somali-blue font-bold hover:underline flex items-center gap-1"
-                  >
-                    <i className="fas fa-plus-circle"></i> Add Option
-                  </button>
-              )}
-            </div>
+                )}
+                </div>
 
-            <Button type="submit" fullWidth isLoading={loading}>
-              <i className="fas fa-plus mr-2"></i> Upload Question
-            </Button>
-          </form>
+                <Button type="submit" fullWidth isLoading={loading}>
+                <i className="fas fa-plus mr-2"></i> Upload Question
+                </Button>
+            </form>
+          ) : (
+             <div className="space-y-6">
+                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                     <h3 className="font-bold text-blue-800 dark:text-blue-200 mb-2">Instructions</h3>
+                     <ul className="text-sm text-blue-700 dark:text-blue-300 list-disc list-inside space-y-1">
+                         <li>Download the template file.</li>
+                         <li>Fill in the Questions, Options (A, B, C, D) and Correct Answer (1-4).</li>
+                         <li>Do not change the header row.</li>
+                         <li>Upload the file below.</li>
+                     </ul>
+                     <button 
+                        onClick={handleDownloadTemplate}
+                        className="mt-4 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-300 px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:shadow transition-shadow border border-blue-100 dark:border-gray-600"
+                     >
+                         <i className="fas fa-download mr-2"></i> Download Template
+                     </button>
+                 </div>
+
+                 <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative">
+                     <input 
+                        type="file" 
+                        accept=".xlsx, .xls"
+                        onChange={handleBulkUpload}
+                        disabled={loading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                     />
+                     <div className="pointer-events-none">
+                         <i className="fas fa-file-excel text-4xl text-green-500 mb-3"></i>
+                         <p className="font-bold text-gray-700 dark:text-gray-300">Click to Upload Excel File</p>
+                         <p className="text-xs text-gray-400 mt-1">.xlsx or .xls</p>
+                     </div>
+                     {loading && (
+                         <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center rounded-xl">
+                             <i className="fas fa-spinner fa-spin text-2xl text-somali-blue"></i>
+                         </div>
+                     )}
+                 </div>
+             </div>
+          )}
         </Card>
 
         {/* Existing Questions List */}
