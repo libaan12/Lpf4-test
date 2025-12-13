@@ -7,6 +7,7 @@ import { Button, Input, Card } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { MATCH_TIMEOUT_MS } from '../constants';
 import { Subject, Chapter } from '../types';
+import Swal from 'sweetalert2';
 
 const LobbyPage: React.FC = () => {
   const { user } = useContext(UserContext);
@@ -25,7 +26,6 @@ const LobbyPage: React.FC = () => {
   const [matchStatus, setMatchStatus] = useState<string>('');
   const [roomCode, setRoomCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [notification, setNotification] = useState<{msg: string, type: 'error'|'success'} | null>(null);
   
   // Custom Room Host State
   const [hostedCode, setHostedCode] = useState<string | null>(null);
@@ -69,9 +69,20 @@ const LobbyPage: React.FC = () => {
   }, [selectedSubject]);
 
   const showNotify = (msg: string, type: 'error'|'success' = 'error') => {
-    setNotification({msg, type});
     playSound(type === 'error' ? 'wrong' : 'click');
-    setTimeout(() => setNotification(null), 3000);
+    const isDark = document.documentElement.classList.contains('dark');
+    Swal.fire({
+      icon: type,
+      title: msg,
+      toast: true,
+      position: 'top',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      showCloseButton: true,
+      background: isDark ? '#1f2937' : '#fff',
+      color: isDark ? '#fff' : '#000',
+    });
   };
 
   // --- LOGIC: Auto Match ---
@@ -310,14 +321,6 @@ const LobbyPage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-full relative pb-8 w-full">
-      {/* Notification Toast */}
-       {notification && (
-         <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-2 rounded-full shadow-lg font-bold text-white flex items-center gap-2 animate__animated animate__fadeInDown ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
-            {notification.type === 'error' ? <i className="fas fa-exclamation-circle"></i> : <i className="fas fa-check-circle"></i>}
-            <span>{notification.msg}</span>
-         </div>
-       )}
-
       {/* --- SCENE 1: MODE SELECTION (Full Screen) --- */}
       {viewMode === 'selection' && (
         <div className="flex flex-col items-center justify-center p-6 min-h-[85vh] animate__animated animate__fadeIn">

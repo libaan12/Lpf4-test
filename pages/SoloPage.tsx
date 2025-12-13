@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { Button, Card } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { Question, Subject, Chapter } from '../types';
+import Swal from 'sweetalert2';
 
 const SoloPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +48,20 @@ const SoloPage: React.FC = () => {
     return () => off(subRef);
   }, []);
 
+  const showToast = (msg: string, icon: 'info'|'warning'|'error') => {
+      const isDark = document.documentElement.classList.contains('dark');
+      Swal.fire({
+          icon,
+          title: msg,
+          toast: true,
+          position: 'top',
+          showConfirmButton: false,
+          timer: 3000,
+          background: isDark ? '#1f2937' : '#fff',
+          color: isDark ? '#fff' : '#000',
+      });
+  };
+
   // 2. Fetch Chapters when Subject Selected
   const handleSelectSubject = async (sub: Subject) => {
       setLoading(true);
@@ -63,7 +78,7 @@ const SoloPage: React.FC = () => {
           }
           setStep('chapter');
       } else {
-          alert("No chapters found for this subject.");
+          showToast("No chapters found for this subject.", "info");
       }
       setLoading(false);
   };
@@ -82,10 +97,10 @@ const SoloPage: React.FC = () => {
               setQuestions(qList);
               setStep('game');
           } else {
-              alert("No questions in this chapter yet.");
+              showToast("No questions in this chapter yet.", "warning");
           }
       } else {
-          alert("No questions found.");
+          showToast("No questions found.", "warning");
       }
       setLoading(false);
   };

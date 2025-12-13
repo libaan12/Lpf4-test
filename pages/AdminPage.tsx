@@ -5,6 +5,7 @@ import { Button, Input, Card, Modal } from '../components/UI';
 import { Question, Subject, Chapter } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { read, utils, writeFile } from 'xlsx';
+import Swal from 'sweetalert2';
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +30,36 @@ const AdminPage: React.FC = () => {
   const [modalType, setModalType] = useState<'subject' | 'chapter' | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [newItemId, setNewItemId] = useState('');
+
+  // Helper for consistent alert styling
+  const fireAlert = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => {
+      const isDark = document.documentElement.classList.contains('dark');
+      return Swal.fire({
+          title,
+          text,
+          icon,
+          timer: 3000,
+          timerProgressBar: true,
+          showCloseButton: true,
+          background: isDark ? '#1f2937' : '#fff',
+          color: isDark ? '#fff' : '#000',
+      });
+  };
+
+  const fireConfirm = (title: string, text: string) => {
+      const isDark = document.documentElement.classList.contains('dark');
+      return Swal.fire({
+          title,
+          text,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!',
+          background: isDark ? '#1f2937' : '#fff',
+          color: isDark ? '#fff' : '#000',
+      });
+  };
 
   // 1. Fetch Subjects
   useEffect(() => {
@@ -113,7 +144,7 @@ const AdminPage: React.FC = () => {
 
   const handleRemoveOption = (index: number) => {
       if (options.length <= 2) {
-          alert("A question must have at least 2 options.");
+          fireAlert("Error", "A question must have at least 2 options.", "error");
           return;
       }
       
@@ -131,11 +162,11 @@ const AdminPage: React.FC = () => {
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedChapter) {
-        alert("Please create and select a Chapter first.");
+        fireAlert("Missing Info", "Please create and select a Chapter first.", "warning");
         return;
     }
     if (options.some(opt => !opt.trim()) || !questionText.trim()) {
-      alert("Please fill in all fields");
+      fireAlert("Missing Info", "Please fill in all fields (Question and Options).", "warning");
       return;
     }
 
@@ -157,10 +188,10 @@ const AdminPage: React.FC = () => {
       setOptions(['', '', '', '']);
       setCorrectAnswer(0);
       fetchQuestions();
-      alert('Question added successfully!');
+      fireAlert("Success", "Question added successfully!", "success");
     } catch (error) {
       console.error("Error adding question:", error);
-      alert("Failed to add question");
+      fireAlert("Error", "Failed to add question.", "error");
     } finally {
       setLoading(false);
     }
@@ -240,15 +271,15 @@ const AdminPage: React.FC = () => {
 
       if (count > 0) {
           await update(ref(db), updates);
-          alert(`Successfully uploaded ${count} questions!`);
+          fireAlert("Success", `Successfully uploaded ${count} questions!`, "success");
           fetchQuestions();
       } else {
-          alert("No valid questions found in file. Please use the template.");
+          fireAlert("Warning", "No valid questions found in file. Please use the template.", "warning");
       }
 
     } catch (error) {
       console.error(error);
-      alert("Error parsing file. Ensure it is a valid Excel file.");
+      fireAlert("Error", "Error parsing file. Ensure it is a valid Excel file.", "error");
     } finally {
         setLoading(false);
         e.target.value = '';
@@ -256,12 +287,16 @@ const AdminPage: React.FC = () => {
   };
 
   const handleDeleteQuestion = async (id: string | number) => {
-    if(!window.confirm("Are you sure you want to delete this question?")) return;
+    const result = await fireConfirm("Delete Question?", "You won't be able to revert this!");
+    if(!result.isConfirmed) return;
+
     try {
       await remove(ref(db, `questions/${selectedChapter}/${id}`));
       fetchQuestions();
+      fireAlert("Deleted", "Question has been deleted.", "success");
     } catch(e) {
       console.error(e);
+      fireAlert("Error", "Failed to delete question.", "error");
     }
   };
 
@@ -289,15 +324,18 @@ const AdminPage: React.FC = () => {
           setNewItemName('');
           setNewItemId('');
           setModalType(null);
+          fireAlert("Success", "Item created successfully!", "success");
       } catch (e) {
-          alert("Error creating item");
+          fireAlert("Error", "Error creating item", "error");
           console.error(e);
       }
   };
 
   const handleDeleteSubject = async () => {
     if (!selectedSubject) return;
-    if (!window.confirm("DANGER: Delete this Subject? \n\nThis will permanently delete:\n- The Subject itself\n- All Chapters in it\n- All Questions in those chapters")) return;
+    
+    const result = await fireConfirm("Delete Subject?", "This will permanently delete the Subject, all its Chapters, and Questions!");
+    if(!result.isConfirmed) return;
     
     setLoading(true);
     try {
@@ -320,9 +358,10 @@ const AdminPage: React.FC = () => {
         
         setSelectedSubject('');
         setSelectedChapter('');
+        fireAlert("Deleted", "Subject has been deleted.", "success");
     } catch(e) {
         console.error(e);
-        alert("Error deleting subject.");
+        fireAlert("Error", "Error deleting subject.", "error");
     } finally {
         setLoading(false);
     }
@@ -330,7 +369,9 @@ const AdminPage: React.FC = () => {
 
   const handleDeleteChapter = async () => {
     if (!selectedChapter || !selectedSubject) return;
-    if (!window.confirm("Delete this Chapter? \n\nAll questions in this chapter will be deleted.")) return;
+    
+    const result = await fireConfirm("Delete Chapter?", "All questions in this chapter will be deleted.");
+    if(!result.isConfirmed) return;
 
     setLoading(true);
     try {
@@ -341,9 +382,10 @@ const AdminPage: React.FC = () => {
 
         await update(ref(db), updates);
         setSelectedChapter('');
+        fireAlert("Deleted", "Chapter has been deleted.", "success");
     } catch(e) {
         console.error(e);
-        alert("Error deleting chapter.");
+        fireAlert("Error", "Error deleting chapter.", "error");
     } finally {
          setLoading(false);
     }
@@ -362,7 +404,6 @@ const AdminPage: React.FC = () => {
       </div>
 
       <div className="grid gap-6">
-        {/* ... (Rest of content identical) ... */}
         {/* Management Controls */}
         <Card className="border-l-8 border-somali-blue">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

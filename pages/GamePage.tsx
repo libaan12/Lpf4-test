@@ -5,9 +5,10 @@ import { db } from '../firebase';
 import { UserContext } from '../App';
 import { POINTS_PER_QUESTION } from '../constants';
 import { MatchState, Question } from '../types';
-import { Avatar, Button, Modal } from '../components/UI';
+import { Avatar, Button } from '../components/UI';
 import { playSound } from '../services/audioService';
 import confetti from 'canvas-confetti';
+import Swal from 'sweetalert2';
 
 const GamePage: React.FC = () => {
   const { matchId } = useParams();
@@ -91,7 +92,7 @@ const GamePage: React.FC = () => {
       unsubscribe();
       onDisconnect(matchRef).cancel();
     };
-  }, [matchId, user, navigate]); // Removed opponentProfile from deps
+  }, [matchId, user, navigate]); 
 
   // Handle Logic
   const currentQuestion = match && questions.length > 0 ? questions[match.currentQ] : null;
@@ -168,8 +169,22 @@ const GamePage: React.FC = () => {
   const handleSurrender = async () => {
     if(!matchId || !user || !opponentProfile) return;
     
-    // Simple confirm
-    if (window.confirm("Are you sure you want to surrender? You will lose this match.")) {
+    const isDark = document.documentElement.classList.contains('dark');
+    
+    const result = await Swal.fire({
+      title: 'Surrender?',
+      text: "You will lose this match and exit to the lobby.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, I give up',
+      cancelButtonText: 'No, keep fighting',
+      background: isDark ? '#1f2937' : '#fff',
+      color: isDark ? '#fff' : '#000',
+    });
+
+    if (result.isConfirmed) {
         // Update match to completed, set winner to opponent
         await update(ref(db, `matches/${matchId}`), {
             status: 'completed',
