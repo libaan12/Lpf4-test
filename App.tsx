@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { ref, onValue } from 'firebase/database';
@@ -29,8 +29,8 @@ export const UserContext = React.createContext<{
 // Context for Theme
 export const ThemeContext = React.createContext<{
   theme: 'light' | 'dark';
-  toggleTheme: () => void;
-}>({ theme: 'light', toggleTheme: () => {} });
+  setTheme: (theme: 'light' | 'dark') => void;
+}>({ theme: 'light', setTheme: () => {} });
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -57,26 +57,30 @@ const AppContent: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Theme State
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
+  // Theme Logic - Defaults to Light
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return 'light'; // Default to Light as requested
   });
 
-  const navigate = useNavigate();
-  const location = useLocation();
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
 
+  // Apply Theme Class
   useEffect(() => {
-    localStorage.setItem('theme', theme);
+    const root = document.documentElement;
     if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
     }
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const cachedProfile = localStorage.getItem('userProfile');
@@ -113,7 +117,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center transition-colors ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
         <div className="relative w-24 h-24 mb-4">
              <div className="absolute inset-0 bg-somali-blue opacity-20 rounded-full animate-ping"></div>
              <div className="relative w-full h-full bg-somali-blue rounded-full flex items-center justify-center shadow-xl z-10">
@@ -132,24 +136,26 @@ const AppContent: React.FC = () => {
 
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
-      <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        {/* Animated Background Blobs */}
-        <div className="fixed inset-0 -z-10 overflow-hidden transition-colors duration-500 pointer-events-none">
-           <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}></div>
-           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob ${theme === 'dark' ? 'hidden' : 'block'}`}></div>
-           <div className={`absolute top-[-10%] right-[-10%] w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000 ${theme === 'dark' ? 'hidden' : 'block'}`}></div>
-           <div className={`absolute bottom-[-20%] left-[20%] w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000 ${theme === 'dark' ? 'hidden' : 'block'}`}></div>
-           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-900 rounded-full filter blur-[80px] opacity-40 animate-blob ${theme === 'dark' ? 'block' : 'hidden'}`}></div>
-           <div className={`absolute top-[20%] right-[-10%] w-96 h-96 bg-blue-900 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-2000 ${theme === 'dark' ? 'block' : 'hidden'}`}></div>
-           <div className={`absolute bottom-[-10%] left-[10%] w-96 h-96 bg-indigo-900 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-4000 ${theme === 'dark' ? 'block' : 'hidden'}`}></div>
+      <ThemeContext.Provider value={{ theme, setTheme }}>
+        {/* Global Background Elements */}
+        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+           <div className="absolute inset-0 bg-gray-50 dark:bg-gray-900 transition-colors duration-500"></div>
+           
+           {/* Light Mode Blobs */}
+           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob dark:hidden`}></div>
+           <div className={`absolute top-[-10%] right-[-10%] w-96 h-96 bg-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000 dark:hidden`}></div>
+           <div className={`absolute bottom-[-20%] left-[20%] w-96 h-96 bg-pink-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000 dark:hidden`}></div>
+           
+           {/* Dark Mode Blobs (Subtler) */}
+           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob hidden dark:block`}></div>
+           <div className={`absolute top-[20%] right-[-10%] w-96 h-96 bg-blue-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-2000 hidden dark:block`}></div>
+           <div className={`absolute bottom-[-10%] left-[10%] w-96 h-96 bg-indigo-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-4000 hidden dark:block`}></div>
         </div>
 
-        {/* Full Screen Layout */}
-        <div className={`w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden text-gray-800 dark:text-gray-100`}>
-            
-            {/* Desktop Navigation (Sidebar) */}
+        <div className="w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden">
+            {/* Desktop Navigation */}
             {user && showNavbar && (
-                <div className="hidden md:block w-24 lg:w-64 border-r border-white/20 dark:border-white/5 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl shrink-0 z-20">
+                <div className="hidden md:block w-24 lg:w-64 border-r border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl shrink-0 z-20">
                     <Navbar orientation="vertical" />
                 </div>
             )}
@@ -167,9 +173,7 @@ const AppContent: React.FC = () => {
                       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                       <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
                       <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
-                      {/* AdminLP Route */}
                       <Route path="/adminlp" element={<SuperAdminPage />} />
-                      {/* Fallback Route to prevent blank screens */}
                       <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>
@@ -184,7 +188,6 @@ const AppContent: React.FC = () => {
                     </div>
                 )}
             </div>
-
         </div>
       </ThemeContext.Provider>
     </UserContext.Provider>

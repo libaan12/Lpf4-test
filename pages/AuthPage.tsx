@@ -76,7 +76,8 @@ const AuthPage: React.FC = () => {
       </div>
 
       <Card className="animate__animated animate__fadeInUp shadow-2xl border-none">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">{isLogin ? 'Welcome Back' : 'Join the Battle'}</h2>
+        {/* Removed text-gray-800 to allow dark mode text color from Card to apply */}
+        <h2 className="text-2xl font-bold text-center mb-6">{isLogin ? 'Welcome Back' : 'Join the Battle'}</h2>
         
         {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm font-medium flex items-center gap-2 animate__animated animate__shakeX">
@@ -118,11 +119,11 @@ const AuthPage: React.FC = () => {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             {isLogin ? "Don't have an account?" : "Already playing?"}
             <button 
               onClick={() => setIsLogin(!isLogin)} 
-              className="ml-2 text-somali-blue font-bold hover:underline"
+              className="ml-2 text-somali-blue dark:text-blue-400 font-bold hover:underline"
             >
               {isLogin ? 'Register' : 'Login'}
             </button>

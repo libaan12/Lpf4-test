@@ -55,15 +55,16 @@ const LeaderboardPage: React.FC = () => {
   }, []);
 
   const getRankStyle = (index: number) => {
-     if (index === 0) return "bg-yellow-50 border-yellow-200";
-     if (index === 1) return "bg-gray-50 border-gray-200";
-     if (index === 2) return "bg-orange-50 border-orange-200";
+     // Added dark mode classes (dark:bg-...) to ensure white text is visible on dark backgrounds
+     if (index === 0) return "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-600/50";
+     if (index === 1) return "bg-gray-50 border-gray-200 dark:bg-gray-700/40 dark:border-gray-600/50";
+     if (index === 2) return "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-600/50";
      return "bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700";
   };
 
   const getIcon = (index: number) => {
     if (index === 0) return <i className="fas fa-crown text-yellow-500"></i>;
-    if (index === 1) return <i className="fas fa-medal text-gray-400"></i>;
+    if (index === 1) return <i className="fas fa-medal text-gray-400 dark:text-gray-300"></i>;
     if (index === 2) return <i className="fas fa-medal text-orange-500"></i>;
     return <span className="text-gray-400 font-bold">{index + 1}</span>;
   }
@@ -87,13 +88,13 @@ const LeaderboardPage: React.FC = () => {
                 const level = Math.floor(p.points / 10) + 1;
                 
                 return (
-                    <div key={p.uid} className={`flex items-center p-4 rounded-xl border shadow-sm ${getRankStyle(idx)} ${isMe ? 'ring-2 ring-somali-blue' : ''} animate__animated animate__fadeInUp`} style={{animationDelay: `${idx * 0.05}s`}}>
+                    <div key={p.uid} className={`flex items-center p-4 rounded-xl border shadow-sm ${getRankStyle(idx)} ${isMe ? 'ring-2 ring-somali-blue' : ''} animate__animated animate__fadeInUp transition-colors`} style={{animationDelay: `${idx * 0.05}s`}}>
                         <div className="w-8 text-center text-xl mr-3 font-mono">
                             {getIcon(idx)}
                         </div>
                         <Avatar src={p.avatar} seed={p.uid} size="sm" className="mr-4" />
                         <div className="flex-1">
-                            <div className="font-bold flex items-center gap-2 dark:text-white">
+                            <div className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
                                 {p.name}
                                 {isMe && <span className="bg-somali-blue text-white text-[9px] px-2 rounded-full">YOU</span>}
                             </div>

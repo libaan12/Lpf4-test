@@ -21,9 +21,9 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
       return (
         <div className="h-full flex flex-col justify-between py-8">
             <div className="flex flex-col gap-2">
-                <div className="px-6 mb-8 flex items-center gap-2">
-                    <img src="https://files.catbox.moe/qn40s6.png" alt="Logo" className="w-8 h-8" />
-                    <span className="font-extrabold text-xl tracking-tight hidden lg:block text-somali-blue dark:text-blue-400">LP-F4</span>
+                <div className="px-6 mb-8 flex items-center gap-3">
+                    <img src="https://files.catbox.moe/qn40s6.png" alt="Logo" className="w-9 h-9" />
+                    <span className="font-extrabold text-2xl tracking-tight hidden lg:block text-somali-blue dark:text-white">LP-F4</span>
                 </div>
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
@@ -31,20 +31,20 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
                         <button 
                             key={item.path} 
                             onClick={() => navigate(item.path)}
-                            className={`flex items-center gap-4 px-6 py-4 transition-all relative mx-4 rounded-xl
+                            className={`flex items-center gap-4 px-6 py-4 transition-all relative mx-4 rounded-2xl
                                 ${isActive 
-                                    ? 'bg-blue-50 dark:bg-gray-800 text-somali-blue dark:text-blue-400 font-bold shadow-sm' 
+                                    ? 'bg-somali-blue text-white shadow-lg shadow-blue-500/30' 
                                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
                             `}
                         >
                             <div className="w-6 text-center"><i className={`fas ${item.icon} text-lg`}></i></div>
-                            <span className="text-sm hidden lg:block">{item.label}</span>
+                            <span className="text-sm font-bold hidden lg:block">{item.label}</span>
                         </button>
                     );
                 })}
             </div>
             <div className="px-6 text-xs text-gray-400 text-center lg:text-left">
-                <span className="hidden lg:inline">v2.1 Stable</span>
+                <span className="hidden lg:inline">v2.5 Stable</span>
             </div>
         </div>
       );
@@ -52,17 +52,17 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
 
   // Mobile Horizontal
   return (
-    <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 flex justify-between items-center shadow-lg z-20 shrink-0 pb-safe transition-colors">
+    <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-3 flex justify-between items-center shadow-lg z-20 shrink-0 pb-safe transition-colors">
       {navItems.map((item) => {
         const isActive = location.pathname === item.path;
         return (
           <button 
             key={item.path} 
             onClick={() => navigate(item.path)}
-            className={`flex flex-col items-center justify-center gap-1 transition-all w-14 py-1 rounded-xl ${isActive ? 'text-somali-blue dark:text-blue-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+            className={`flex flex-col items-center justify-center gap-1 transition-all w-12 ${isActive ? 'text-somali-blue dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
           >
-            <i className={`fas ${item.icon} text-lg ${isActive ? 'scale-110 drop-shadow-sm' : ''} transition-transform`}></i>
-            <span className="text-[10px] font-bold">{item.label}</span>
+            <i className={`fas ${item.icon} text-xl ${isActive ? 'scale-110 drop-shadow-sm' : ''} transition-transform`}></i>
+            <span className={`text-[10px] font-bold ${isActive ? 'opacity-100' : 'opacity-0 scale-0'} transition-all`}>{item.label}</span>
           </button>
         );
       })}

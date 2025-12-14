@@ -9,7 +9,7 @@ import { playSound } from '../services/audioService';
 
 const ProfilePage: React.FC = () => {
   const { profile, user } = useContext(UserContext);
-  const { theme, toggleTheme } = useContext(ThemeContext);
+  const { theme, setTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -58,6 +58,12 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const toggleTheme = () => {
+      const newTheme = theme === 'light' ? 'dark' : 'light';
+      setTheme(newTheme);
+      playSound('click');
+  };
+
   if (!profile) return null;
 
   // Level Logic: 10 points per level
@@ -75,7 +81,7 @@ const ProfilePage: React.FC = () => {
         <h1 className="text-2xl font-bold dark:text-white">My Profile</h1>
         <div className="flex-1 text-right">
             {!isEditing && (
-                <button onClick={() => setIsEditing(true)} className="text-somali-blue dark:text-blue-400 font-bold text-sm bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+                <button onClick={() => setIsEditing(true)} className="text-somali-blue dark:text-blue-400 font-bold text-sm bg-blue-50 dark:bg-blue-500/10 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
                     <i className="fas fa-edit mr-1"></i> Edit
                 </button>
             )}
@@ -84,11 +90,11 @@ const ProfilePage: React.FC = () => {
 
       <div className="flex flex-col items-center mb-8">
         <div className="relative group">
-            <Avatar src={currentAvatarUrl} seed={user?.uid} size="xl" className="mb-4 border-4 border-white dark:border-gray-700 shadow-md" />
+            <Avatar src={currentAvatarUrl} seed={user?.uid} size="xl" className="mb-4 border-4 border-white dark:border-gray-800 shadow-xl" />
             {isEditing && (
                 <button 
                     onClick={handleRandomizeAvatar}
-                    className="absolute bottom-4 right-0 bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-black transition-colors"
+                    className="absolute bottom-4 right-0 bg-gray-900 text-white p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
                     title="Randomize Avatar"
                 >
                     <i className="fas fa-random"></i>
@@ -102,7 +108,7 @@ const ProfilePage: React.FC = () => {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="Enter new name"
-                    className="text-center"
+                    className="text-center font-bold text-lg"
                     autoFocus
                 />
                 <div className="flex gap-3">
@@ -118,38 +124,42 @@ const ProfilePage: React.FC = () => {
         )}
       </div>
 
-      <Card className="mb-6">
-        <div className="flex justify-between items-end mb-2">
+      <Card className="mb-6 relative overflow-hidden">
+        <div className="flex justify-between items-end mb-2 relative z-10">
             <span className="font-bold text-gray-700 dark:text-gray-300">Level {level}</span>
             <span className="text-somali-blue dark:text-blue-400 font-bold">{profile.points} Total Points</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden relative z-10 border border-gray-200 dark:border-gray-600">
              <div className="bg-somali-blue h-4 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
         </div>
-        <div className="text-right text-xs text-gray-500 dark:text-gray-400 mt-1">{pointsToNext} pts to Level {level + 1}</div>
+        <div className="text-right text-xs text-gray-500 dark:text-gray-400 mt-2 relative z-10">{pointsToNext} pts to Level {level + 1}</div>
       </Card>
 
       {/* Settings Section */}
       <div className="mb-6">
-          <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 ml-2">Settings</h3>
+          <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 ml-2">App Settings</h3>
           <Card className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${theme === 'dark' ? 'bg-purple-900/50 text-purple-200' : 'bg-yellow-100 text-yellow-600'}`}>
-                      <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'}`}></i>
+              <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-indigo-900/50 text-indigo-300' : 'bg-orange-100 text-orange-500'}`}>
+                      <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'} text-xl`}></i>
                   </div>
-                  <span className="font-bold dark:text-white">Dark Mode</span>
+                  <div>
+                    <div className="font-bold dark:text-white text-lg">Dark Mode</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{theme === 'dark' ? 'On' : 'Off'}</div>
+                  </div>
               </div>
+              
               <button 
                   onClick={toggleTheme}
-                  className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${theme === 'dark' ? 'bg-somali-blue' : 'bg-gray-300'}`}
+                  className={`w-16 h-9 rounded-full p-1 transition-all duration-300 flex items-center shadow-inner ${theme === 'dark' ? 'bg-somali-blue justify-end' : 'bg-gray-300 justify-start'}`}
               >
-                  <div className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-300 ${theme === 'dark' ? 'translate-x-6' : ''}`}></div>
+                  <div className="w-7 h-7 rounded-full bg-white shadow-md transform transition-transform"></div>
               </button>
           </Card>
       </div>
 
       {!isEditing && (
-          <div className="mt-4 mb-8">
+          <div className="mt-auto mb-8">
             <Button fullWidth variant="danger" onClick={handleLogout}>
                 <i className="fas fa-sign-out-alt mr-2"></i> Logout
             </Button>

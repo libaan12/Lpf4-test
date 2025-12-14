@@ -14,17 +14,31 @@
         theme: {
           extend: {
             colors: {
+              // Overriding gray with Slate for a premium 'app-like' feel
+              gray: {
+                50: '#f8fafc',
+                100: '#f1f5f9',
+                200: '#e2e8f0',
+                300: '#cbd5e1',
+                400: '#94a3b8',
+                500: '#64748b',
+                600: '#475569',
+                700: '#334155',
+                800: '#1e293b', // Main Dark Card BG
+                900: '#0f172a', // Main Dark Page BG
+                950: '#020617', // Darker Accents
+              },
               somali: {
                 blue: '#4189DD',
                 white: '#FFFFFF',
-                dark: '#1a202c',
+                dark: '#0f172a', 
               }
             },
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
             },
             animation: {
-              blob: "blob 7s infinite",
+              blob: "blob 10s infinite",
               'fade-in': 'fadeIn 0.5s ease-out',
             },
             keyframes: {
@@ -54,36 +68,46 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
     <style>
+      :root {
+        color-scheme: light dark;
+      }
       body {
-        /* Default base background - gradient managed in App.tsx for theme switching */
-        background-color: #f3f4f6;
+        @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300;
         -webkit-tap-highlight-color: transparent;
       }
+      
       /* Hide scrollbar for cleaner mobile UI */
       ::-webkit-scrollbar {
         width: 0px;
         background: transparent;
       }
-      .perspective-1000 {
-        perspective: 1000px;
+      
+      /* Smooth transitions for all themeable elements */
+      * {
+        transition-property: background-color, border-color, color, fill, stroke;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 200ms;
       }
-      /* Glassmorphism SweetAlert2 Overrides */
+
+      /* SweetAlert2 Theme Overrides */
       .swal2-popup {
         font-family: 'Inter', sans-serif !important;
         border-radius: 1.5rem !important;
-        background: rgba(255, 255, 255, 0.8) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
       }
+      
+      /* Dark mode specific sweetalert overrides */
       .dark .swal2-popup {
-        background: rgba(30, 41, 59, 0.8) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: #fff !important;
+        background: #1e293b !important; /* gray-800 */
+        border: 1px solid #334155 !important; /* gray-700 */
+        color: #f1f5f9 !important; /* gray-100 */
       }
-      .dark .swal2-title, .dark .swal2-content {
-        color: #fff !important;
+      .dark .swal2-title, .dark .swal2-content, .dark .swal2-html-container {
+        color: #f1f5f9 !important;
+      }
+      .dark .swal2-input, .dark .swal2-textarea {
+        background: #0f172a !important; /* gray-900 */
+        color: white !important;
+        border: 1px solid #475569 !important;
       }
     </style>
   <script type="importmap">

@@ -184,7 +184,7 @@ const SoloPage: React.FC = () => {
                           <i className="fas fa-layer-group text-3xl"></i>
                       </div>
                       <h2 className="text-xl font-bold dark:text-white">Select Topic</h2>
-                      <p className="text-sm text-gray-500">Choose a chapter to begin your practice.</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Choose a chapter to begin your practice.</p>
                   </div>
 
                   <div className="mb-6">
@@ -227,10 +227,11 @@ const SoloPage: React.FC = () => {
         </div>
 
         {finished ? (
-          <Card className="text-center text-gray-800 animate__animated animate__zoomIn">
+          // Fixed text color here by removing text-gray-800
+          <Card className="text-center animate__animated animate__zoomIn">
             <h2 className="text-3xl font-bold mb-4">Training Complete</h2>
             <div className="text-6xl mb-4">🎯</div>
-            <p className="text-xl mb-6">You got <span className="text-somali-blue font-bold">{score}</span> out of {questions.length}</p>
+            <p className="text-xl mb-6">You got <span className="text-somali-blue dark:text-blue-400 font-bold">{score}</span> out of {questions.length}</p>
             <Button fullWidth onClick={() => navigate('/')}>Back to Home</Button>
             <Button fullWidth variant="secondary" className="mt-3" onClick={() => {
                 setFinished(false);
@@ -246,7 +247,8 @@ const SoloPage: React.FC = () => {
                 <div className="bg-white h-2 rounded-full transition-all duration-300" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
              </div>
 
-             <div className="bg-white text-gray-900 rounded-2xl p-8 shadow-2xl text-center mb-6 min-h-[150px] flex items-center justify-center flex-col">
+             {/* Updated Question Card to be compatible with dark mode preference */}
+             <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl p-8 shadow-2xl text-center mb-6 min-h-[150px] flex items-center justify-center flex-col transition-colors">
                  <span className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">{selectedChapterId && chapters.find(c => c.id === selectedChapterId)?.name}</span>
                  <h2 className="text-xl font-bold">{currentQ.question}</h2>
              </div>

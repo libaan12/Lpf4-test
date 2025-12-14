@@ -37,9 +37,7 @@ const LobbyPage: React.FC = () => {
   const [queueKey, setQueueKey] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
 
-  // Fetch Subjects on Mount
   useEffect(() => {
-    // Cache check
     const cachedSubjects = localStorage.getItem('subjects_cache');
     if (cachedSubjects) setSubjects(JSON.parse(cachedSubjects));
 
@@ -53,7 +51,6 @@ const LobbyPage: React.FC = () => {
     });
   }, []);
 
-  // Fetch Chapters when Subject changes
   useEffect(() => {
     if (!selectedSubject) {
         setChapters([]);
@@ -64,7 +61,7 @@ const LobbyPage: React.FC = () => {
         if(snap.exists()) {
             const list = Object.values(snap.val()) as Chapter[];
             setChapters(list);
-            if(list.length > 0) setSelectedChapter(list[0].id); // Auto select first
+            if(list.length > 0) setSelectedChapter(list[0].id);
         } else {
             setChapters([]);
         }
@@ -83,10 +80,11 @@ const LobbyPage: React.FC = () => {
       timer: 3000,
       timerProgressBar: true,
       showCloseButton: true,
+      background: isDark ? '#1f2937' : '#fff',
+      color: isDark ? '#fff' : '#000',
     });
   };
 
-  // --- LOGIC: Auto Match ---
   const handleAutoMatch = async () => {
     if (!user) return;
     if (!selectedChapter) {
@@ -171,7 +169,6 @@ const LobbyPage: React.FC = () => {
     }
   };
 
-  // --- LOGIC: Custom Room ---
   const createRoom = async () => {
     if(!user) return;
     if (!selectedChapter) {
@@ -262,7 +259,6 @@ const LobbyPage: React.FC = () => {
     }
   };
 
-  // Cleanup
   useEffect(() => {
     return () => {
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -275,7 +271,6 @@ const LobbyPage: React.FC = () => {
     };
   }, [hostedCode, queueKey, selectedChapter]);
 
-  // Handle Back Navigation
   const goBack = () => {
       if (isSearching) cancelSearch();
       if (hostedCode) {
@@ -285,30 +280,28 @@ const LobbyPage: React.FC = () => {
       setViewMode('selection');
   };
 
-  // --- RENDER COMPONENTS ---
-
   const SelectionUI = () => (
       <div className="mb-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-white/40 dark:border-white/10">
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-3 ml-1">1. Select Subject</label>
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase mb-3 ml-1">1. Select Subject</label>
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
               {subjects.map(s => (
                   <button 
                     key={s.id} 
                     onClick={() => setSelectedSubject(s.id)}
-                    className={`px-5 py-3 rounded-2xl whitespace-nowrap text-sm font-bold transition-all shadow-sm ${selectedSubject === s.id ? 'bg-somali-blue text-white shadow-md scale-105' : 'bg-white/60 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-white/80'}`}
+                    className={`px-5 py-3 rounded-2xl whitespace-nowrap text-sm font-bold transition-all shadow-sm ${selectedSubject === s.id ? 'bg-somali-blue text-white shadow-md scale-105' : 'bg-white/60 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300 hover:bg-white/80'}`}
                   >
                       {s.name}
                   </button>
               ))}
           </div>
 
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-3 ml-1">2. Select Chapter</label>
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase mb-3 ml-1">2. Select Chapter</label>
           {chapters.length > 0 ? (
              <div className="relative group mb-4">
                 <select 
                     value={selectedChapter} 
                     onChange={(e) => setSelectedChapter(e.target.value)}
-                    className="w-full p-4 bg-white/60 dark:bg-gray-700/60 dark:text-white border border-white/40 dark:border-white/10 rounded-2xl appearance-none font-bold text-gray-700 focus:ring-2 focus:ring-somali-blue/50 backdrop-blur-sm transition-shadow"
+                    className="w-full p-4 bg-white/60 dark:bg-gray-700/60 text-gray-800 dark:text-white border border-white/40 dark:border-white/10 rounded-2xl appearance-none font-bold focus:ring-2 focus:ring-somali-blue/50 backdrop-blur-sm transition-shadow"
                 >
                     {chapters.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
@@ -324,16 +317,15 @@ const LobbyPage: React.FC = () => {
               </div>
           )}
 
-          {/* Quiz Limit Selection (Only visible for custom room creation) */}
           {viewMode === 'custom' && !hostedCode && (
               <>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-3 ml-1">3. Number of Questions</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase mb-3 ml-1">3. Number of Questions</label>
                 <div className="flex gap-2">
                     {[5, 10, 15, 20].map(n => (
                         <button
                             key={n}
                             onClick={() => setQuizLimit(n)}
-                            className={`flex-1 py-3 rounded-2xl font-bold transition-all ${quizLimit === n ? 'bg-green-500 text-white shadow-lg' : 'bg-white/60 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300'}`}
+                            className={`flex-1 py-3 rounded-2xl font-bold transition-all ${quizLimit === n ? 'bg-green-500 text-white shadow-lg' : 'bg-white/60 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300'}`}
                         >
                             {n}
                         </button>
@@ -346,7 +338,6 @@ const LobbyPage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-full relative pb-8 w-full">
-      {/* --- SCENE 1: MODE SELECTION (Full Screen) --- */}
       {viewMode === 'selection' && (
         <div className="flex flex-col items-center justify-center p-4 min-h-[85vh] animate__animated animate__fadeIn">
              <div className="w-full max-w-4xl mx-auto">
@@ -354,17 +345,15 @@ const LobbyPage: React.FC = () => {
                      <button onClick={() => navigate('/')} className="w-12 h-12 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur shadow-sm flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-somali-blue transition-colors border border-white/40">
                         <i className="fas fa-arrow-left fa-lg"></i>
                      </button>
-                     <h1 className="text-3xl font-extrabold dark:text-white drop-shadow-sm">Choose Battle Mode</h1>
+                     <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white drop-shadow-sm">Choose Battle Mode</h1>
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     {/* Auto Match Card */}
                      <button 
                         onClick={() => { playSound('click'); setViewMode('auto'); }}
                         className="group relative h-64 rounded-[2rem] overflow-hidden shadow-2xl transition-all hover:scale-[1.02] hover:shadow-blue-500/20 text-left border border-white/20"
                      >
                         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/90 to-purple-600/90 backdrop-blur-sm"></div>
-                        {/* Decor */}
                         <i className="fas fa-bolt text-9xl text-white absolute -bottom-8 -right-8 opacity-20 rotate-12 group-hover:scale-110 transition-transform duration-500"></i>
                         
                         <div className="relative z-10 p-8 h-full flex flex-col justify-between">
@@ -378,13 +367,11 @@ const LobbyPage: React.FC = () => {
                         </div>
                      </button>
 
-                     {/* Custom Room Card */}
                      <button 
                         onClick={() => { playSound('click'); setViewMode('custom'); }}
                         className="group relative h-64 rounded-[2rem] overflow-hidden shadow-2xl transition-all hover:scale-[1.02] hover:shadow-orange-500/20 text-left border border-white/20"
                      >
                         <div className="absolute inset-0 bg-gradient-to-br from-orange-400/90 to-red-500/90 backdrop-blur-sm"></div>
-                        {/* Decor */}
                         <i className="fas fa-users text-9xl text-white absolute -bottom-8 -right-8 opacity-20 -rotate-12 group-hover:scale-110 transition-transform duration-500"></i>
                         
                         <div className="relative z-10 p-8 h-full flex flex-col justify-between">
@@ -402,27 +389,25 @@ const LobbyPage: React.FC = () => {
         </div>
       )}
 
-      {/* --- SCENE 2: SPECIFIC MODE UI --- */}
       {viewMode !== 'selection' && (
           <div className="p-4 max-w-4xl mx-auto w-full animate__animated animate__fadeInRight">
               <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl -mx-4 px-4 py-3 mb-6 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center gap-4 transition-colors">
                 <button onClick={goBack} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
                 </button>
-                <h1 className="text-2xl font-bold dark:text-white">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                     {viewMode === 'auto' ? 'Quick Match' : 'Custom Room'}
                 </h1>
               </div>
 
               {viewMode === 'auto' ? (
-                  // AUTO MATCH UI
                   <>
                     {!isSearching && <SelectionUI />}
                     <Card className="text-center py-12">
                         <div className="w-24 h-24 bg-blue-100/50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm border border-blue-200 dark:border-blue-800">
                             <i className={`fas fa-search text-4xl text-somali-blue dark:text-blue-300 ${isSearching ? 'animate-bounce' : ''}`}></i>
                         </div>
-                        <h2 className="text-2xl font-bold mb-2 dark:text-white">Find Opponent</h2>
+                        <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Find Opponent</h2>
                         <p className="text-gray-500 dark:text-gray-400 mb-8">{matchStatus || "Select a topic and find a match!"}</p>
                         
                         {isSearching ? (
@@ -437,10 +422,9 @@ const LobbyPage: React.FC = () => {
                     </Card>
                   </>
               ) : (
-                  // CUSTOM ROOM UI
                   <div className="space-y-6">
                       <Card className="text-center">
-                        <h3 className="font-bold mb-4 dark:text-white text-lg">Host a Game</h3>
+                        <h3 className="font-bold mb-4 text-gray-900 dark:text-white text-lg">Host a Game</h3>
                         
                         {!hostedCode && <div className="mb-4 text-left"><SelectionUI /></div>}
 
@@ -474,10 +458,10 @@ const LobbyPage: React.FC = () => {
                       </div>
 
                       <Card className="text-center">
-                        <h3 className="font-bold mb-4 dark:text-white text-lg">Join a Game</h3>
+                        <h3 className="font-bold mb-4 text-gray-900 dark:text-white text-lg">Join a Game</h3>
                         <Input 
                             placeholder="0000" 
-                            className="text-center text-3xl tracking-[1rem] font-mono h-20 font-bold"
+                            className="text-center text-3xl tracking-[1rem] font-mono h-20 font-bold text-gray-900 dark:text-white"
                             maxLength={4}
                             value={roomCode}
                             onChange={(e) => setRoomCode(e.target.value)}
