@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { playSound } from '../services/audioService';
 
-const ASSISTANT_API_KEY = "AIzaSyANNTSat_EsUKxz38GoyWWqUR5rEa5OHfY";
+const ASSISTANT_API_KEY = "AIzaSyBxS3g1glyhOy_z-i-5BLAn3Bs2xN8Q_Kk";
 
 interface Message {
   role: 'user' | 'model';
