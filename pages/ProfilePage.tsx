@@ -78,7 +78,7 @@ const ProfilePage: React.FC = () => {
         <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
             <i className="fas fa-arrow-left fa-lg"></i>
         </button>
-        <h1 className="text-2xl font-bold dark:text-white">My Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h1>
         <div className="flex-1 text-right">
             {!isEditing && (
                 <button onClick={() => setIsEditing(true)} className="text-somali-blue dark:text-blue-400 font-bold text-sm bg-blue-50 dark:bg-blue-500/10 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-500/20">
@@ -118,7 +118,7 @@ const ProfilePage: React.FC = () => {
             </div>
         ) : (
             <>
-                <h2 className="text-2xl font-bold dark:text-white">{profile.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{profile.name}</h2>
                 <p className="text-gray-500 dark:text-gray-400 font-medium">{profile.email}</p>
             </>
         )}
@@ -144,7 +144,7 @@ const ProfilePage: React.FC = () => {
                       <i className={`fas ${theme === 'dark' ? 'fa-moon' : 'fa-sun'} text-xl`}></i>
                   </div>
                   <div>
-                    <div className="font-bold dark:text-white text-lg">Dark Mode</div>
+                    <div className="font-bold text-gray-900 dark:text-white text-lg">Dark Mode</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">{theme === 'dark' ? 'On' : 'Off'}</div>
                   </div>
               </div>

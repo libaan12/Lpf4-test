@@ -447,7 +447,7 @@ const AdminPage: React.FC = () => {
             <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
                 <i className="fas fa-arrow-left fa-lg"></i>
             </button>
-            <h1 className="text-2xl font-bold dark:text-white">Admin Panel</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
         </div>
       </div>
 

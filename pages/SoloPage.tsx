@@ -145,7 +145,7 @@ const SoloPage: React.FC = () => {
                   <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
                   </button>
-                  <h1 className="text-2xl font-bold dark:text-white">Select Subject</h1>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Select Subject</h1>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {subjects.length === 0 && <div className="text-gray-500 text-center mt-10">No subjects available.</div>}
@@ -156,7 +156,7 @@ const SoloPage: React.FC = () => {
                                   <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-somali-blue dark:text-blue-300 group-hover:bg-somali-blue group-hover:text-white transition-colors">
                                       <i className="fas fa-book"></i>
                                   </div>
-                                  <span className="font-bold text-lg dark:text-white">{sub.name}</span>
+                                  <span className="font-bold text-lg text-gray-900 dark:text-white">{sub.name}</span>
                               </div>
                               <i className="fas fa-chevron-right text-gray-400 group-hover:translate-x-1 transition-transform"></i>
                           </div>
@@ -180,7 +180,7 @@ const SoloPage: React.FC = () => {
                   <button onClick={() => setStep('subject')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
                   </button>
-                  <h1 className="text-2xl font-bold dark:text-white">{selectedSubject?.name}</h1>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedSubject?.name}</h1>
               </div>
               
               <Card className="max-w-xl mx-auto">
@@ -188,7 +188,7 @@ const SoloPage: React.FC = () => {
                       <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-3 text-green-600 dark:text-green-400">
                           <i className="fas fa-layer-group text-3xl"></i>
                       </div>
-                      <h2 className="text-xl font-bold dark:text-white">Select Topic</h2>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">Select Topic</h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Choose a chapter to begin your practice.</p>
                   </div>
 
@@ -198,7 +198,7 @@ const SoloPage: React.FC = () => {
                           <select 
                             value={selectedChapterId} 
                             onChange={(e) => setSelectedChapterId(e.target.value)}
-                            className="w-full p-4 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-xl appearance-none font-bold text-gray-700 focus:outline-none focus:border-green-500"
+                            className="w-full p-4 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-xl appearance-none font-bold text-gray-700 dark:text-white focus:outline-none focus:border-green-500"
                           >
                               {chapters.map(chap => (
                                   <option key={chap.id} value={chap.id}>{chap.name}</option>
@@ -232,11 +232,10 @@ const SoloPage: React.FC = () => {
         </div>
 
         {finished ? (
-          // Fixed text color here by removing text-gray-800
           <Card className="text-center animate__animated animate__zoomIn">
-            <h2 className="text-3xl font-bold mb-4">Training Complete</h2>
+            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">Training Complete</h2>
             <div className="text-6xl mb-4">🎯</div>
-            <p className="text-xl mb-6">You got <span className="text-somali-blue dark:text-blue-400 font-bold">{score}</span> out of {questions.length}</p>
+            <p className="text-xl mb-6 text-gray-800 dark:text-gray-200">You got <span className="text-somali-blue dark:text-blue-400 font-bold">{score}</span> out of {questions.length}</p>
             <Button fullWidth onClick={() => navigate('/')}>Back to Home</Button>
             <Button fullWidth variant="secondary" className="mt-3" onClick={() => {
                 setFinished(false);
