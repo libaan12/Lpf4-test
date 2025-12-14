@@ -47,6 +47,20 @@ const ProfilePage: React.FC = () => {
     setCurrentAvatarUrl(url);
     setShowAvatarSelector(false);
     playSound('click');
+    // If we are not in edit mode, auto-save the avatar change immediately
+    if (!isEditing) {
+        handleSaveAvatarOnly(url);
+    }
+  };
+
+  const handleSaveAvatarOnly = async (url: string) => {
+      if (!user) return;
+      try {
+          await update(ref(db, `users/${user.uid}`), { avatar: url });
+          playSound('correct');
+      } catch (e) {
+          console.error("Error saving avatar", e);
+      }
   };
 
   const handleSaveProfile = async () => {
@@ -103,16 +117,20 @@ const ProfilePage: React.FC = () => {
 
       <div className="flex flex-col items-center mb-8">
         <div className="relative group">
-            <Avatar src={currentAvatarUrl} seed={user?.uid} size="xl" className="mb-4 border-4 border-white dark:border-gray-800 shadow-xl" />
-            {isEditing && (
-                <button 
-                    onClick={() => setShowAvatarSelector(true)}
-                    className="absolute bottom-4 right-0 bg-somali-blue text-white p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white dark:border-gray-800"
-                    title="Choose Avatar"
-                >
-                    <i className="fas fa-camera"></i>
-                </button>
-            )}
+            <Avatar 
+                src={currentAvatarUrl} 
+                seed={user?.uid} 
+                size="xl" 
+                className="mb-4 border-4 border-white dark:border-gray-800 shadow-xl cursor-pointer hover:opacity-90 transition-opacity" 
+                onClick={() => setShowAvatarSelector(true)}
+            />
+            <button 
+                onClick={() => setShowAvatarSelector(true)}
+                className="absolute bottom-4 right-0 bg-somali-blue text-white p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white dark:border-gray-800"
+                title="Choose Avatar"
+            >
+                <i className="fas fa-camera"></i>
+            </button>
         </div>
 
         {isEditing ? (
@@ -135,7 +153,14 @@ const ProfilePage: React.FC = () => {
             </div>
         ) : (
             <>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{profile.name}</h2>
+                <h2 
+                    onClick={() => setIsEditing(true)}
+                    className="text-2xl font-bold text-gray-900 dark:text-white cursor-pointer hover:text-somali-blue transition-colors flex items-center justify-center gap-2 group"
+                    title="Click to edit name"
+                >
+                    {profile.name}
+                    <i className="fas fa-pencil-alt text-xs opacity-0 group-hover:opacity-100 transition-opacity text-somali-blue"></i>
+                </h2>
                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-medium">
                     {profile.email}
                 </div>
