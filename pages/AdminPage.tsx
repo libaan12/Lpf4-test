@@ -6,9 +6,6 @@ import { Question, Subject, Chapter } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { read, utils, writeFile } from 'xlsx';
 import Swal from 'sweetalert2';
-import { GoogleGenAI } from "@google/genai";
-
-const SCRAPER_API_KEY = "AIzaSyChoJ18ekOxW4nNnWHRJMCwdbgetSFcbFg";
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,14 +20,14 @@ const AdminPage: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   
   // Form State
-  const [inputMode, setInputMode] = useState<'manual' | 'bulk' | 'ai'>('manual');
+  const [inputMode, setInputMode] = useState<'manual' | 'bulk' | 'parser'>('manual');
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '', '', '']); 
   const [correctAnswer, setCorrectAnswer] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // AI Scraper State
-  const [aiRawText, setAiRawText] = useState('');
+  // Text Parser State
+  const [rawText, setRawText] = useState('');
 
   // Modals
   const [modalType, setModalType] = useState<'subject' | 'chapter' | null>(null);
@@ -272,68 +269,89 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleAiScrape = async () => {
-    if (!aiRawText.trim() || !selectedChapter) {
-        fireAlert("Missing Info", "Please provide the text and ensure a chapter is selected.", "warning");
+  const handleTextParse = async () => {
+    if (!rawText.trim() || !selectedChapter) {
+        fireAlert("Missing Info", "Please paste text in the correct format.", "warning");
         return;
     }
 
     setLoading(true);
     try {
-        const genAI = new GoogleGenAI({ apiKey: SCRAPER_API_KEY });
-        const systemPrompt = `
-        You are a smart quiz parser. Extract multiple choice questions from the user's text.
-        Output MUST be a valid JSON array of objects with keys: "question", "options" (array of strings), "answer" (0-based index number).
-        If answer is letter c=a, map to 0.
-        `;
+        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l);
+        const parsedQuestions: any[] = [];
+        let currentQ: any = null;
 
-        const response = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: aiRawText,
-            config: {
-                systemInstruction: systemPrompt,
-                responseMimeType: "application/json"
+        lines.forEach(line => {
+            // Check for Question (e.g., "1. What is..." or "1) What is...")
+            const questionMatch = line.match(/^(\d+)[\.\)]\s+(.+)/);
+            if (questionMatch) {
+                if (currentQ && currentQ.options.length >= 2) {
+                    parsedQuestions.push(currentQ);
+                }
+                currentQ = {
+                    question: questionMatch[2],
+                    options: [],
+                    answer: 0 // Default
+                };
+                return;
+            }
+
+            // Check for Option (e.g., "a) Option text" or "A. Option text")
+            const optionMatch = line.match(/^([a-dA-D])[\.\)]\s+(.+)/);
+            if (currentQ && optionMatch) {
+                currentQ.options.push(optionMatch[2]);
+                return;
+            }
+
+            // Check for Answer (e.g., "Answer: B" or "Ans: a" or "Correct: c")
+            const answerMatch = line.match(/^(?:Answer|Ans|Correct)\s*[:\-]?\s*([a-dA-D])/i);
+            if (currentQ && answerMatch) {
+                const charCode = answerMatch[1].toLowerCase().charCodeAt(0);
+                // 'a' is 97. so 97-97 = 0.
+                currentQ.answer = Math.max(0, charCode - 97);
+                return;
             }
         });
 
-        const jsonStr = response.text || "[]";
-        const parsedQuestions = JSON.parse(jsonStr);
+        // Push last one
+        if (currentQ && currentQ.options.length >= 2) {
+            parsedQuestions.push(currentQ);
+        }
 
-        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-             throw new Error("Failed to parse valid questions.");
+        if (parsedQuestions.length === 0) {
+             throw new Error("No questions found. Check format.");
         }
 
         const updates: any = {};
         let count = 0;
         
-        parsedQuestions.forEach((q: any) => {
-            if (q.question && Array.isArray(q.options) && typeof q.answer === 'number') {
-                 const newRefKey = push(ref(db, `questions/${selectedChapter}`)).key;
-                 if (newRefKey) {
-                    updates[`questions/${selectedChapter}/${newRefKey}`] = {
-                        question: q.question,
-                        options: q.options,
-                        answer: q.answer,
-                        subject: selectedChapter,
-                        createdAt: Date.now()
-                    };
-                    count++;
-                 }
-            }
+        parsedQuestions.forEach((q) => {
+             const newRefKey = push(ref(db, `questions/${selectedChapter}`)).key;
+             if (newRefKey) {
+                updates[`questions/${selectedChapter}/${newRefKey}`] = {
+                    question: q.question,
+                    options: q.options,
+                    // Ensure answer index is within bounds of extracted options
+                    answer: Math.min(q.answer, q.options.length - 1),
+                    subject: selectedChapter,
+                    createdAt: Date.now()
+                };
+                count++;
+             }
         });
 
         if (count > 0) {
             await update(ref(db), updates);
-            setAiRawText('');
-            fireAlert("Success", `AI successfully extracted and added ${count} questions!`, "success");
+            setRawText('');
+            fireAlert("Success", `Parsed and added ${count} questions!`, "success");
             fetchQuestions();
         } else {
-            fireAlert("Warning", "AI response valid but no questions could be formatted.", "warning");
+            fireAlert("Warning", "Text parsed but no valid questions created.", "warning");
         }
 
     } catch (e) {
         console.error(e);
-        fireAlert("AI Error", "Failed to process text.", "error");
+        fireAlert("Parser Error", "Failed to parse text. Ensure format is: \n1. Question\na) Option\nAnswer: a", "error");
     } finally {
         setLoading(false);
     }
@@ -492,7 +510,7 @@ const AdminPage: React.FC = () => {
         <Card className={`${!selectedChapter ? 'opacity-50 pointer-events-none grayscale' : ''} transition-all`}>
           <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700 pb-4 flex-wrap gap-2">
             <h2 className="text-xl font-bold dark:text-white">
-                {inputMode === 'manual' ? 'Add Question' : inputMode === 'ai' ? 'AI Scraper' : 'Bulk Upload'}
+                {inputMode === 'manual' ? 'Add Question' : inputMode === 'parser' ? 'Text Parser' : 'Bulk Upload'}
             </h2>
             <div className="flex bg-gray-100 dark:bg-gray-900 rounded-lg p-1">
                 <button 
@@ -500,9 +518,9 @@ const AdminPage: React.FC = () => {
                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'manual' ? 'bg-white dark:bg-gray-700 shadow text-somali-blue dark:text-white' : 'text-gray-400'}`}
                 >Manual</button>
                 <button 
-                    onClick={() => setInputMode('ai')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'ai' ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-300' : 'text-gray-400'}`}
-                ><i className="fas fa-magic mr-1"></i>AI</button>
+                    onClick={() => setInputMode('parser')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'parser' ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-300' : 'text-gray-400'}`}
+                ><i className="fas fa-magic mr-1"></i>Parser</button>
                 <button 
                     onClick={() => setInputMode('bulk')}
                     className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${inputMode === 'bulk' ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400' : 'text-gray-400'}`}
@@ -540,20 +558,29 @@ const AdminPage: React.FC = () => {
             </form>
           )}
 
-          {inputMode === 'ai' && (
+          {inputMode === 'parser' && (
               <div className="space-y-4">
                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50">
-                     <h3 className="font-bold text-purple-800 dark:text-purple-300 mb-2"><i className="fas fa-robot mr-2"></i>AI Scraper</h3>
-                     <p className="text-sm text-purple-700 dark:text-purple-300/80">Paste text like: "Question? a) ... c=a"</p>
+                     <h3 className="font-bold text-purple-800 dark:text-purple-300 mb-2"><i className="fas fa-bolt mr-2"></i>Smart Text Parser (JS)</h3>
+                     <p className="text-sm text-purple-700 dark:text-purple-300/80 mb-2">
+                        Instantly parse questions from text. Copy-paste your quiz below.
+                     </p>
+                     <div className="bg-white/50 dark:bg-black/20 p-3 rounded-lg text-xs font-mono opacity-80 border border-purple-200 dark:border-purple-800">
+                        1. What is the capital of Somalia?<br/>
+                        a) Hargeisa<br/>
+                        b) Mogadishu<br/>
+                        c) Kismayo<br/>
+                        Answer: b
+                     </div>
                   </div>
                   <textarea 
                     className="w-full h-48 p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
-                    placeholder="Paste text here..."
-                    value={aiRawText}
-                    onChange={(e) => setAiRawText(e.target.value)}
+                    placeholder="Paste your questions here..."
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
                   ></textarea>
-                  <Button fullWidth onClick={handleAiScrape} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 text-white shadow-purple-500/30">
-                      <i className="fas fa-magic mr-2"></i> Parse & Upload
+                  <Button fullWidth onClick={handleTextParse} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 text-white shadow-purple-500/30">
+                      <i className="fas fa-check-circle mr-2"></i> Parse & Upload
                   </Button>
               </div>
           )}
