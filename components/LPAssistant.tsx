@@ -24,7 +24,8 @@ export const LPAssistant: React.FC = () => {
     if (saved) {
       setMessages(JSON.parse(saved));
     } else {
-        setMessages([{ role: 'model', text: 'Hi! I am the LP Assistant. Ask me anything about the quizzes, the app, or for study tips!' }]);
+        // Initial greeting in Somali
+        setMessages([{ role: 'model', text: 'Soo dhawoow! Waxaan ahay Kaaliyaha LP. Waxaad i weydiin kartaa wax walba oo ku saabsan tartanka, app-ka, ama talooyin waxbarasho!' }]);
     }
   }, []);
 
@@ -63,6 +64,10 @@ export const LPAssistant: React.FC = () => {
       const systemPrompt = `You are LP Assistant, a helpful AI guide for the LP-F4 Quiz Battle app (Somali Student Quiz Battle). 
       The app allows students to compete in real-time quizzes (Battle Mode), practice solo (Solo Mode), and view Leaderboards.
       Admins can manage quizzes.
+
+      IMPORTANT INSTRUCTION: 
+      Your primary language is Somali (Af-Soomaali). You must answer all questions in Somali unless the user explicitly requests another language (like English).
+      
       Be concise, encouraging, and friendly. Answer questions about general knowledge or how to use the app.`;
 
       const response = await ai.models.generateContent({
@@ -73,12 +78,12 @@ export const LPAssistant: React.FC = () => {
         }
       });
 
-      const reply = response.text || "I'm having trouble thinking right now. Try again later.";
+      const reply = response.text || "Waan ka xumahay, hadda ma fikiri karo. Fadlan isku day mar kale.";
       
       setMessages([...newHistory, { role: 'model', text: reply }]);
     } catch (error) {
       console.error(error);
-      setMessages([...newHistory, { role: 'model', text: "Sorry, I couldn't connect to my brain (Gemini API). Please check the API Key configuration." }]);
+      setMessages([...newHistory, { role: 'model', text: "Waan ka xumahay, kuma xirni karo maskaxdayda (Gemini API). Fadlan hubi API Key-ga." }]);
     } finally {
       setIsTyping(false);
     }
@@ -144,7 +149,7 @@ export const LPAssistant: React.FC = () => {
                    <input 
                       value={inputText}
                       onChange={e => setInputText(e.target.value)}
-                      placeholder="Ask a question..."
+                      placeholder="Weydii su'aal..."
                       className="flex-1 bg-gray-100 dark:bg-gray-800 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-somali-blue dark:text-white placeholder-gray-500 transition-all"
                    />
                    <button 
