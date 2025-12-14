@@ -1,12 +1,46 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ref, update } from 'firebase/database';
+import { db } from '../firebase';
 import { UserContext } from '../App';
-import { Avatar, Card } from '../components/UI';
+import { Avatar, Card, Modal, Button } from '../components/UI';
 import { playSound } from '../services/audioService';
+import { generateAvatarUrl } from '../constants';
 
 const HomePage: React.FC = () => {
-  const { profile } = useContext(UserContext);
+  const { profile, user } = useContext(UserContext);
   const navigate = useNavigate();
+
+  // Avatar Selection State
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarSeeds, setAvatarSeeds] = useState<string[]>([]);
+
+  // Check if new user needs to select avatar
+  useEffect(() => {
+    const isNew = sessionStorage.getItem('showAvatarSelection');
+    if (isNew) {
+      setShowAvatarModal(true);
+      setAvatarSeeds(Array.from({length: 9}, () => Math.random().toString(36).substring(7)));
+      sessionStorage.removeItem('showAvatarSelection');
+    }
+  }, []);
+
+  const handleAvatarSelect = async (seed: string) => {
+      if (!user) return;
+      const url = generateAvatarUrl(seed);
+      try {
+        await update(ref(db, `users/${user.uid}`), { avatar: url });
+        playSound('correct');
+        setShowAvatarModal(false);
+      } catch (e) {
+        console.error("Error saving avatar", e);
+      }
+  };
+
+  const refreshAvatars = () => {
+      setAvatarSeeds(Array.from({length: 9}, () => Math.random().toString(36).substring(7)));
+      playSound('click');
+  };
 
   const handleNav = (path: string) => {
     playSound('click');
@@ -99,6 +133,27 @@ const HomePage: React.FC = () => {
           </div>
         </Card>
       </main>
+
+      {/* Avatar Selection Modal for New Users */}
+      <Modal isOpen={showAvatarModal} title="Choose Your Look" onClose={() => setShowAvatarModal(false)}>
+          <div className="text-center mb-4 text-gray-500 dark:text-gray-400 text-sm">
+              Welcome! Pick an avatar to get started. You can change this later in your profile.
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+              {avatarSeeds.map((seed, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => handleAvatarSelect(seed)}
+                    className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-somali-blue cursor-pointer transition-all hover:scale-110 bg-gray-100 dark:bg-gray-700"
+                  >
+                      <img src={generateAvatarUrl(seed)} alt="avatar" className="w-full h-full object-cover" />
+                  </div>
+              ))}
+          </div>
+          <Button fullWidth variant="secondary" className="mt-6" onClick={refreshAvatars}>
+             <i className="fas fa-sync mr-2"></i> Show More Options
+          </Button>
+      </Modal>
     </div>
   );
 };

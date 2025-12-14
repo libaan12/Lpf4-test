@@ -13,6 +13,7 @@ const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<'male' | 'female'>('male'); // Gender state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,19 +52,23 @@ const AuthPage: React.FC = () => {
         const user = userCred.user;
         const seed = Math.random().toString(36).substring(7);
         
-        // Generate random avatar (no gender specific)
+        // Generate random avatar (gender neutral logic as requested, gender stored separately)
         const avatarUrl = generateAvatarUrl(seed);
         
-        // Initial Profile
+        // Initial Profile with Gender
         await set(ref(db, `users/${user.uid}`), {
           name: name || 'Student',
           email: user.email,
           points: 0,
           avatar: avatarUrl,
+          gender: gender,
           activeMatch: null
         });
         
         await updateProfile(user, { displayName: name });
+        
+        // Flag for HomePage to show avatar selection modal
+        sessionStorage.setItem('showAvatarSelection', 'true');
       }
     } catch (err: any) {
       console.error(err.code);
@@ -93,13 +98,32 @@ const AuthPage: React.FC = () => {
 
         <form onSubmit={handleAuth}>
           {!isLogin && (
-            <Input 
-              placeholder="Your Name" 
-              icon="fa-user" 
-              value={name} 
-              onChange={e => setName(e.target.value)} 
-              required 
-            />
+            <>
+              <Input 
+                placeholder="Your Name" 
+                icon="fa-user" 
+                value={name} 
+                onChange={e => setName(e.target.value)} 
+                required 
+              />
+              {/* Gender Selection */}
+              <div className="flex gap-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setGender('male')}
+                    className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'male' ? 'border-somali-blue bg-blue-50 text-somali-blue dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'}`}
+                  >
+                    <i className="fas fa-mars"></i> Male
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGender('female')}
+                    className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'female' ? 'border-pink-500 bg-pink-50 text-pink-500 dark:bg-pink-900/20 dark:text-pink-300' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'}`}
+                  >
+                    <i className="fas fa-venus"></i> Female
+                  </button>
+              </div>
+            </>
           )}
           <Input 
             type="email" 
