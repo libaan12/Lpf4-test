@@ -6,6 +6,7 @@ import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
 import { LPAssistant } from './components/LPAssistant';
+import { UserContext, ThemeContext } from './contexts';
 
 // Pages
 import AuthPage from './pages/AuthPage';
@@ -18,20 +19,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import AboutPage from './pages/AboutPage';
 import SuperAdminPage from './pages/SuperAdminPage';
-import DownloadPage from './pages/DownloadPage'; // Imported DownloadPage
-
-// Context for User Data
-export const UserContext = React.createContext<{
-  user: User | null;
-  profile: UserProfile | null;
-  loading: boolean;
-}>({ user: null, profile: null, loading: true });
-
-// Context for Theme
-export const ThemeContext = React.createContext<{
-  theme: 'light' | 'dark';
-  setTheme: (theme: 'light' | 'dark') => void;
-}>({ theme: 'light', setTheme: () => {} });
+import DownloadPage from './pages/DownloadPage'; 
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -62,7 +50,7 @@ const AppContent: React.FC = () => {
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') return saved;
-    return 'light'; // Default to Light as requested
+    return 'light'; // Default to Light
   });
 
   const setTheme = (newTheme: 'light' | 'dark') => {
@@ -119,13 +107,14 @@ const AppContent: React.FC = () => {
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
-        <div className="relative w-24 h-24 mb-4">
+        <div className="absolute inset-0 bg-white/40 dark:bg-black/40 backdrop-blur-xl z-0"></div>
+        <div className="relative z-10 w-24 h-24 mb-4">
              <div className="absolute inset-0 bg-somali-blue opacity-20 rounded-full animate-ping"></div>
-             <div className="relative w-full h-full bg-somali-blue rounded-full flex items-center justify-center shadow-xl z-10">
+             <div className="relative w-full h-full bg-white/20 backdrop-blur-md border border-white/50 rounded-full flex items-center justify-center shadow-xl z-10">
                  <img src="https://files.catbox.moe/qn40s6.png" alt="Logo" className="w-12 h-12" />
              </div>
         </div>
-        <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 mb-2 animate-pulse">
+        <h1 className="relative z-10 text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 mb-2 animate-pulse">
             LP-F4
         </h1>
       </div>
@@ -139,31 +128,31 @@ const AppContent: React.FC = () => {
     <UserContext.Provider value={{ user, profile, loading }}>
       <ThemeContext.Provider value={{ theme, setTheme }}>
         {/* Global Background Elements */}
-        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-           <div className="absolute inset-0 bg-gray-50 dark:bg-gray-900 transition-colors duration-500"></div>
+        <div className="fixed inset-0 -z-10 overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-500">
            
-           {/* Light Mode Blobs */}
-           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob dark:hidden`}></div>
-           <div className={`absolute top-[-10%] right-[-10%] w-96 h-96 bg-yellow-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000 dark:hidden`}></div>
-           <div className={`absolute bottom-[-20%] left-[20%] w-96 h-96 bg-pink-200/40 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000 dark:hidden`}></div>
+           {/* Vibrant Gradient Mesh */}
+           <div className="absolute top-0 left-0 w-full h-full opacity-60 dark:opacity-30">
+               <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-400 rounded-full mix-blend-multiply filter blur-[120px] animate-blob"></div>
+               <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-400 rounded-full mix-blend-multiply filter blur-[120px] animate-blob animation-delay-2000"></div>
+               <div className="absolute bottom-[-20%] left-[20%] w-[600px] h-[600px] bg-pink-400 rounded-full mix-blend-multiply filter blur-[120px] animate-blob animation-delay-4000"></div>
+               <div className="absolute bottom-[-10%] right-[-5%] w-[400px] h-[400px] bg-yellow-400 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-5000"></div>
+           </div>
            
-           {/* Dark Mode Blobs (Subtler) */}
-           <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob hidden dark:block`}></div>
-           <div className={`absolute top-[20%] right-[-10%] w-96 h-96 bg-blue-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-2000 hidden dark:block`}></div>
-           <div className={`absolute bottom-[-10%] left-[10%] w-96 h-96 bg-indigo-900/20 rounded-full filter blur-[80px] opacity-40 animate-blob animation-delay-4000 hidden dark:block`}></div>
+           {/* Noise Texture Overlay for authentic glass feel */}
+           <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
         </div>
 
-        <div className="w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden">
+        <div className="w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden relative z-10">
             {/* Desktop Navigation */}
             {user && showNavbar && (
-                <div className="hidden md:block w-24 lg:w-64 border-r border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-900/50 backdrop-blur-xl shrink-0 z-20">
+                <div className="hidden md:block w-24 lg:w-72 shrink-0 z-20 h-full p-4">
                     <Navbar orientation="vertical" />
                 </div>
             )}
 
             {/* Content Area */}
             <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth relative">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth relative custom-scrollbar">
                   <Routes>
                       <Route path="/auth" element={!user ? <AuthPage /> : <Navigate to="/" />} />
                       <Route path="/download" element={<DownloadPage />} />
@@ -185,8 +174,10 @@ const AppContent: React.FC = () => {
 
                 {/* Mobile Bottom Navigation */}
                 {user && showNavbar && (
-                    <div className="md:hidden z-20">
-                        <Navbar orientation="horizontal" />
+                    <div className="md:hidden z-20 p-4 absolute bottom-0 w-full pointer-events-none">
+                         <div className="pointer-events-auto">
+                            <Navbar orientation="horizontal" />
+                         </div>
                     </div>
                 )}
             </div>

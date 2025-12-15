@@ -79,24 +79,28 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col justify-center p-6 min-h-screen relative bg-gradient-to-br from-somali-blue to-blue-900">
-      <div className="text-center mb-8 animate__animated animate__fadeInDown">
-        <img src="https://files.catbox.moe/qn40s6.png" className="w-24 h-24 mx-auto mb-4 drop-shadow-md" />
-        <h1 className="text-4xl font-extrabold text-white mb-2">LP-F4</h1>
-        <p className="text-blue-100 font-medium tracking-wide">Tartanka Aqoonta</p>
+    <div className="h-full flex flex-col justify-center p-6 min-h-screen relative overflow-hidden">
+      {/* Dynamic Header */}
+      <div className="text-center mb-8 animate__animated animate__fadeInDown relative z-10">
+        <div className="relative inline-block mb-4">
+             <div className="absolute inset-0 bg-white/30 rounded-full blur-xl transform scale-150"></div>
+             <img src="https://files.catbox.moe/qn40s6.png" className="w-28 h-28 relative z-10 drop-shadow-2xl hover:scale-105 transition-transform duration-500" />
+        </div>
+        <h1 className="text-5xl font-black text-white mb-2 drop-shadow-sm tracking-tight">LP-F4</h1>
+        <p className="text-blue-100 font-bold tracking-widest text-sm uppercase bg-white/10 inline-block px-4 py-1 rounded-full backdrop-blur-sm border border-white/20">Tartanka Aqoonta</p>
       </div>
 
-      <Card className="animate__animated animate__fadeInUp shadow-2xl border-none">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-white">{isLogin ? 'Welcome Back' : 'Join the Battle'}</h2>
+      <Card className="animate__animated animate__fadeInUp border-none !bg-white/80 dark:!bg-black/60 shadow-2xl backdrop-blur-2xl relative z-10">
+        <h2 className="text-3xl font-extrabold text-center mb-6 text-gray-800 dark:text-white tracking-tight">{isLogin ? 'Welcome Back' : 'Join the Battle'}</h2>
         
         {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm font-medium flex items-center gap-2 animate__animated animate__shakeX">
-                <i className="fas fa-exclamation-circle text-lg"></i>
+            <div className="bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-2xl mb-6 text-sm font-bold flex items-center gap-3 animate__animated animate__shakeX backdrop-blur-md">
+                <i className="fas fa-exclamation-circle text-xl"></i>
                 <span>{error}</span>
             </div>
         )}
 
-        <form onSubmit={handleAuth}>
+        <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
             <>
               <Input 
@@ -107,18 +111,18 @@ const AuthPage: React.FC = () => {
                 required 
               />
               {/* Gender Selection */}
-              <div className="flex gap-4 mb-4">
+              <div className="flex gap-4 mb-2">
                   <button
                     type="button"
                     onClick={() => setGender('male')}
-                    className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'male' ? 'border-somali-blue bg-blue-50 text-somali-blue dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'}`}
+                    className={`flex-1 py-3 rounded-2xl font-bold border transition-all flex items-center justify-center gap-2 relative overflow-hidden ${gender === 'male' ? 'bg-blue-500 text-white border-transparent shadow-lg shadow-blue-500/30' : 'bg-white/50 dark:bg-black/20 text-gray-500 border-white/30 dark:border-white/10 hover:bg-white/80'}`}
                   >
                     <i className="fas fa-mars"></i> Male
                   </button>
                   <button
                     type="button"
                     onClick={() => setGender('female')}
-                    className={`flex-1 py-3 rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'female' ? 'border-pink-500 bg-pink-50 text-pink-500 dark:bg-pink-900/20 dark:text-pink-300' : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'}`}
+                    className={`flex-1 py-3 rounded-2xl font-bold border transition-all flex items-center justify-center gap-2 relative overflow-hidden ${gender === 'female' ? 'bg-pink-500 text-white border-transparent shadow-lg shadow-pink-500/30' : 'bg-white/50 dark:bg-black/20 text-gray-500 border-white/30 dark:border-white/10 hover:bg-white/80'}`}
                   >
                     <i className="fas fa-venus"></i> Female
                   </button>
@@ -142,23 +146,27 @@ const AuthPage: React.FC = () => {
             required 
           />
 
-          <Button type="submit" fullWidth isLoading={loading} className="mt-4 font-extrabold shadow-lg">
+          <Button type="submit" fullWidth isLoading={loading} className="mt-4 font-extrabold shadow-xl py-4 text-lg">
             {isLogin ? 'Login' : 'Start Journey'}
           </Button>
         </form>
 
-        <div className="mt-6 text-center space-y-4">
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
+        <div className="mt-8 text-center space-y-4">
+          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
             {isLogin ? "Don't have an account?" : "Already playing?"}
             <button 
               onClick={() => setIsLogin(!isLogin)} 
-              className="ml-2 text-somali-blue dark:text-blue-400 font-bold hover:underline"
+              className="ml-2 text-somali-blue dark:text-blue-400 font-extrabold hover:underline"
             >
               {isLogin ? 'Register' : 'Login'}
             </button>
           </p>
         </div>
       </Card>
+      
+      <div className="mt-8 text-center text-white/40 text-xs font-medium">
+          &copy; 2024 LP-F4 Team
+      </div>
     </div>
   );
 };

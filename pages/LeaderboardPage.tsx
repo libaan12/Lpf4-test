@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { db } from '../firebase';
-import { UserContext } from '../App';
+import { UserContext } from '../contexts';
 import { UserProfile } from '../types';
 import { Avatar } from '../components/UI';
 

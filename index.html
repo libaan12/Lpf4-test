@@ -14,19 +14,12 @@
         theme: {
           extend: {
             colors: {
-              // Overriding gray with Slate for a premium 'app-like' feel
-              gray: {
-                50: '#f8fafc',
-                100: '#f1f5f9',
-                200: '#e2e8f0',
-                300: '#cbd5e1',
-                400: '#94a3b8',
-                500: '#64748b',
-                600: '#475569',
-                700: '#334155',
-                800: '#1e293b', // Main Dark Card BG
-                900: '#0f172a', // Main Dark Page BG
-                950: '#020617', // Darker Accents
+              glass: {
+                100: 'rgba(255, 255, 255, 0.1)',
+                200: 'rgba(255, 255, 255, 0.2)',
+                300: 'rgba(255, 255, 255, 0.3)',
+                400: 'rgba(255, 255, 255, 0.4)',
+                border: 'rgba(255, 255, 255, 0.2)',
               },
               somali: {
                 blue: '#4189DD',
@@ -38,8 +31,9 @@
               sans: ['Inter', 'sans-serif'],
             },
             animation: {
-              blob: "blob 10s infinite",
+              blob: "blob 20s infinite",
               'fade-in': 'fadeIn 0.5s ease-out',
+              'float': 'float 6s ease-in-out infinite',
             },
             keyframes: {
               blob: {
@@ -51,6 +45,10 @@
               fadeIn: {
                 '0%': { opacity: '0', transform: 'translateY(10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
               }
             }
           }
@@ -74,6 +72,7 @@
       body {
         @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300;
         -webkit-tap-highlight-color: transparent;
+        font-feature-settings: "cv11", "ss01";
       }
       
       /* Hide scrollbar for cleaner mobile UI */
@@ -82,32 +81,32 @@
         background: transparent;
       }
       
-      /* Smooth transitions for all themeable elements */
-      * {
-        transition-property: background-color, border-color, color, fill, stroke;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-        transition-duration: 200ms;
+      /* Glassmorphism Global Utilities */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+      }
+      
+      .dark .glass-panel {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
 
-      /* SweetAlert2 Theme Overrides */
+      /* SweetAlert2 Theme Overrides for Glass */
       .swal2-popup {
         font-family: 'Inter', sans-serif !important;
         border-radius: 1.5rem !important;
+        background: rgba(255, 255, 255, 0.9) !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.5) !important;
       }
       
-      /* Dark mode specific sweetalert overrides */
       .dark .swal2-popup {
-        background: #1e293b !important; /* gray-800 */
-        border: 1px solid #334155 !important; /* gray-700 */
-        color: #f1f5f9 !important; /* gray-100 */
-      }
-      .dark .swal2-title, .dark .swal2-content, .dark .swal2-html-container {
+        background: rgba(30, 41, 59, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
         color: #f1f5f9 !important;
-      }
-      .dark .swal2-input, .dark .swal2-textarea {
-        background: #0f172a !important; /* gray-900 */
-        color: white !important;
-        border: 1px solid #475569 !important;
       }
     </style>
   <script type="importmap">

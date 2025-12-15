@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signOut, updateProfile } from 'firebase/auth';
 import { ref, update } from 'firebase/database';
 import { auth, db } from '../firebase';
-import { UserContext, ThemeContext } from '../App';
+import { UserContext, ThemeContext } from '../contexts';
 import { Avatar, Button, Card, Input, Modal } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { generateAvatarUrl } from '../constants';

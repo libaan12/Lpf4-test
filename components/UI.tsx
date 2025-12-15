@@ -1,8 +1,14 @@
 import React from 'react';
 
+// --- Glassmorphism Base Classes ---
+const GLASS_CARD_LIGHT = "bg-white/70 backdrop-blur-xl border border-white/50 shadow-xl";
+const GLASS_CARD_DARK = "dark:bg-gray-900/70 dark:backdrop-blur-xl dark:border-white/10";
+const GLASS_INPUT_LIGHT = "bg-white/50 backdrop-blur-sm border border-white/30 focus:bg-white/80";
+const GLASS_INPUT_DARK = "dark:bg-black/30 dark:border-white/10 dark:focus:bg-black/50";
+
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline';
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'glass';
   fullWidth?: boolean;
   isLoading?: boolean;
 }
@@ -10,17 +16,19 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button: React.FC<ButtonProps> = ({ 
   children, variant = 'primary', fullWidth, isLoading, className = '', ...props 
 }) => {
-  const baseStyle = "py-3 px-6 rounded-xl font-bold transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
+  const baseStyle = "py-3.5 px-6 rounded-2xl font-bold transition-all duration-300 active:scale-95 flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide shadow-lg hover:shadow-xl";
   
   const variants = {
-    // Primary: Blue in both modes
-    primary: "bg-somali-blue text-white hover:bg-blue-600 shadow-blue-500/20",
-    // Secondary: Yellow/Dark-Yellow
-    secondary: "bg-yellow-400 text-yellow-950 hover:bg-yellow-500 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-400",
-    // Danger: Red
-    danger: "bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-500 shadow-red-500/20",
-    // Outline: Bordered
-    outline: "border-2 border-somali-blue text-somali-blue hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-gray-800"
+    // Primary: Vibrant gradient blue
+    primary: "bg-gradient-to-r from-somali-blue to-blue-600 text-white hover:brightness-110 shadow-blue-500/30 border border-white/20",
+    // Secondary: Glassy yellow/gold
+    secondary: "bg-gradient-to-r from-yellow-400 to-amber-500 text-white hover:brightness-110 shadow-yellow-500/30 border border-white/20",
+    // Danger: Glassy red
+    danger: "bg-gradient-to-r from-red-500 to-rose-600 text-white hover:brightness-110 shadow-red-500/30 border border-white/20",
+    // Outline: Glass border
+    outline: "bg-transparent border-2 border-somali-blue text-somali-blue hover:bg-somali-blue/10 dark:border-blue-400 dark:text-blue-400",
+    // Glass: Pure glass button
+    glass: "bg-white/20 hover:bg-white/30 text-gray-800 dark:text-white border border-white/30 backdrop-blur-md"
   };
 
   return (
@@ -42,16 +50,16 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input: React.FC<InputProps> = ({ label, icon, rightElement, className = '', ...props }) => (
-  <div className="mb-4">
-    {label && <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2 transition-colors">{label}</label>}
+  <div className="mb-5">
+    {label && <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2 ml-1 transition-colors">{label}</label>}
     <div className="relative group">
       {icon && (
-        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 dark:text-gray-500 group-focus-within:text-somali-blue dark:group-focus-within:text-blue-400 transition-colors">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-500 dark:text-gray-400 group-focus-within:text-somali-blue dark:group-focus-within:text-blue-400 transition-colors">
           <i className={`fas ${icon}`}></i>
         </span>
       )}
       <input 
-        className={`w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl py-3 ${icon ? 'pl-12' : 'pl-4'} ${rightElement ? 'pr-12' : 'pr-4'} focus:outline-none focus:ring-2 focus:ring-somali-blue dark:focus:ring-blue-500 focus:border-transparent transition-all placeholder-gray-400 dark:placeholder-gray-600 ${className}`}
+        className={`w-full ${GLASS_INPUT_LIGHT} ${GLASS_INPUT_DARK} text-gray-900 dark:text-white rounded-2xl py-4 ${icon ? 'pl-12' : 'pl-4'} ${rightElement ? 'pr-12' : 'pr-4'} focus:outline-none focus:ring-2 focus:ring-somali-blue/50 dark:focus:ring-blue-500/50 transition-all placeholder-gray-500 dark:placeholder-gray-500 font-medium ${className}`}
         {...props}
       />
       {rightElement && (
@@ -65,7 +73,7 @@ export const Input: React.FC<InputProps> = ({ label, icon, rightElement, classNa
 
 // --- Card ---
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 p-6 transition-all ${className}`}>
+  <div className={`${GLASS_CARD_LIGHT} ${GLASS_CARD_DARK} rounded-3xl p-6 transition-all duration-300 ${className}`}>
     {children}
   </div>
 );
@@ -92,7 +100,7 @@ export const Avatar: React.FC<{
   return (
     <div 
       onClick={onClick}
-      className={`relative rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden ${sizes[size]} ${className} ${pulse ? 'animate-pulse ring-4 ring-red-400' : ''}`}
+      className={`relative rounded-full bg-white/50 dark:bg-gray-700/50 backdrop-blur-sm border border-white/50 dark:border-white/10 overflow-hidden shadow-inner ${sizes[size]} ${className} ${pulse ? 'animate-pulse ring-4 ring-red-400' : ''}`}
     >
       <img src={imageUrl} alt="Avatar" className="w-full h-full object-cover" />
     </div>
@@ -103,22 +111,22 @@ export const Avatar: React.FC<{
 export const Modal: React.FC<{ isOpen: boolean; title?: string; children: React.ReactNode; onClose?: () => void }> = ({ isOpen, title, children, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate__animated animate__fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/30 dark:bg-black/60 backdrop-blur-md animate__animated animate__fadeIn">
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={onClose}></div>
       
-      <div className="relative bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700 animate__animated animate__zoomIn max-h-[90vh] flex flex-col">
+      <div className={`relative w-full max-w-sm overflow-hidden flex flex-col animate__animated animate__zoomIn max-h-[90vh] ${GLASS_CARD_LIGHT} ${GLASS_CARD_DARK} rounded-3xl`}>
         {title && (
-            <div className="bg-gray-50 dark:bg-gray-900/50 p-4 border-b border-gray-100 dark:border-gray-700 text-center font-bold text-lg flex justify-between items-center">
+            <div className="bg-white/30 dark:bg-black/20 p-5 border-b border-white/20 dark:border-white/10 text-center font-extrabold text-xl flex justify-between items-center text-gray-800 dark:text-white backdrop-blur-md">
                 <span>{title}</span>
                 {onClose && (
-                    <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-black/5 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center">
                         <i className="fas fa-times"></i>
                     </button>
                 )}
             </div>
         )}
-        <div className="p-6 overflow-y-auto">
+        <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>

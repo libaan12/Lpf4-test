@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, onValue, update, onDisconnect, get, set, remove } from 'firebase/database';
 import { db } from '../firebase';
-import { UserContext } from '../App';
+import { UserContext } from '../contexts';
 import { POINTS_PER_QUESTION } from '../constants';
 import { MatchState, Question } from '../types';
 import { Avatar, Button } from '../components/UI';
