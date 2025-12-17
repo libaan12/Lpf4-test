@@ -274,59 +274,87 @@ const SoloPage: React.FC = () => {
   const currentQ = questions[currentQIndex];
 
   return (
-    <div className="min-h-full bg-somali-blue p-6 flex flex-col items-center justify-center text-white w-full h-full">
-      <div className="w-full max-w-md">
+    <div className="min-h-full bg-somali-blue p-6 flex flex-col items-center justify-center text-white w-full h-full relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
+      
+      <div className="w-full max-w-md relative z-10">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={() => setFinished(true)} className="text-white/80 hover:text-white">
-            <i className="fas fa-times fa-lg"></i> Quit
+          <button onClick={() => setFinished(true)} className="text-white/80 hover:text-white transition-colors bg-white/10 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+            <i className="fas fa-times mr-2"></i> Quit
           </button>
-          <div className="font-bold">Q {currentQIndex + 1}/{questions.length}</div>
+          <div className="font-bold bg-white/10 px-3 py-1 rounded-full text-sm backdrop-blur-sm">Q {currentQIndex + 1}/{questions.length}</div>
         </div>
 
         {finished ? (
-          <Card className="text-center animate__animated animate__zoomIn">
-            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">Training Complete</h2>
-            <div className="text-6xl mb-4">🎯</div>
-            <p className="text-xl mb-6 text-gray-800 dark:text-gray-200">You got <span className="text-somali-blue dark:text-blue-400 font-bold">{score}</span> out of {questions.length}</p>
-            <Button fullWidth onClick={() => navigate('/')}>Back to Home</Button>
-            <Button fullWidth variant="secondary" className="mt-3" onClick={() => {
-                setFinished(false);
-                setCurrentQIndex(0);
-                setScore(0);
-                setSelected(null);
-            }}>Try Again</Button>
+          <Card className="text-center animate__animated animate__zoomIn !bg-white/95 dark:!bg-gray-900/95 backdrop-blur-xl">
+            <h2 className="text-3xl font-black mb-4 text-gray-900 dark:text-white uppercase italic tracking-tight">Training Complete</h2>
+            <div className="text-7xl mb-6 animate__animated animate__tada animate__delay-1s">🎯</div>
+            <p className="text-xl mb-8 text-gray-800 dark:text-gray-200 font-medium">You scored <span className="text-somali-blue dark:text-blue-400 font-black text-3xl">{score}</span> / {questions.length}</p>
+            <div className="space-y-3">
+                <Button fullWidth onClick={() => navigate('/')}>Back to Home</Button>
+                <Button fullWidth variant="secondary" onClick={() => {
+                    setFinished(false);
+                    setCurrentQIndex(0);
+                    setScore(0);
+                    setSelected(null);
+                }}>Try Again</Button>
+            </div>
           </Card>
         ) : (
           <>
              {/* Progress Bar */}
-             <div className="w-full bg-blue-800 rounded-full h-2 mb-8">
-                <div className="bg-white h-2 rounded-full transition-all duration-300" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
+             <div className="w-full bg-black/20 rounded-full h-2.5 mb-8 backdrop-blur-sm overflow-hidden">
+                <div className="bg-white h-2.5 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
              </div>
 
-             {/* Updated Question Card to be compatible with dark mode preference */}
-             <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl p-8 shadow-2xl text-center mb-6 min-h-[150px] flex items-center justify-center flex-col transition-colors">
-                 <span className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">
+             {/* Question Card */}
+             <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-[1.5rem] p-6 shadow-2xl text-center mb-6 min-h-[140px] flex items-center justify-center flex-col transition-colors border-2 border-white/20 dark:border-gray-700 animate__animated animate__fadeIn">
+                 <span className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-[0.2em]">
                      {selectedChapterId.startsWith('ALL_') ? 'Random Mix' : chapters.find(c => c.id === selectedChapterId)?.name}
                  </span>
-                 <h2 className="text-xl font-bold">{currentQ.question}</h2>
+                 <h2 className="text-lg md:text-xl font-bold leading-relaxed drop-shadow-sm">{currentQ.question}</h2>
              </div>
 
-             <div className="space-y-3">
+             {/* Options Grid */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                  {currentQ.options.map((opt, idx) => {
-                    let bg = "bg-white/20 text-white hover:bg-white/30 border border-white/30";
+                    let btnClasses = "bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20";
+                    let circleClasses = "bg-white/20 text-white";
+
                     if (selected !== null) {
-                        if (idx === currentQ.answer) bg = "bg-green-50 border-green-500";
-                        else if (idx === selected) bg = "bg-red-500 border-red-500";
-                        else bg = "bg-white/10 opacity-50";
+                        if (idx === currentQ.answer) {
+                             btnClasses = "bg-green-500 border-green-500 text-white shadow-lg scale-[1.02]";
+                        } else if (idx === selected) {
+                             btnClasses = "bg-red-500 border-red-500 text-white opacity-90";
+                        } else {
+                             btnClasses = "bg-white/5 border-transparent text-white/50 grayscale";
+                        }
                     }
 
                     return (
                         <button
                             key={idx}
                             onClick={() => handleAnswer(idx)}
-                            className={`w-full py-4 rounded-xl font-bold transition-all ${bg}`}
+                            className={`
+                                relative min-h-[4rem] h-auto py-3 px-4 rounded-xl font-bold text-base md:text-lg text-left
+                                border-2 transition-all duration-200 transform
+                                flex items-center gap-3 shadow-sm
+                                ${btnClasses}
+                            `}
                         >
-                            {opt}
+                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shrink-0 transition-colors ${circleClasses}`}>
+                                {String.fromCharCode(65 + idx)}
+                            </div>
+                            <span className="leading-tight">{opt}</span>
+                            
+                            {selected !== null && idx === currentQ.answer && (
+                                <i className="fas fa-check-circle absolute right-4 text-white text-xl animate__animated animate__zoomIn"></i>
+                            )}
+                             {selected !== null && idx === selected && idx !== currentQ.answer && (
+                                <i className="fas fa-times-circle absolute right-4 text-white text-xl animate__animated animate__zoomIn"></i>
+                            )}
                         </button>
                     )
                  })}
