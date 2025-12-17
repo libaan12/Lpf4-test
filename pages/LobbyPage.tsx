@@ -23,7 +23,7 @@ const LobbyPage: React.FC = () => {
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   
   // Custom Room Settings
-  const [quizLimit, setQuizLimit] = useState<number>(5);
+  const [quizLimit, setQuizLimit] = useState<number>(10);
 
   // Match State
   const [matchStatus, setMatchStatus] = useState<string>('');
@@ -60,8 +60,14 @@ const LobbyPage: React.FC = () => {
     get(chapRef).then(snap => {
         if(snap.exists()) {
             const list = Object.values(snap.val()) as Chapter[];
-            setChapters(list);
-            if(list.length > 0) setSelectedChapter(list[0].id);
+            // Add "All Chapters" option at the beginning
+            const allOption: Chapter = {
+                id: `ALL_${selectedSubject}`,
+                name: 'All Operations (Random)',
+                subjectId: selectedSubject
+            };
+            setChapters([allOption, ...list]);
+            setSelectedChapter(allOption.id);
         } else {
             setChapters([]);
         }
@@ -92,6 +98,9 @@ const LobbyPage: React.FC = () => {
           const opponentUid = queueData[opponentKey].uid;
           await remove(ref(db, `queue/${selectedChapter}/${opponentKey}`));
 
+          // Randomize limit for Ranked Match (10-20)
+          const randomLimit = Math.floor(Math.random() * 11) + 10;
+
           const matchId = `match_${Date.now()}`;
           const matchData = {
             matchId,
@@ -100,7 +109,8 @@ const LobbyPage: React.FC = () => {
             turn: user.uid, 
             currentQ: 0,
             scores: { [user.uid]: 0, [opponentUid]: 0 },
-            subject: selectedChapter,
+            subject: selectedChapter, // Can be specific ID or ALL_subjectId
+            questionLimit: randomLimit,
             players: {
               [user.uid]: { name: user.displayName, avatar: '' },
               [opponentUid]: { name: 'Opponent', avatar: '' }
@@ -167,7 +177,7 @@ const LobbyPage: React.FC = () => {
       host: user.uid,
       sid: selectedSubject,
       lid: selectedChapter,
-      questionLimit: quizLimit,
+      questionLimit: quizLimit, // Host decides limit in custom
       createdAt: Date.now()
     });
 
@@ -202,7 +212,7 @@ const LobbyPage: React.FC = () => {
 
       const hostUid = roomData.host;
       const chapterId = roomData.lid;
-      const qLimit = roomData.questionLimit || 5;
+      const qLimit = roomData.questionLimit || 10;
 
       await remove(roomRef);
 
@@ -318,6 +328,12 @@ const LobbyPage: React.FC = () => {
                             <div className={`absolute -right-4 -bottom-4 text-6xl opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity ${selectedChapter === c.id ? 'text-somali-blue' : 'text-gray-500'}`}>
                                 <i className="fas fa-crosshairs"></i>
                             </div>
+                            {/* Special visual for ALL chapters */}
+                            {c.id.startsWith('ALL_') && (
+                                <div className="absolute top-0 right-0 p-2 opacity-10">
+                                    <i className="fas fa-random text-4xl"></i>
+                                </div>
+                            )}
                         </div>
                     ))}
                  </div>
@@ -353,6 +369,7 @@ const LobbyPage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-full relative pb-24 md:pb-8 w-full">
+      {/* ... (Rest of the render return remains the same) ... */}
       {/* --- PHASE 1: MODE SELECTION (Battle HQ) --- */}
       {viewMode === 'selection' && (
         <div className="flex flex-col items-center justify-center p-6 min-h-[85vh] animate__animated animate__fadeIn">

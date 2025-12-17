@@ -4,11 +4,37 @@ import { ref, onValue, update, onDisconnect, get, set, remove } from 'firebase/d
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { POINTS_PER_QUESTION } from '../constants';
-import { MatchState, Question } from '../types';
+import { MatchState, Question, Chapter } from '../types';
 import { Avatar, Button } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { showConfirm } from '../services/alert';
 import confetti from 'canvas-confetti';
+
+// Simple seeded random number generator (Linear Congruential Generator)
+// Ensures both players generate the same "random" sequence if they use the same seed (matchId)
+const createSeededRandom = (seedStr: string) => {
+    // Hash the string to get a starting number
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+        hash |= 0;
+    }
+    let seed = Math.abs(hash);
+
+    return () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+    };
+};
+
+const shuffleArraySeeded = <T,>(array: T[], rng: () => number): T[] => {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+};
 
 const GamePage: React.FC = () => {
   const { matchId } = useParams();
@@ -48,18 +74,67 @@ const GamePage: React.FC = () => {
       setMatch(data);
 
       if (questions.length === 0 && data.subject) {
-          const qRef = ref(db, `questions/${data.subject}`);
-          const qSnap = await get(qRef);
-          if (qSnap.exists()) {
-              let loadedQ = Object.values(qSnap.val()) as Question[];
+          let loadedQ: Question[] = [];
+          
+          // Check if "All Chapters" is selected (Format: ALL_subjectId)
+          if (data.subject.startsWith('ALL_')) {
+              const subjectId = data.subject.replace('ALL_', '');
+              const chaptersRef = ref(db, `chapters/${subjectId}`);
+              const chapSnap = await get(chaptersRef);
               
-              if (data.mode === 'custom' && data.questionLimit && loadedQ.length > data.questionLimit) {
-                  loadedQ = loadedQ.slice(0, data.questionLimit);
+              if (chapSnap.exists()) {
+                  const chapters = Object.values(chapSnap.val()) as Chapter[];
+                  // Fetch all questions for all chapters concurrently
+                  const promises = chapters.map(c => get(ref(db, `questions/${c.id}`)));
+                  const snapshots = await Promise.all(promises);
+                  
+                  snapshots.forEach(snap => {
+                      if (snap.exists()) {
+                          loadedQ.push(...(Object.values(snap.val()) as Question[]));
+                      }
+                  });
+              }
+          } else {
+              // Specific Chapter
+              const qRef = ref(db, `questions/${data.subject}`);
+              const qSnap = await get(qRef);
+              if (qSnap.exists()) {
+                  loadedQ = Object.values(qSnap.val()) as Question[];
+              }
+          }
+
+          if (loadedQ.length > 0) {
+              // Seeded Randomization for Consistency
+              const rng = createSeededRandom(data.matchId); // Use matchId as seed
+
+              // 1. Shuffle Questions
+              let shuffledQ = shuffleArraySeeded(loadedQ, rng);
+              
+              // 2. Shuffle Options for each question
+              shuffledQ = shuffledQ.map(q => {
+                  const optionsWithIndex = q.options.map((opt, idx) => ({ 
+                      text: opt, 
+                      isCorrect: idx === q.answer 
+                  }));
+                  
+                  const shuffledOptions = shuffleArraySeeded(optionsWithIndex, rng);
+                  
+                  return {
+                      ...q,
+                      options: shuffledOptions.map(o => o.text),
+                      answer: shuffledOptions.findIndex(o => o.isCorrect) // Recalculate answer index
+                  };
+              });
+
+              // 3. Apply Limit (Randomized in Lobby or User defined)
+              const limit = data.questionLimit || 10;
+              if (shuffledQ.length > limit) {
+                  shuffledQ = shuffledQ.slice(0, limit);
               }
 
-              setQuestions(loadedQ);
+              setQuestions(shuffledQ);
           } else {
-              console.error("No questions found for chapter: " + data.subject);
+              console.error("No questions found.");
           }
       }
 

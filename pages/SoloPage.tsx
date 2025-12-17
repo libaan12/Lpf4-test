@@ -7,6 +7,16 @@ import { playSound } from '../services/audioService';
 import { showToast } from '../services/alert';
 import { Question, Subject, Chapter } from '../types';
 
+// Utility to shuffle array
+const shuffleArray = <T,>(array: T[]): T[] => {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+};
+
 const SoloPage: React.FC = () => {
   const navigate = useNavigate();
   
@@ -58,10 +68,16 @@ const SoloPage: React.FC = () => {
       const snapshot = await get(chapRef);
       if (snapshot.exists()) {
           const loadedChapters = Object.values(snapshot.val()) as Chapter[];
-          setChapters(loadedChapters);
-          if (loadedChapters.length > 0) {
-              setSelectedChapterId(loadedChapters[0].id); // Default to first
-          }
+          
+          // Add All Chapters Option
+          const allOption: Chapter = {
+              id: `ALL_${sub.id}`,
+              name: 'All Operations (Random)',
+              subjectId: sub.id
+          };
+          
+          setChapters([allOption, ...loadedChapters]);
+          setSelectedChapterId(allOption.id); // Default to All
           setStep('chapter');
       } else {
           showToast("No chapters found for this subject.", "info");
@@ -75,16 +91,55 @@ const SoloPage: React.FC = () => {
       setLoading(true);
       playSound('click');
 
-      const qRef = ref(db, `questions/${selectedChapterId}`);
-      const snapshot = await get(qRef);
-      if (snapshot.exists()) {
-          const qList = Object.values(snapshot.val()) as Question[];
-          if (qList.length > 0) {
-              setQuestions(qList);
-              setStep('game');
-          } else {
-              showToast("No questions in this chapter yet.", "warning");
+      let loadedQ: Question[] = [];
+
+      if (selectedChapterId.startsWith('ALL_')) {
+          // Fetch from ALL chapters
+          // Note: In real production with huge data, this might be heavy, but fine for text-based quizzes
+          // Since we already fetched chapters to display dropdown, we can iterate them (excluding the ALL option itself)
+          const realChapters = chapters.filter(c => !c.id.startsWith('ALL_'));
+          const promises = realChapters.map(c => get(ref(db, `questions/${c.id}`)));
+          const snapshots = await Promise.all(promises);
+          snapshots.forEach(snap => {
+              if (snap.exists()) {
+                  loadedQ.push(...(Object.values(snap.val()) as Question[]));
+              }
+          });
+      } else {
+          // Fetch specific chapter
+          const qRef = ref(db, `questions/${selectedChapterId}`);
+          const snapshot = await get(qRef);
+          if (snapshot.exists()) {
+              loadedQ = Object.values(snapshot.val()) as Question[];
           }
+      }
+
+      if (loadedQ.length > 0) {
+          // 1. Shuffle Questions
+          let shuffledQ = shuffleArray(loadedQ);
+
+          // 2. Shuffle Options for each question
+          shuffledQ = shuffledQ.map(q => {
+              const optionsWithIndex = q.options.map((opt, idx) => ({ 
+                  text: opt, 
+                  isCorrect: idx === q.answer 
+              }));
+              const shuffledOptions = shuffleArray(optionsWithIndex);
+              return {
+                  ...q,
+                  options: shuffledOptions.map(o => o.text),
+                  answer: shuffledOptions.findIndex(o => o.isCorrect)
+              };
+          });
+
+          // 3. Random Limit (10-20)
+          const randomLimit = Math.floor(Math.random() * 11) + 10;
+          if (shuffledQ.length > randomLimit) {
+              shuffledQ = shuffledQ.slice(0, randomLimit);
+          }
+
+          setQuestions(shuffledQ);
+          setStep('game');
       } else {
           showToast("No questions found.", "warning");
       }
@@ -239,7 +294,9 @@ const SoloPage: React.FC = () => {
 
              {/* Updated Question Card to be compatible with dark mode preference */}
              <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl p-8 shadow-2xl text-center mb-6 min-h-[150px] flex items-center justify-center flex-col transition-colors">
-                 <span className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">{selectedChapterId && chapters.find(c => c.id === selectedChapterId)?.name}</span>
+                 <span className="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">
+                     {selectedChapterId.startsWith('ALL_') ? 'Random Mix' : chapters.find(c => c.id === selectedChapterId)?.name}
+                 </span>
                  <h2 className="text-xl font-bold">{currentQ.question}</h2>
              </div>
 
@@ -247,7 +304,7 @@ const SoloPage: React.FC = () => {
                  {currentQ.options.map((opt, idx) => {
                     let bg = "bg-white/20 text-white hover:bg-white/30 border border-white/30";
                     if (selected !== null) {
-                        if (idx === currentQ.answer) bg = "bg-green-500 border-green-500";
+                        if (idx === currentQ.answer) bg = "bg-green-50 border-green-500";
                         else if (idx === selected) bg = "bg-red-500 border-red-500";
                         else bg = "bg-white/10 opacity-50";
                     }
