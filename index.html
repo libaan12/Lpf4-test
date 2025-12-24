@@ -118,7 +118,7 @@
       }
       
       /* Base Popup Style (Light Mode Default) */
-      .glass-swal-popup {
+      .glass-swal-popup, .glass-swal-toast {
         background: #ffffff !important; /* Fully Opaque White */
         border: 2px solid #cbd5e1 !important;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
@@ -129,20 +129,21 @@
       }
       
       /* Dark Mode Override */
-      .dark .glass-swal-popup {
+      .dark .glass-swal-popup, .dark .glass-swal-toast {
         background: #1e293b !important;
         border-color: #334155 !important;
         color: #ffffff !important; /* Pure White Text */
       }
       
-      .glass-swal-title {
+      .glass-swal-title, .glass-swal-toast-title, .swal2-title {
         color: inherit !important;
         font-weight: 900 !important;
         text-transform: uppercase !important;
         font-style: italic !important;
+        opacity: 1 !important;
       }
       
-      .glass-swal-content {
+      .glass-swal-content, .swal2-html-container {
         color: inherit !important;
         font-weight: 600 !important;
         opacity: 1 !important; /* No Transparency */
@@ -180,7 +181,7 @@
       }
 
       /* Input Fields in Alerts */
-      .glass-swal-input {
+      .glass-swal-input, .swal2-input {
         background-color: #f1f5f9 !important;
         border: 2px solid #cbd5e1 !important;
         border-radius: 1rem !important;
@@ -190,14 +191,15 @@
         text-align: center !important;
         font-size: 1.25rem !important;
       }
-      .dark .glass-swal-input {
+      .dark .glass-swal-input, .dark .swal2-input {
         background-color: #0f172a !important;
         border-color: #334155 !important;
         color: #ffffff !important; /* Light text */
       }
-      .glass-swal-input:focus {
+      .glass-swal-input:focus, .swal2-input:focus {
         border-color: #6366f1 !important;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+        outline: none !important;
       }
     </style>
   <script type="importmap">
