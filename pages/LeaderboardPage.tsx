@@ -55,7 +55,6 @@ const LeaderboardPage: React.FC = () => {
   }, []);
 
   const getRankStyle = (index: number) => {
-     // Added dark mode classes (dark:bg-...) to ensure white text is visible on dark backgrounds
      if (index === 0) return "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-600/50";
      if (index === 1) return "bg-gray-50 border-gray-200 dark:bg-gray-700/40 dark:border-gray-600/50";
      if (index === 2) return "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-600/50";
@@ -63,19 +62,19 @@ const LeaderboardPage: React.FC = () => {
   };
 
   const getIcon = (index: number) => {
-    if (index === 0) return <i className="fas fa-crown text-yellow-500"></i>;
-    if (index === 1) return <i className="fas fa-medal text-gray-400 dark:text-gray-300"></i>;
-    if (index === 2) return <i className="fas fa-medal text-orange-500"></i>;
-    return <span className="text-gray-400 font-bold">{index + 1}</span>;
+    if (index === 0) return <i className="fas fa-crown text-yellow-500 text-2xl drop-shadow-sm"></i>;
+    if (index === 1) return <i className="fas fa-medal text-gray-400 dark:text-gray-300 text-xl"></i>;
+    if (index === 2) return <i className="fas fa-medal text-orange-500 text-xl"></i>;
+    return <span className="text-gray-400 font-bold text-lg w-6 text-center">{index + 1}</span>;
   }
 
   return (
-    <div className="min-h-full p-4 flex flex-col pb-8 max-w-4xl mx-auto w-full">
+    <div className="min-h-full p-4 flex flex-col pb-24 max-w-4xl mx-auto w-full">
        <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-md -mx-4 px-4 py-3 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
-        <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
+        <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
             <i className="fas fa-arrow-left fa-lg"></i>
         </button>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Top Students</h1>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic">Top Students</h1>
       </div>
 
       {loading && players.length === 0 ? (
@@ -100,19 +99,31 @@ const LeaderboardPage: React.FC = () => {
                 const level = Math.floor(p.points / 10) + 1;
                 
                 return (
-                    <div key={p.uid} className={`flex items-center p-4 rounded-xl border shadow-sm ${getRankStyle(idx)} ${isMe ? 'ring-2 ring-somali-blue' : ''} animate__animated animate__fadeInUp transition-colors`} style={{animationDelay: `${idx * 0.05}s`}}>
-                        <div className="w-8 text-center text-xl mr-3 font-mono">
+                    <div key={p.uid} className={`flex items-center p-3 md:p-4 rounded-2xl border shadow-sm ${getRankStyle(idx)} ${isMe ? 'ring-2 ring-game-primary ring-offset-2 dark:ring-offset-gray-900' : ''} animate__animated animate__fadeInUp transition-all hover:scale-[1.01]`} style={{animationDelay: `${idx * 0.05}s`}}>
+                        {/* Rank Icon */}
+                        <div className="w-10 flex justify-center items-center mr-2 shrink-0">
                             {getIcon(idx)}
                         </div>
-                        <Avatar src={p.avatar} seed={p.uid} size="sm" className="mr-4" />
-                        <div className="flex-1">
-                            <div className="font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+                        
+                        {/* Avatar */}
+                        <Avatar src={p.avatar} seed={p.uid} size="sm" className="mr-3 shrink-0 border-2 border-white dark:border-slate-600 shadow-sm" />
+                        
+                        {/* Name & Level (Flex Grow) */}
+                        <div className="flex-1 min-w-0 pr-2">
+                            <div className="font-bold text-sm md:text-base text-slate-900 dark:text-white truncate flex items-center gap-2">
                                 {p.name}
-                                {isMe && <span className="bg-somali-blue text-white text-[9px] px-2 rounded-full">YOU</span>}
+                                {isMe && <span className="bg-game-primary text-white text-[9px] px-1.5 py-0.5 rounded-md font-black tracking-wide">ME</span>}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Level {level}</div>
+                            <div className="text-[10px] md:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                LVL {level}
+                            </div>
                         </div>
-                        <div className="font-mono font-bold text-somali-blue dark:text-blue-400">{p.points} pts</div>
+
+                        {/* Points (Fixed Width) */}
+                        <div className="text-right shrink-0">
+                            <div className="font-black text-base md:text-lg text-game-primary dark:text-blue-400 leading-none">{p.points}</div>
+                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">PTS</div>
+                        </div>
                     </div>
                 );
             })}

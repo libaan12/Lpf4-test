@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Card } from './UI';
 
 interface NavbarProps {
     orientation?: 'horizontal' | 'vertical';
@@ -67,24 +66,28 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
       );
   }
 
-  // Mobile Horizontal - Floating Dock
+  // Mobile Horizontal - Glass Island Design
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-white dark:bg-slate-800 rounded-full px-2 py-2 flex items-center shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border-2 border-slate-100 dark:border-slate-700 gap-1">
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none flex justify-center pb-6">
+        <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl px-2 py-2 flex items-center justify-between gap-1 w-full max-w-sm">
             {navItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                 <button 
                     key={item.path} 
                     onClick={() => navigate(item.path)}
-                    className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300
-                        ${isActive ? '-mt-6 bg-game-primary text-white shadow-lg ring-4 ring-slate-100 dark:ring-slate-900 transform scale-110' : 'text-slate-400 hover:text-game-primary'}
+                    className={`flex-1 flex flex-col items-center justify-center py-2 rounded-xl transition-all duration-300 relative overflow-hidden
+                        ${isActive ? 'text-game-primary' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}
                     `}
                 >
-                    <i className={`fas ${item.icon} text-xl ${isActive ? 'animate-bounce-slow' : ''}`}></i>
-                    {isActive && <span className="absolute -bottom-6 text-[10px] font-bold text-game-primary bg-white dark:bg-slate-800 px-2 rounded-full shadow-sm">
+                    {isActive && (
+                        <div className="absolute inset-0 bg-game-primary/10 dark:bg-game-primary/20 rounded-xl animate__animated animate__fadeIn"></div>
+                    )}
+                    <i className={`fas ${item.icon} text-xl mb-1 z-10 transition-transform ${isActive ? '-translate-y-1' : ''}`}></i>
+                    <span className={`text-[10px] font-bold leading-none z-10 ${isActive ? 'block' : 'hidden'}`}>
                         {item.label}
-                    </span>}
+                    </span>
+                    {isActive && <div className="w-1 h-1 bg-game-primary rounded-full absolute bottom-1"></div>}
                 </button>
                 );
             })}

@@ -103,13 +103,13 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="min-h-full p-4 flex flex-col transition-colors max-w-3xl mx-auto w-full pb-24">
        <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-md -mx-4 px-4 py-3 mb-8 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
-        <button onClick={() => navigate('/')} className="text-gray-900 dark:text-gray-100 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
+        <button onClick={() => navigate('/')} className="text-gray-900 dark:text-gray-100 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
             <i className="fas fa-arrow-left fa-lg"></i>
         </button>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h1>
         <div className="flex-1 text-right">
             {!isEditing && (
-                <button onClick={() => setIsEditing(true)} className="font-bold text-sm px-3 py-1 rounded-full border transition-all text-somali-blue dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20">
+                <button onClick={() => setIsEditing(true)} className="font-bold text-sm px-3 py-1 rounded-full border transition-all text-game-primary dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20">
                     <i className="fas fa-edit mr-1"></i> Edit
                 </button>
             )}
@@ -127,7 +127,7 @@ const ProfilePage: React.FC = () => {
             />
             <button 
                 onClick={() => setShowAvatarSelector(true)}
-                className="absolute bottom-4 right-0 bg-somali-blue text-white p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white dark:border-gray-800"
+                className="absolute bottom-4 right-0 bg-game-primary text-white p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white dark:border-gray-800"
                 title="Choose Avatar"
             >
                 <i className="fas fa-camera"></i>
@@ -156,11 +156,11 @@ const ProfilePage: React.FC = () => {
             <>
                 <h2 
                     onClick={() => setIsEditing(true)}
-                    className="text-2xl font-black text-gray-900 dark:text-white cursor-pointer hover:text-somali-blue transition-colors flex items-center justify-center gap-2 group"
+                    className="text-2xl font-black text-gray-900 dark:text-white cursor-pointer hover:text-game-primary transition-colors flex items-center justify-center gap-2 group"
                     title="Click to edit name"
                 >
                     {profile.name}
-                    <i className="fas fa-pencil-alt text-xs opacity-0 group-hover:opacity-100 transition-opacity text-somali-blue"></i>
+                    <i className="fas fa-pencil-alt text-xs opacity-0 group-hover:opacity-100 transition-opacity text-game-primary"></i>
                 </h2>
                 <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-bold">
                     {profile.email}
@@ -176,7 +176,7 @@ const ProfilePage: React.FC = () => {
                   <div 
                     key={idx} 
                     onClick={() => selectAvatar(seed)}
-                    className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-somali-blue cursor-pointer transition-all hover:scale-110 bg-gray-100 dark:bg-gray-800"
+                    className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-game-primary cursor-pointer transition-all hover:scale-110 bg-gray-100 dark:bg-gray-800"
                   >
                       <img src={generateAvatarUrl(seed)} alt="avatar" className="w-full h-full object-cover" />
                   </div>
@@ -190,10 +190,10 @@ const ProfilePage: React.FC = () => {
       <Card className="mb-6 relative overflow-hidden">
         <div className="flex justify-between items-end mb-2 relative z-10">
             <span className="font-bold text-gray-900 dark:text-white">Level {level}</span>
-            <span className="text-somali-blue dark:text-blue-400 font-bold">{profile.points} Total Points</span>
+            <span className="text-game-primary dark:text-blue-400 font-bold">{profile.points} Total Points</span>
         </div>
         <div className="w-full bg-gray-300 dark:bg-gray-700 rounded-full h-4 overflow-hidden relative z-10 border border-gray-400 dark:border-gray-600">
-             <div className="bg-somali-blue h-4 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+             <div className="bg-game-primary h-4 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
         </div>
         <div className="text-right text-xs text-gray-700 dark:text-gray-300 mt-2 relative z-10 font-bold">{pointsToNext} pts to Level {level + 1}</div>
       </Card>
@@ -215,7 +215,7 @@ const ProfilePage: React.FC = () => {
                 
                 <button 
                     onClick={toggleTheme}
-                    className={`w-16 h-9 rounded-full p-1 transition-all duration-300 flex items-center shadow-inner ${theme === 'dark' ? 'bg-somali-blue justify-end' : 'bg-gray-300 justify-start'}`}
+                    className={`w-16 h-9 rounded-full p-1 transition-all duration-300 flex items-center shadow-inner ${theme === 'dark' ? 'bg-game-primary justify-end' : 'bg-gray-300 justify-start'}`}
                 >
                     <div className="w-7 h-7 rounded-full bg-white shadow-md transform transition-transform"></div>
                 </button>

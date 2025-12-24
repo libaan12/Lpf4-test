@@ -160,7 +160,7 @@ const LobbyPage: React.FC = () => {
           <div className="pt-4 animate__animated animate__fadeInRight">
               <div className="flex items-center gap-4 mb-6">
                  <button onClick={() => { setViewMode('selection'); cancelSearch(); if(hostedCode) remove(ref(db, `rooms/${hostedCode}`)); }} className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                    <i className="fas fa-chevron-left"></i>
+                    <i className="fas fa-chevron-left dark:text-white"></i>
                  </button>
                  <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase">{viewMode === 'auto' ? 'Ranked' : 'Private'}</h2>
               </div>
@@ -179,7 +179,7 @@ const LobbyPage: React.FC = () => {
               ) : (
                   !hostedCode && (
                     <div className="space-y-6">
-                        <div className="overflow-x-auto pb-4 flex gap-3 snap-x">
+                        <div className="overflow-x-auto pb-4 flex gap-3 snap-x scrollbar-hide">
                             {subjects.map(s => (
                                 <button key={s.id} onClick={() => setSelectedSubject(s.id)} className={`snap-start px-6 py-3 rounded-2xl font-black uppercase tracking-wider whitespace-nowrap transition-all border-b-4 ${selectedSubject === s.id ? 'bg-game-primary text-white border-game-primaryDark' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'}`}>
                                     {s.name}
@@ -188,7 +188,7 @@ const LobbyPage: React.FC = () => {
                         </div>
 
                         {chapters.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-2">
+                            <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                                 {chapters.map(c => (
                                     <div key={c.id} onClick={() => setSelectedChapter(c.id)} className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between group ${selectedChapter === c.id ? 'border-game-primary bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300'}`}>
                                         <span className={`font-bold ${selectedChapter === c.id ? 'text-game-primary' : 'text-slate-700 dark:text-slate-300'}`}>{c.name}</span>
@@ -205,11 +205,19 @@ const LobbyPage: React.FC = () => {
                         ) : (
                             <div className="space-y-4">
                                 <Card className="bg-slate-50 dark:bg-slate-900/50">
-                                    <div className="flex gap-2 mb-4">
-                                        <input value={roomCode} onChange={e => setRoomCode(e.target.value)} placeholder="ENTER CODE" className="flex-1 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-xl px-4 text-center font-black uppercase text-xl" maxLength={4} />
-                                        <Button onClick={joinRoom} disabled={roomCode.length !== 4}>JOIN</Button>
+                                    <div className="flex flex-col md:flex-row gap-2 mb-4">
+                                        <input 
+                                            value={roomCode} 
+                                            onChange={e => setRoomCode(e.target.value)} 
+                                            placeholder="ENTER CODE" 
+                                            className="w-full md:flex-1 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-center font-black uppercase text-xl dark:text-white" 
+                                            maxLength={4} 
+                                        />
+                                        <Button fullWidth onClick={joinRoom} disabled={roomCode.length !== 4} className="md:w-auto">JOIN</Button>
                                     </div>
-                                    <div className="border-t border-slate-200 dark:border-slate-700 my-4"></div>
+                                    <div className="border-t border-slate-200 dark:border-slate-700 my-4 flex items-center justify-center">
+                                        <span className="bg-slate-50 dark:bg-slate-900 px-3 text-xs font-bold text-slate-400">OR</span>
+                                    </div>
                                     <Button fullWidth variant="secondary" onClick={createRoom} disabled={!selectedChapter}>CREATE HOST</Button>
                                 </Card>
                             </div>

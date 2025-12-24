@@ -186,7 +186,7 @@ const SoloPage: React.FC = () => {
   // --- Render Selection Screens ---
 
   if (loading) {
-    return <div className="min-h-screen bg-somali-blue flex items-center justify-center text-white font-bold animate-pulse">Loading Content...</div>;
+    return <div className="min-h-screen bg-game-primary flex items-center justify-center text-white font-bold animate-pulse">Loading Content...</div>;
   }
 
   // STEP 1: Select Subject
@@ -194,7 +194,7 @@ const SoloPage: React.FC = () => {
       return (
           <div className="min-h-full bg-gray-50 dark:bg-gray-900 p-4 max-w-4xl mx-auto w-full">
               <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-md -mx-4 px-4 py-3 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
-                  <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
+                  <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
                   </button>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Select Subject</h1>
@@ -202,10 +202,10 @@ const SoloPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {subjects.length === 0 && <div className="text-gray-500 text-center mt-10">No subjects available.</div>}
                   {subjects.map(sub => (
-                      <Card key={sub.id} className="cursor-pointer hover:scale-105 transition-transform border-l-4 border-somali-blue group">
+                      <Card key={sub.id} className="cursor-pointer hover:scale-105 transition-transform border-l-4 border-game-primary group">
                           <div onClick={() => handleSelectSubject(sub)} className="flex justify-between items-center">
                               <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-somali-blue dark:text-blue-300 group-hover:bg-somali-blue group-hover:text-white transition-colors">
+                                  <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-game-primary dark:text-indigo-300 group-hover:bg-game-primary group-hover:text-white transition-colors">
                                       <i className="fas fa-book"></i>
                                   </div>
                                   <span className="font-bold text-lg text-gray-900 dark:text-white">{sub.name}</span>
@@ -216,7 +216,7 @@ const SoloPage: React.FC = () => {
                   ))}
               </div>
               <div className="mt-8 text-center animate__animated animate__fadeInUp">
-                  <p className="inline-block px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/20 text-somali-blue dark:text-blue-300 text-xs font-bold border border-blue-100 dark:border-blue-800/50">
+                  <p className="inline-block px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/20 text-game-primary dark:text-blue-300 text-xs font-bold border border-blue-100 dark:border-blue-800/50">
                       <i className="fas fa-bullhorn mr-2"></i> More subjects will be added soon!
                   </p>
               </div>
@@ -229,7 +229,7 @@ const SoloPage: React.FC = () => {
       return (
           <div className="min-h-full bg-gray-50 dark:bg-gray-900 p-4 max-w-4xl mx-auto w-full">
               <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-md -mx-4 px-4 py-3 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center gap-4 transition-colors">
-                  <button onClick={() => setStep('subject')} className="text-gray-600 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
+                  <button onClick={() => setStep('subject')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
                   </button>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedSubject?.name}</h1>
@@ -250,7 +250,7 @@ const SoloPage: React.FC = () => {
                           <select 
                             value={selectedChapterId} 
                             onChange={(e) => setSelectedChapterId(e.target.value)}
-                            className="w-full p-4 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-xl appearance-none font-bold text-gray-700 dark:text-white focus:outline-none focus:border-green-500"
+                            className="w-full p-4 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-xl appearance-none font-bold text-gray-700 focus:outline-none focus:border-green-500"
                           >
                               {chapters.map(chap => (
                                   <option key={chap.id} value={chap.id}>{chap.name}</option>
@@ -274,7 +274,7 @@ const SoloPage: React.FC = () => {
   const currentQ = questions[currentQIndex];
 
   return (
-    <div className="min-h-full bg-somali-blue p-6 flex flex-col items-center justify-center text-white w-full h-full relative overflow-hidden">
+    <div className="min-h-full bg-game-primary p-6 flex flex-col items-center justify-center text-white w-full h-full relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
@@ -291,7 +291,7 @@ const SoloPage: React.FC = () => {
           <Card className="text-center animate__animated animate__zoomIn !bg-white/95 dark:!bg-gray-900/95 backdrop-blur-xl">
             <h2 className="text-3xl font-black mb-4 text-gray-900 dark:text-white uppercase italic tracking-tight">Training Complete</h2>
             <div className="text-7xl mb-6 animate__animated animate__tada animate__delay-1s">🎯</div>
-            <p className="text-xl mb-8 text-gray-800 dark:text-gray-200 font-medium">You scored <span className="text-somali-blue dark:text-blue-400 font-black text-3xl">{score}</span> / {questions.length}</p>
+            <p className="text-xl mb-8 text-gray-800 dark:text-gray-200 font-medium">You scored <span className="text-game-primary dark:text-blue-400 font-black text-3xl">{score}</span> / {questions.length}</p>
             <div className="space-y-3">
                 <Button fullWidth onClick={() => navigate('/')}>Back to Home</Button>
                 <Button fullWidth variant="secondary" onClick={() => {
