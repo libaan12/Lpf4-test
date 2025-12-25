@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, update, onValue, off, set, remove } from 'firebase/database';
+import { ref, update, onValue, off, set, remove, get } from 'firebase/database';
 import { db } from '../firebase';
 import { UserProfile } from '../types';
 import { Button, Card, Input, Modal, Avatar } from '../components/UI';
@@ -94,17 +94,30 @@ const SuperAdminPage: React.FC = () => {
   const deleteUser = async (uid: string) => {
       const confirmed = await showConfirm(
           "Delete User Permanently?", 
-          "This action cannot be undone. All user data (points, profile) will be wiped from the database.",
+          "This action cannot be undone. All user data (profile, points, history) will be wiped from the database.",
           "warning"
       );
       
       if (!confirmed) return;
 
       try {
+          // 1. Check for active match and clean it up
+          const userSnap = await get(ref(db, `users/${uid}`));
+          if (userSnap.exists()) {
+              const userData = userSnap.val();
+              if (userData.activeMatch) {
+                   // Remove player from the match so game logic handles disconnect/forfeit correctly
+                   await remove(ref(db, `matches/${userData.activeMatch}/players/${uid}`));
+              }
+          }
+
+          // 2. Delete User Record from Database
           await remove(ref(db, `users/${uid}`));
+          
           setSelectedUser(null);
-          showAlert('Deleted', 'User record deleted.', 'success');
+          showAlert('Deleted', 'User record deleted from database.', 'success');
       } catch (e) {
+          console.error(e);
           showAlert('Error', 'Failed to delete user data.', 'error');
       }
   };
