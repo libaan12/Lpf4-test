@@ -174,7 +174,7 @@ const GamePage: React.FC = () => {
           // Opponent is back online
           setAfkTimer(null);
       }
-  }, [match, user, afkTimer]);
+  }, [match, user]); // Removed afkTimer from dependency to avoid loop resets, but we want to reset if match status changes
 
   // Countdown Effect
   useEffect(() => {
