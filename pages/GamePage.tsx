@@ -45,6 +45,9 @@ const GamePage: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState<{correct: boolean, answer: number} | null>(null);
   const [pointsAwardedForDisconnect, setPointsAwardedForDisconnect] = useState(false);
   
+  // Animation State
+  const [showIntro, setShowIntro] = useState(false);
+  
   const processingRef = useRef(false);
 
   useEffect(() => {
@@ -98,7 +101,14 @@ const GamePage: React.FC = () => {
         const oppUid = Object.keys(data.scores).find(uid => uid !== user.uid);
         if (oppUid) {
              const oppSnap = await get(ref(db, `users/${oppUid}`));
-             if (oppSnap.exists()) setOpponentProfile({ uid: oppUid, ...oppSnap.val() });
+             if (oppSnap.exists()) {
+                 setOpponentProfile({ uid: oppUid, ...oppSnap.val() });
+                 // Only show intro if it's the very start of the match
+                 if (data.currentQ === 0) {
+                     setShowIntro(true);
+                     playSound('click'); // Or a better dramatic sound if available
+                 }
+             }
         }
       }
 
@@ -110,6 +120,16 @@ const GamePage: React.FC = () => {
 
     return () => { unsubscribe(); onDisconnect(matchRef).cancel(); };
   }, [matchId, user, navigate]); 
+
+  // Handle Intro Timeout
+  useEffect(() => {
+      if (showIntro && match && opponentProfile) {
+          const timer = setTimeout(() => {
+              setShowIntro(false);
+          }, 3500); // 3.5 seconds duration
+          return () => clearTimeout(timer);
+      }
+  }, [showIntro, match, opponentProfile]);
 
   const currentQuestion = match && questions.length > 0 ? questions[match.currentQ] : null;
   const isMyTurn = match?.turn === user?.uid;
@@ -166,12 +186,50 @@ const GamePage: React.FC = () => {
       navigate('/');
   };
 
-  if (!match || !opponentProfile || (!currentQuestion && !isGameOver)) {
+  if (!match || !opponentProfile || (!currentQuestion && !isGameOver && !showIntro)) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-black text-2xl animate-pulse">CONNECTING...</div>;
   }
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans bg-slate-100 dark:bg-slate-900 overflow-hidden">
+      
+      {/* VERSUS INTRO ANIMATION */}
+      {showIntro && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 overflow-hidden">
+              {/* Left Side (Player) */}
+              <div className="absolute inset-y-0 left-0 w-1/2 bg-indigo-600 flex flex-col items-center justify-center animate__animated animate__slideInLeft">
+                  <div className="relative z-10 scale-150">
+                     <Avatar src={profile?.avatar} seed={user!.uid} size="xl" className="border-4 border-white shadow-2xl" />
+                  </div>
+                  <h2 className="mt-8 text-3xl font-black text-white uppercase italic tracking-widest drop-shadow-lg">{profile?.name}</h2>
+              </div>
+
+              {/* Right Side (Opponent) */}
+              <div className="absolute inset-y-0 right-0 w-1/2 bg-red-600 flex flex-col items-center justify-center animate__animated animate__slideInRight">
+                  <div className="relative z-10 scale-150">
+                     <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="xl" className="border-4 border-white shadow-2xl" />
+                  </div>
+                  <h2 className="mt-8 text-3xl font-black text-white uppercase italic tracking-widest drop-shadow-lg">{opponentProfile.name}</h2>
+              </div>
+
+              {/* Center Effects */}
+              <div className="absolute z-20 flex flex-col items-center justify-center">
+                  <div className="relative animate-clash">
+                      <h1 className="text-[120px] font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_0_25px_rgba(234,179,8,0.8)] leading-none stroke-black" style={{ WebkitTextStroke: '4px black' }}>
+                          VS
+                      </h1>
+                  </div>
+                  <div className="mt-8 text-2xl font-black text-white uppercase tracking-[0.5em] animate__animated animate__fadeInUp animate__delay-1s">
+                      Get Ready
+                  </div>
+              </div>
+              
+              {/* Lightning / Energy Effects (CSS gradients) */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-2 bg-white rotate-45 blur-md opacity-50 animate-pulse"></div>
+          </div>
+      )}
+
       {/* HUD */}
       <div className="pt-4 px-4 pb-2 z-20">
          <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-[2rem] shadow-xl p-3 flex justify-between items-center border-b-4 border-slate-200 dark:border-slate-700">
@@ -240,12 +298,12 @@ const GamePage: React.FC = () => {
             <>
                 <div className="w-full bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-[0_10px_0_rgba(0,0,0,0.1)] mb-6 text-center border-2 border-slate-100 dark:border-slate-700 min-h-[160px] flex items-center justify-center">
                     <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white leading-relaxed">
-                        {currentQuestion.question}
+                        {currentQuestion && currentQuestion.question}
                     </h2>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                    {currentQuestion.options.map((opt, idx) => {
+                    {currentQuestion && currentQuestion.options.map((opt, idx) => {
                         let btnStyle = "bg-white dark:bg-slate-800 border-b-4 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700";
                         if (selectedOption === idx) btnStyle = "bg-game-primary text-white border-b-4 border-game-primaryDark";
                         if (showFeedback) {

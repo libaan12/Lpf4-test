@@ -201,6 +201,17 @@
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
         outline: none !important;
       }
+
+      /* Versus Animation Styles */
+      @keyframes clash {
+        0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+        50% { transform: scale(1) rotate(0deg); opacity: 1; }
+        60% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+      .animate-clash {
+        animation: clash 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
     </style>
   <script type="importmap">
 {
