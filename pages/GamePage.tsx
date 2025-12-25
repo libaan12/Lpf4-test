@@ -155,7 +155,7 @@ const GamePage: React.FC = () => {
   // ----- AFK TIMER LOGIC -----
   useEffect(() => {
       if (!match || match.status === 'completed' || !user) {
-          setAfkTimer(null);
+          if (afkTimer !== null) setAfkTimer(null);
           return;
       }
       
@@ -171,10 +171,13 @@ const GamePage: React.FC = () => {
               setAfkTimer(15);
           }
       } else {
-          // Opponent is back online
-          setAfkTimer(null);
+          // Opponent is back online - RESET IMMEDIATELY
+          if (afkTimer !== null) {
+              setAfkTimer(null);
+              showToast("Opponent Reconnected", "success");
+          }
       }
-  }, [match, user]); // Removed afkTimer from dependency to avoid loop resets, but we want to reset if match status changes
+  }, [match, user, afkTimer]);
 
   // Countdown Effect
   useEffect(() => {

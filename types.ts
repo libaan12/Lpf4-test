@@ -9,6 +9,7 @@ export interface UserProfile {
   activeMatch?: string | null;
   role?: 'user' | 'admin';
   banned?: boolean;
+  avatarUpdated?: boolean;
 }
 
 export interface Subject {

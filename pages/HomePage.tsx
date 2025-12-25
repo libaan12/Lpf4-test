@@ -6,6 +6,7 @@ import { UserContext } from '../contexts';
 import { Avatar, Card, Modal, Button } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { generateAvatarUrl } from '../constants';
+import { showToast } from '../services/alert';
 
 const HomePage: React.FC = () => {
   const { profile, user } = useContext(UserContext);
@@ -15,21 +16,24 @@ const HomePage: React.FC = () => {
   const [avatarSeeds, setAvatarSeeds] = useState<string[]>([]);
 
   useEffect(() => {
-    const isNew = sessionStorage.getItem('showAvatarSelection');
-    if (isNew) {
+    // Prompt to change avatar if not updated yet (Once per user lifetime)
+    if (profile && !profile.avatarUpdated) {
       setShowAvatarModal(true);
       setAvatarSeeds(Array.from({length: 9}, () => Math.random().toString(36).substring(7)));
-      sessionStorage.removeItem('showAvatarSelection');
     }
-  }, []);
+  }, [profile]);
 
   const handleAvatarSelect = async (seed: string) => {
       if (!user) return;
       const url = generateAvatarUrl(seed);
       try {
-        await update(ref(db, `users/${user.uid}`), { avatar: url });
+        await update(ref(db, `users/${user.uid}`), { 
+            avatar: url,
+            avatarUpdated: true 
+        });
         playSound('correct');
         setShowAvatarModal(false);
+        showToast("Avatar Updated!", "success");
       } catch (e) {
         console.error("Error saving avatar", e);
       }
@@ -176,7 +180,10 @@ const HomePage: React.FC = () => {
       </div>
 
       {/* Avatar Modal */}
-      <Modal isOpen={showAvatarModal} title="Choose Avatar" onClose={() => setShowAvatarModal(false)}>
+      <Modal isOpen={showAvatarModal} title="Choose Your Look" onClose={() => { /* Prevent closing without selection */ }}>
+          <div className="text-center mb-4 text-gray-500 dark:text-gray-400 text-sm">
+              Select an avatar to continue. You can change this later in your profile.
+          </div>
           <div className="grid grid-cols-3 gap-4">
               {avatarSeeds.map((seed, idx) => (
                   <div 
