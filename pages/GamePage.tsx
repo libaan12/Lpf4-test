@@ -128,7 +128,7 @@ const GamePage: React.FC = () => {
                  setOpponentProfile({ uid: oppUid, ...oppData, level: oppLevel });
                  
                  // Show Intro only if start
-                 if (data.currentQ === 0) {
+                 if (data.currentQ === 0 && data.answersCount === 0) {
                      setShowIntro(true);
                      playSound('click'); 
                  }
@@ -200,7 +200,6 @@ const GamePage: React.FC = () => {
 
   const handleWinByAFK = async () => {
       if (!match || !user) return;
-      const oppUid = Object.keys(match.scores).find(uid => uid !== user.uid);
       
       // I win because opponent AFK
       await update(ref(db, `matches/${matchId}`), {
@@ -241,23 +240,62 @@ const GamePage: React.FC = () => {
         setShowFeedback({ correct: isCorrect, answer: currentQuestion.answer });
 
         setTimeout(async () => {
-            const nextQ = match.currentQ + 1;
+            const oppUid = Object.keys(match.scores).find(uid => uid !== user.uid) || '';
             const newScores = { ...match.scores };
             if (isCorrect) newScores[user.uid] += POINTS_PER_QUESTION;
 
-            const oppUid = Object.keys(match.scores).find(uid => uid !== user.uid) || '';
-            
-            if (nextQ >= questions.length) {
-               let winner = 'draw';
-               if (newScores[user.uid] > newScores[oppUid]) winner = user.uid;
-               else if (newScores[oppUid] > newScores[user.uid]) winner = oppUid;
+            // --- Logic for Game Progression ---
+            // Round State: answersCount (0 = start of Q, 1 = one player answered)
+            const currentAnswers = match.answersCount || 0;
+            let nextQ = match.currentQ;
+            let nextAnswersCount = currentAnswers + 1;
+            let nextTurn = oppUid; // Flip turn by default
 
-               const curPts = (await get(ref(db, `users/${user.uid}/points`))).val() || 0;
-               await update(ref(db, `users/${user.uid}`), { points: curPts + newScores[user.uid], activeMatch: null });
-               await update(ref(db, `matches/${matchId}`), { scores: newScores, status: 'completed', winner });
-            } else {
-                await update(ref(db, `matches/${matchId}`), { scores: newScores, currentQ: nextQ, turn: oppUid });
+            // If we are the second person to answer this question (0 -> 1 -> Finish Round)
+            if (currentAnswers >= 1) {
+                
+                // If this was the LAST question
+                if (match.currentQ >= questions.length - 1) {
+                    // Determine Winner
+                    let winner = 'draw';
+                    if (newScores[user.uid] > newScores[oppUid]) winner = user.uid;
+                    else if (newScores[oppUid] > newScores[user.uid]) winner = oppUid;
+
+                    // Update Points for ME
+                    const myPts = (await get(ref(db, `users/${user.uid}/points`))).val() || 0;
+                    await update(ref(db, `users/${user.uid}`), { points: myPts + newScores[user.uid], activeMatch: null });
+                    
+                    // Update Points for Opponent (since they can't do it themselves now)
+                    const oppPts = (await get(ref(db, `users/${oppUid}/points`))).val() || 0;
+                    await update(ref(db, `users/${oppUid}`), { points: oppPts + newScores[oppUid], activeMatch: null });
+
+                    // Complete Match
+                    await update(ref(db, `matches/${matchId}`), { 
+                        scores: newScores, 
+                        status: 'completed', 
+                        winner,
+                        answersCount: 2 // Mark as fully done
+                    });
+                    
+                    setSelectedOption(null);
+                    setShowFeedback(null);
+                    processingRef.current = false;
+                    return;
+                }
+
+                // Advance to next question
+                nextQ = match.currentQ + 1;
+                nextAnswersCount = 0;
             }
+
+            // Standard Update
+            await update(ref(db, `matches/${matchId}`), { 
+                scores: newScores, 
+                currentQ: nextQ, 
+                turn: nextTurn,
+                answersCount: nextAnswersCount 
+            });
+
             setSelectedOption(null);
             setShowFeedback(null);
             processingRef.current = false;

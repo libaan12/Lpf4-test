@@ -37,6 +37,7 @@ export interface MatchState {
   mode: 'auto' | 'custom';
   turn: string; // uid of current player
   currentQ: number; // index of DEMO_DATA
+  answersCount?: number; // 0 = 1st player needs to answer, 1 = 2nd player needs to answer
   scores: {
     [uid: string]: number;
   };

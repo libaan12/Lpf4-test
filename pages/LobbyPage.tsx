@@ -63,7 +63,7 @@ const LobbyPage: React.FC = () => {
           await remove(ref(db, `queue/${selectedChapter}/${oppKey}`));
           const matchId = `match_${Date.now()}`;
           await set(ref(db, `matches/${matchId}`), {
-            matchId, status: 'active', mode: 'auto', turn: user.uid, currentQ: 0, scores: { [user.uid]: 0, [oppUid]: 0 },
+            matchId, status: 'active', mode: 'auto', turn: user.uid, currentQ: 0, answersCount: 0, scores: { [user.uid]: 0, [oppUid]: 0 },
             subject: selectedChapter, questionLimit: Math.floor(Math.random() * 11) + 10,
             players: { [user.uid]: { name: user.displayName, avatar: '' }, [oppUid]: { name: 'Opponent', avatar: '' } }, createdAt: Date.now()
           });
@@ -109,7 +109,7 @@ const LobbyPage: React.FC = () => {
       await remove(roomRef);
       const matchId = `match_${Date.now()}`;
       await set(ref(db, `matches/${matchId}`), {
-        matchId, status: 'active', mode: 'custom', questionLimit: rData.questionLimit, turn: rData.host, currentQ: 0,
+        matchId, status: 'active', mode: 'custom', questionLimit: rData.questionLimit, turn: rData.host, currentQ: 0, answersCount: 0,
         scores: { [rData.host]: 0, [user.uid]: 0 }, subject: rData.lid,
         players: { [rData.host]: { name: 'Host', avatar: '' }, [user.uid]: { name: user.displayName, avatar: '' } }
       });
