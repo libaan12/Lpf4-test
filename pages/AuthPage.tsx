@@ -122,7 +122,7 @@ const AuthPage: React.FC = () => {
          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
             LP-<span className="text-transparent bg-clip-text bg-gradient-to-r from-game-primary to-purple-500">F4</span>
          </h1>
-         <p className="text-slate-500 dark:text-slate-400 font-bold tracking-widest text-xs uppercase">Somali Student Battle Arena</p>
+         <p className="text-slate-500 dark:text-slate-400 font-bold tracking-widest text-xs uppercase">Battle quiz for F4 students.</p>
       </div>
 
       {/* Auth Card */}
