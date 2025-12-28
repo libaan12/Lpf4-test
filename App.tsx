@@ -107,7 +107,11 @@ const AppContent: React.FC = () => {
           // ---------------------------------
 
           if (data) {
-            const updatedProfile = { uid: currentUser.uid, ...data };
+            const updatedProfile = { 
+                uid: currentUser.uid, 
+                ...data,
+                points: typeof data.points === 'number' ? data.points : 0 // Ensure points is number
+            };
             setProfile(updatedProfile);
             localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
             

@@ -141,8 +141,9 @@ const ProfilePage: React.FC = () => {
 
   if (!profile) return null;
 
-  const level = Math.floor(profile.points / 10) + 1;
-  const pointsInCurrentLevel = profile.points % 10;
+  const currentPoints = profile.points || 0;
+  const level = Math.floor(currentPoints / 10) + 1;
+  const pointsInCurrentLevel = currentPoints % 10;
   const progressPercent = (pointsInCurrentLevel / 10) * 100;
   const pointsToNext = 10 - pointsInCurrentLevel;
 
@@ -266,7 +267,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div className="text-right">
                  <span className="block text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Score</span>
-                 <span className="font-black text-2xl text-game-primary dark:text-orange-400">{profile.points} XP</span>
+                 <span className="font-black text-2xl text-game-primary dark:text-orange-400">{currentPoints} XP</span>
             </div>
         </div>
         

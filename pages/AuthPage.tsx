@@ -128,31 +128,31 @@ const AuthPage: React.FC = () => {
           const snapshot = await get(userRef);
           
           if (!snapshot.exists()) {
+              // CRITICAL: If profile doesn't exist and we don't have custom inputs, force modal
+              if (!customName || !customUsername) {
+                  setLoading(false);
+                  setShowGuestModal(true);
+                  return;
+              }
+
               // 4. Create Profile
               const seed = generateRandomId();
               
-              // Ensure we have a name and username
-              const uniqueSuffix = seed.substring(0, 4);
-              const finalName = customName || `Guest ${uniqueSuffix}`;
-              
-              // Generate a very unique username if not provided
-              const finalUsername = customUsername || `guest_${uniqueSuffix}_${Date.now().toString().slice(-5)}`;
-              
               await set(userRef, {
-                name: finalName,
-                username: finalUsername,
-                points: 0,
+                name: customName,
+                username: customUsername,
+                points: 0, // Explicitly 0 to avoid NaN
                 avatar: generateAvatarUrl(seed),
                 gender: 'male',
                 activeMatch: null,
                 banned: false,
                 isGuest: true,
-                isShadowAccount: isShadowAccount, // Flag for admin to know this is a fallback guest
+                isShadowAccount: isShadowAccount, 
                 isVerified: false,
                 createdAt: Date.now()
               });
 
-              await updateProfile(user, { displayName: finalName });
+              await updateProfile(user, { displayName: customName });
               localStorage.setItem('is_guest_setup', 'true');
           } else {
               // Profile exists
@@ -413,7 +413,7 @@ const AuthPage: React.FC = () => {
          )}
 
          {/* Guest Registration Modal */}
-         <Modal isOpen={showGuestModal} title="Guest Profile" onClose={() => setShowGuestModal(false)}>
+         <Modal isOpen={showGuestModal} title="Guest Profile" onClose={() => { if(!loading) setShowGuestModal(false); }}>
              <div className="space-y-4">
                  <p className="text-sm text-slate-500 text-center mb-4">Set up your profile to start playing.</p>
                  <Input 

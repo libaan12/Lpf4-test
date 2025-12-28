@@ -377,11 +377,11 @@ const SocialPage: React.FC = () => {
                    <div className="grid grid-cols-2 gap-4 w-full">
                        <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
                            <div className="text-xs text-slate-400 font-bold uppercase">Level</div>
-                           <div className="text-xl font-black text-slate-800 dark:text-white">{Math.floor(selectedUser.points / 10) + 1}</div>
+                           <div className="text-xl font-black text-slate-800 dark:text-white">{Math.floor((selectedUser.points || 0) / 10) + 1}</div>
                        </div>
                        <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
                            <div className="text-xs text-slate-400 font-bold uppercase">Points</div>
-                           <div className="text-xl font-black text-game-primary dark:text-blue-400">{selectedUser.points}</div>
+                           <div className="text-xl font-black text-game-primary dark:text-blue-400">{selectedUser.points || 0}</div>
                        </div>
                    </div>
                </div>
