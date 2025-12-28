@@ -195,15 +195,16 @@ const SocialPage: React.FC = () => {
   };
 
   // Filter Users
+  // SAFE FILTER: Checks for undefined name/username to prevent crash
   const filteredExplore = allUsers.filter(u => 
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (u.username && u.username.toLowerCase().includes(searchTerm.toLowerCase()))
+      (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (u.username && (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()))
   ).sort((a, b) => {
       // 1. Verified users first
       if (a.isVerified && !b.isVerified) return -1;
       if (!a.isVerified && b.isVerified) return 1;
       // 2. Then alphabetical
-      return a.name.localeCompare(b.name);
+      return (a.name || '').localeCompare(b.name || '');
   });
 
   // Sort Friends by Recent Interaction
@@ -216,7 +217,7 @@ const SocialPage: React.FC = () => {
       // 2. Verified users next
       if (a.isVerified && !b.isVerified) return -1;
       if (!a.isVerified && b.isVerified) return 1;
-      return a.name.localeCompare(b.name);
+      return (a.name || '').localeCompare(b.name || '');
   });
 
   return (

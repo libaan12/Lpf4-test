@@ -56,7 +56,8 @@ const AuthPage: React.FC = () => {
         const snapshot = await get(ref(db, 'users'));
         if (!snapshot.exists()) return false;
         const users = snapshot.val();
-        return Object.values(users).some((u: any) => (u.username || '').toLowerCase() === userHandle.toLowerCase());
+        // Safe check for missing username field
+        return Object.values(users).some((u: any) => (u?.username || '').toLowerCase() === userHandle.toLowerCase());
       } catch (e) {
           console.error("Username check failed", e);
           return false;
