@@ -43,7 +43,7 @@ const AuthPage: React.FC = () => {
         case 'auth/network-request-failed':
             return 'Network error.';
         case 'auth/admin-restricted-operation':
-            return 'Anonymous login disabled in Console.';
+            return 'Guest login disabled. Using fallback...';
         case 'auth/operation-not-allowed':
              return 'Sign-in provider disabled.';
         default: 
@@ -77,7 +77,6 @@ const AuthPage: React.FC = () => {
   };
 
   // Step 2: Actually sign in (either after modal or auto)
-  // UPDATED: Includes fallback to shadow email account if anonymous is disabled
   const performGuestLogin = async (customName?: string, customUsername?: string) => {
       setLoading(true);
       let user = null;
@@ -88,15 +87,14 @@ const AuthPage: React.FC = () => {
           const userCred = await signInAnonymously(auth);
           user = userCred.user;
       } catch (e: any) {
-          console.warn("Anonymous auth failed, attempting fallback...", e.code);
-          
           // 2. Fallback: Create a shadow email account if Anonymous is disabled (admin-restricted-operation)
           // This ensures the app works even if the developer forgot to enable Anonymous Auth in Firebase Console
           if (e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed') {
+              console.warn("Native Guest Auth disabled. Generating Shadow Account.");
               try {
                   const randId = generateRandomId();
                   const timestamp = Date.now();
-                  // Create a unique non-existent email
+                  // Create a unique non-existent email based on timestamp and random ID
                   const fakeEmail = `guest_${timestamp}_${randId}@lpf4-temp.com`;
                   const fakePass = `guest_${randId}_${timestamp}`;
                   
@@ -129,6 +127,7 @@ const AuthPage: React.FC = () => {
           
           if (!snapshot.exists()) {
               // CRITICAL: If profile doesn't exist and we don't have custom inputs, force modal
+              // This handles the "undefined name" issue by forcing user input if DB is empty
               if (!customName || !customUsername) {
                   setLoading(false);
                   setShowGuestModal(true);
@@ -138,10 +137,14 @@ const AuthPage: React.FC = () => {
               // 4. Create Profile
               const seed = generateRandomId();
               
+              // ENSURE NO NULL/UNDEFINED VALUES
+              const safeName = customName || `Guest ${seed}`;
+              const safeUsername = customUsername || `guest_${seed}`;
+
               await set(userRef, {
-                name: customName,
-                username: customUsername,
-                points: 0, // Explicitly 0 to avoid NaN
+                name: safeName,
+                username: safeUsername,
+                points: 0, // Explicitly 0 to ensure Level 1 (not NaN)
                 avatar: generateAvatarUrl(seed),
                 gender: 'male',
                 activeMatch: null,
@@ -152,13 +155,23 @@ const AuthPage: React.FC = () => {
                 createdAt: Date.now()
               });
 
-              await updateProfile(user, { displayName: customName });
+              await updateProfile(user, { displayName: safeName });
               localStorage.setItem('is_guest_setup', 'true');
           } else {
-              // Profile exists
+              // Profile exists, ensure critical fields aren't missing (self-repair)
+              const data = snapshot.val();
+              if (!data.name || !data.username || typeof data.points !== 'number') {
+                   const seed = generateRandomId();
+                   await set(userRef, {
+                       ...data,
+                       name: data.name || `Guest ${seed}`,
+                       username: data.username || `guest_${seed}`,
+                       points: typeof data.points === 'number' ? data.points : 0
+                   });
+              }
               localStorage.setItem('is_guest_setup', 'true');
           }
-          // App.tsx listener will handle redirection
+          // App.tsx listener will handle redirection to Home
       } catch (e: any) {
           console.error("Profile creation failed", e);
           showAlert('Error', 'Failed to create guest profile data.', 'error');
@@ -173,12 +186,13 @@ const AuthPage: React.FC = () => {
       const cleanUser = guestUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
       if (cleanUser.length < 3) { showToast("Username too short", "error"); return; }
       
-      // Check username
+      // Check username existence
       const taken = await checkUsernameExists(cleanUser);
       if (taken) { showToast("Username taken", "error"); return; }
 
       setShowGuestModal(false);
-      performGuestLogin(guestName, cleanUser);
+      // Pass confirmed values
+      performGuestLogin(guestName.trim(), cleanUser);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -206,11 +220,12 @@ const AuthPage: React.FC = () => {
         const user = userCred.user;
         const seed = Math.random().toString(36).substring(7);
         
+        // Save Full User Details
         await set(ref(db, `users/${user.uid}`), {
-          name: name,
+          name: name.trim(),
           username: cleanUsername,
           email: user.email,
-          points: 0,
+          points: 0, // Default to 0 for Level 1
           avatar: generateAvatarUrl(seed),
           gender: gender,
           activeMatch: null,
@@ -219,7 +234,7 @@ const AuthPage: React.FC = () => {
           createdAt: Date.now()
         });
         
-        await updateProfile(user, { displayName: name });
+        await updateProfile(user, { displayName: name.trim() });
         sessionStorage.setItem('showAvatarSelection', 'true');
       }
     } catch (err: any) {
