@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ref, onValue, push, set, serverTimestamp, update, get } from 'firebase/database';
+import { ref, onValue, push, set, serverTimestamp, update, get, runTransaction } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { ChatMessage, UserProfile, Subject, Chapter } from '../types';
@@ -42,7 +42,10 @@ const ChatPage: React.FC = () => {
       const derivedChatId = `${participants[0]}_${participants[1]}`;
       setChatId(derivedChatId);
 
-      // 1. Load from Cache first
+      // 1. Reset My Unread Count for this chat
+      update(ref(db, `chats/${derivedChatId}/unread/${user.uid}`), { count: 0 });
+
+      // 2. Load from Cache first
       const cachedMsgs = localStorage.getItem(`chat_${derivedChatId}`);
       if (cachedMsgs) {
           try {
@@ -50,7 +53,7 @@ const ChatPage: React.FC = () => {
           } catch(e) {}
       }
 
-      // 2. Listen for Live Messages
+      // 3. Listen for Live Messages
       const msgsRef = ref(db, `chats/${derivedChatId}/messages`);
       const unsub = onValue(msgsRef, (snap) => {
           if (snap.exists()) {
@@ -59,7 +62,15 @@ const ChatPage: React.FC = () => {
               setMessages(list);
               // Save to localStorage immediately on updates
               localStorage.setItem(`chat_${derivedChatId}`, JSON.stringify(list));
-              playSound('click'); // Incoming msg sound
+              
+              // Reset unread count again if we are actively viewing and a new message comes in
+              update(ref(db, `chats/${derivedChatId}/unread/${user.uid}`), { count: 0 });
+              
+              // Only play sound if the last message is NOT from me
+              const lastMsg = list[list.length - 1];
+              if (lastMsg.sender !== user.uid) {
+                 playSound('click'); 
+              }
           }
       });
 
@@ -108,40 +119,42 @@ const ChatPage: React.FC = () => {
 
       const tempId = `temp_${Date.now()}`;
       
-      // Construct Message Object ensuring NO UNDEFINED values are passed
       const msgData: any = {
           sender: user.uid,
           text: type === 'invite' ? 'CHALLENGE_INVITE' : inputText.trim(),
           type,
           inviteCode: inviteCode || null,
           subjectName: subjectName || null,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          status: type === 'invite' ? 'waiting' : null
       };
-
-      // Only add status if it's an invite, otherwise it should be null or omitted (but we use null for safety)
-      if (type === 'invite') {
-          msgData.status = 'waiting';
-      } else {
-          msgData.status = null;
-      }
 
       if (type === 'text') setInputText('');
 
-      // Optimistic Update: Add message immediately to UI and LocalStorage
+      // Optimistic Update
       const optimisticMsg: ChatMessage = { id: tempId, ...msgData };
       setMessages(prev => [...prev, optimisticMsg]);
       
       try {
+          // Push to Firebase
           await push(ref(db, `chats/${chatId}/messages`), msgData);
+          
           // Update last message metadata
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
               participants: { [user.uid]: true, [uid!]: true }
           });
+
+          // Increment Unread Count for Recipient
+          const recipientUnreadRef = ref(db, `chats/${chatId}/unread/${uid}/count`);
+          runTransaction(recipientUnreadRef, (currentCount) => {
+              return (currentCount || 0) + 1;
+          });
+
       } catch (err) {
           console.error("SendMessage Error:", err);
-          // showToast("Failed to send message", "error");
+          showToast("Failed to send message", "error");
       }
   };
 
@@ -161,7 +174,6 @@ const ChatPage: React.FC = () => {
           const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "Unknown Subject";
           const code = Math.floor(1000 + Math.random() * 9000).toString();
           
-          // Create message Ref first to link it
           const msgsRef = ref(db, `chats/${chatId}/messages`);
           const newMsgRef = push(msgsRef);
           
@@ -176,7 +188,6 @@ const ChatPage: React.FC = () => {
           
           await set(ref(db, `rooms/${code}`), roomData);
           
-          // Send Invite Message manually to use the ref
           const msgData = {
               sender: user.uid,
               text: 'CHALLENGE_INVITE',
@@ -187,7 +198,7 @@ const ChatPage: React.FC = () => {
               status: 'waiting'
           };
           
-          // Optimistic update for invite
+          // Optimistic update
           setMessages(prev => [...prev, { id: newMsgRef.key || `temp_${Date.now()}`, ...msgData, timestamp: Date.now() } as any]);
 
           await set(newMsgRef, msgData);
@@ -197,6 +208,10 @@ const ChatPage: React.FC = () => {
               lastTimestamp: serverTimestamp(),
               participants: { [user.uid]: true, [uid!]: true }
           });
+
+           // Increment Unread Count for Recipient
+           const recipientUnreadRef = ref(db, `chats/${chatId}/unread/${uid}/count`);
+           runTransaction(recipientUnreadRef, (count) => (count || 0) + 1);
           
           setShowGameSetup(false);
           playSound('correct');

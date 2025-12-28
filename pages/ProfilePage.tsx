@@ -31,8 +31,11 @@ const ProfilePage: React.FC = () => {
     if (profile) {
       setEditName(profile.name);
       setCurrentAvatarUrl(profile.avatar);
-      // Only prompt for username if NOT guest and username is missing
-      if (!profile.username && !profile.isGuest) setShowUsernamePrompt(true);
+      // Strictly prevent prompt if guest using robust check
+      // Guests from AuthPage have 'isGuest: true'.
+      if (!profile.username && !profile.isGuest) {
+          setShowUsernamePrompt(true);
+      }
     }
   }, [profile]);
 
@@ -145,6 +148,14 @@ const ProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-full p-4 flex flex-col transition-colors max-w-3xl mx-auto w-full pb-24 pt-24">
+       <style>
+           {`
+             @keyframes progress-bar-stripes {
+               from { background-position: 1rem 0; }
+               to { background-position: 0 0; }
+             }
+           `}
+       </style>
        <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
         <button onClick={() => navigate('/')} className="text-gray-900 dark:text-gray-100 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
             <i className="fas fa-arrow-left fa-lg"></i>
@@ -247,7 +258,7 @@ const ProfilePage: React.FC = () => {
       </Modal>
 
       {/* Live Level Progress Card */}
-      <Card className="mb-6 relative overflow-hidden bg-gradient-to-br from-white to-orange-50 dark:from-slate-800 dark:to-slate-800/50">
+      <Card className="mb-6 relative overflow-hidden bg-white dark:bg-slate-800 !p-6">
         <div className="flex justify-between items-end mb-4 relative z-10">
             <div>
                 <span className="block text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Current Rank</span>
@@ -259,24 +270,38 @@ const ProfilePage: React.FC = () => {
             </div>
         </div>
         
-        {/* Redesigned Progress Bar */}
-        <div className="relative w-full h-8 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner border border-slate-300 dark:border-slate-600 group">
+        {/* Redesigned "Real" Progress Bar */}
+        <div className="relative w-full h-6 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden shadow-inner border border-slate-200 dark:border-slate-700">
+            {/* Background Stripes */}
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(45deg, #000 25%, transparent 25%, transparent 50%, #000 50%, #000 75%, transparent 75%, transparent)', backgroundSize: '1rem 1rem' }}></div>
+            
+            {/* Active Bar */}
             <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-game-primary to-orange-400 transition-all duration-1000 ease-out relative"
+                className="h-full bg-gradient-to-r from-orange-500 to-red-500 relative transition-all duration-1000 ease-out flex items-center justify-end pr-2"
                 style={{ width: `${progressPercent}%` }}
             >
-                {/* Animated Shine Effect */}
-                <div className="absolute inset-0 bg-white/30 w-full h-full animate-[shimmer_2s_infinite] skew-x-12"></div>
-            </div>
-            
-            {/* Text Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-600 dark:text-slate-300 mix-blend-difference uppercase tracking-widest z-10">
-                {pointsInCurrentLevel} / 10 XP
+                {/* Glow at tip */}
+                <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/50 blur-[2px]"></div>
+                {/* Animated Stripes on Bar */}
+                <div className="absolute inset-0 w-full h-full animate-[progress-bar-stripes_1s_linear_infinite]" 
+                     style={{ 
+                         backgroundImage: 'linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent)', 
+                         backgroundSize: '1rem 1rem' 
+                     }}
+                ></div>
             </div>
         </div>
         
-        <div className="text-right text-[10px] text-gray-500 dark:text-gray-400 mt-2 relative z-10 font-bold">
-            {pointsToNext} XP needed for Level {level + 1}
+        <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <span>0 XP</span>
+            <span className="text-game-primary">{pointsInCurrentLevel} / 10 XP</span>
+            <span>10 XP</span>
+        </div>
+        
+        <div className="text-center mt-4">
+            <span className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold">
+                {pointsToNext} XP to Level {level + 1}
+            </span>
         </div>
       </Card>
 
