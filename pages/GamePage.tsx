@@ -7,7 +7,7 @@ import { POINTS_PER_QUESTION } from '../constants';
 import { MatchState, Question, Chapter, UserProfile } from '../types';
 import { Avatar, Button, Card, Modal } from '../components/UI';
 import { playSound } from '../services/audioService';
-import { showToast, showConfirm } from '../services/alert';
+import { showToast, showConfirm, showAlert } from '../services/alert';
 import confetti from 'canvas-confetti';
 
 const createSeededRandom = (seedStr: string) => {
@@ -53,6 +53,7 @@ const GamePage: React.FC = () => {
   const [showOpponentModal, setShowOpponentModal] = useState(false);
   
   const processingRef = useRef(false);
+  const questionsLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!matchId || !user) return;
@@ -87,36 +88,50 @@ const GamePage: React.FC = () => {
       setMatch(data);
 
       // Question Loading Logic
-      if (questions.length === 0 && data.subject) {
+      if (questions.length === 0 && data.subject && !questionsLoadedRef.current) {
+          questionsLoadedRef.current = true; // Mark as attempting load
           let loadedQ: Question[] = [];
           const cacheKey = `questions_cache_${data.subject}`;
           const cachedData = localStorage.getItem(cacheKey);
           
-          if (data.subject.startsWith('ALL_')) {
-              const subjectId = data.subject.replace('ALL_', '');
-              const chapters = Object.values((await get(ref(db, `chapters/${subjectId}`))).val() || {}) as Chapter[];
-              const snaps = await Promise.all(chapters.map(c => get(ref(db, `questions/${c.id}`))));
-              snaps.forEach(s => s.exists() && loadedQ.push(...Object.values(s.val()) as Question[]));
-          } else {
-              if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
-              if (loadedQ.length === 0) {
-                  const snap = await get(ref(db, `questions/${data.subject}`));
-                  if(snap.exists()) {
-                      loadedQ = Object.values(snap.val()) as Question[];
-                      localStorage.setItem(cacheKey, JSON.stringify(loadedQ));
-                  }
-              }
-          }
+          try {
+            if (data.subject.startsWith('ALL_')) {
+                const subjectId = data.subject.replace('ALL_', '');
+                const chaptersSnap = await get(ref(db, `chapters/${subjectId}`));
+                const chapters = Object.values(chaptersSnap.val() || {}) as Chapter[];
+                const snaps = await Promise.all(chapters.map(c => get(ref(db, `questions/${c.id}`))));
+                snaps.forEach(s => s.exists() && loadedQ.push(...Object.values(s.val()) as Question[]));
+            } else {
+                if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
+                if (loadedQ.length === 0) {
+                    const snap = await get(ref(db, `questions/${data.subject}`));
+                    if(snap.exists()) {
+                        loadedQ = Object.values(snap.val()) as Question[];
+                        localStorage.setItem(cacheKey, JSON.stringify(loadedQ));
+                    }
+                }
+            }
 
-          if (loadedQ.length > 0) {
-              const rng = createSeededRandom(data.matchId);
-              let shuffledQ = shuffleArraySeeded(loadedQ, rng).map(q => {
-                  const opts = q.options.map((o, i) => ({ t: o, c: i === q.answer }));
-                  const sOpts = shuffleArraySeeded(opts, rng);
-                  return { ...q, options: sOpts.map(o => o.t), answer: sOpts.findIndex(o => o.c) };
-              });
-              const limit = data.questionLimit || 10;
-              setQuestions(shuffledQ.slice(0, limit));
+            if (loadedQ.length > 0) {
+                const rng = createSeededRandom(data.matchId);
+                let shuffledQ = shuffleArraySeeded(loadedQ, rng).map(q => {
+                    const opts = q.options.map((o, i) => ({ t: o, c: i === q.answer }));
+                    const sOpts = shuffleArraySeeded(opts, rng);
+                    return { ...q, options: sOpts.map(o => o.t), answer: sOpts.findIndex(o => o.c) };
+                });
+                const limit = data.questionLimit || 10;
+                setQuestions(shuffledQ.slice(0, limit));
+            } else {
+                // HANDLE NO QUESTIONS CASE
+                await showAlert("Setup Error", "This chapter has no questions yet. The match will be cancelled.", "error");
+                await set(ref(db, `users/${user.uid}/activeMatch`), null);
+                // Try to delete match if host
+                if (data.turn === user.uid) remove(matchRef);
+                navigate('/');
+            }
+          } catch(e) {
+              console.error("Q Load Error", e);
+              questionsLoadedRef.current = false; // Allow retry if error (or maybe not?)
           }
       }
 
@@ -305,7 +320,24 @@ const GamePage: React.FC = () => {
   };
 
   if (!match || !opponentProfile || (!currentQuestion && !isGameOver && !showIntro)) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-black text-2xl animate-pulse">CONNECTING...</div>;
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+            {questions.length === 0 ? (
+                // LOADING STATE
+                <>
+                   <div className="w-16 h-16 border-4 border-game-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                   <h2 className="font-black text-2xl animate-pulse">CONNECTING...</h2>
+                   <p className="text-slate-500 mt-2 text-sm">Preparing battle arena</p>
+                </>
+            ) : (
+                // Should not happen if logic is correct, but fail-safe
+                <div className="animate__animated animate__fadeIn">
+                     <i className="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-4"></i>
+                     <h2 className="font-bold text-xl">Waiting for opponent...</h2>
+                </div>
+            )}
+        </div>
+    );
   }
 
   const myLevel = Math.floor((profile?.points || 0) / 10) + 1;

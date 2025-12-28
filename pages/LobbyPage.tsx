@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ref, push, get, remove, set, onValue } from 'firebase/database';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ref, push, get, remove, set, onValue, update, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { Button, Input, Avatar, Card } from '../components/UI';
@@ -12,6 +12,7 @@ import { Subject, Chapter } from '../types';
 const LobbyPage: React.FC = () => {
   const { user, profile } = useContext(UserContext);
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Navigation States
   const [viewMode, setViewMode] = useState<'selection' | 'auto' | 'custom'>('selection');
@@ -32,6 +33,27 @@ const LobbyPage: React.FC = () => {
   const [queueKey, setQueueKey] = useState<string | null>(null);
   
   const timerRef = useRef<any>(null);
+
+  // Handle Incoming Navigation State (Seamless from Chat)
+  useEffect(() => {
+      if (location.state) {
+          const { hostedCode: incomingHostCode, autoJoinCode } = location.state;
+          
+          // Case 1: Host coming from Chat
+          if (incomingHostCode) {
+              setHostedCode(incomingHostCode);
+              setViewMode('custom');
+              // Listen for join is handled by the useEffect below for hostedCode
+          } 
+          // Case 2: Guest coming from Chat
+          else if (autoJoinCode) {
+              setRoomCode(autoJoinCode);
+              setViewMode('custom');
+              // Trigger join immediately
+              joinRoom(autoJoinCode);
+          }
+      }
+  }, [location.state]);
 
   useEffect(() => {
     const cachedSubjects = localStorage.getItem('subjects_cache');
@@ -57,6 +79,28 @@ const LobbyPage: React.FC = () => {
     });
   }, [selectedSubject]);
 
+  // Listener for Hosted Room (Waiting for someone to delete room & start match)
+  useEffect(() => {
+      if (hostedCode) {
+         const roomRef = ref(db, `rooms/${hostedCode}`);
+         const unsub = onValue(roomRef, (snap) => {
+             // If room is gone, it means someone joined (which deletes the room and creates match)
+             // or it was aborted. 
+             // Note: Game start navigation is handled by the `App.tsx` global `activeMatch` listener.
+             // We just need to handle UI here if aborted externally.
+             if (!snap.exists()) {
+                 // Check if it was because we joined a match (handled by App.tsx) or just deleted
+                 // Small delay to let App.tsx catch activeMatch
+                 setTimeout(() => {
+                     if (!hostedCode) return; // Cleaned up
+                     // If we are still on this page and room is gone, assume game started or cleaned up
+                 }, 1000);
+             }
+         });
+         return () => unsub();
+      }
+  }, [hostedCode]);
+
   const handleBack = () => {
     playSound('click');
     
@@ -64,6 +108,8 @@ const LobbyPage: React.FC = () => {
     if (hostedCode) {
         remove(ref(db, `rooms/${hostedCode}`));
         setHostedCode(null);
+        // Clear history state to prevent re-triggering
+        window.history.replaceState({}, document.title);
         return;
     }
 
@@ -96,15 +142,26 @@ const LobbyPage: React.FC = () => {
       const oppKey = Object.keys(qData).find(k => qData[k].uid !== user.uid);
       if (oppKey) {
           const oppUid = qData[oppKey].uid;
-          await remove(ref(db, `queue/${selectedChapter}/${oppKey}`));
+          
+          // ATOMIC UPDATE FOR AUTO MATCH
           const matchId = `match_${Date.now()}`;
-          await set(ref(db, `matches/${matchId}`), {
+          const updates: any = {};
+          
+          // Remove opponent from queue
+          updates[`queue/${selectedChapter}/${oppKey}`] = null;
+          
+          // Create Match
+          updates[`matches/${matchId}`] = {
             matchId, status: 'active', mode: 'auto', turn: user.uid, currentQ: 0, answersCount: 0, scores: { [user.uid]: 0, [oppUid]: 0 },
             subject: selectedChapter, questionLimit: Math.floor(Math.random() * 11) + 10,
-            players: { [user.uid]: { name: user.displayName, avatar: '' }, [oppUid]: { name: 'Opponent', avatar: '' } }, createdAt: Date.now()
-          });
-          await set(ref(db, `users/${user.uid}/activeMatch`), matchId);
-          await set(ref(db, `users/${oppUid}/activeMatch`), matchId);
+            players: { [user.uid]: { name: user.displayName, avatar: '' }, [oppUid]: { name: 'Opponent', avatar: '' } }, createdAt: serverTimestamp()
+          };
+          
+          // Set Active Match for Both
+          updates[`users/${user.uid}/activeMatch`] = matchId;
+          updates[`users/${oppUid}/activeMatch`] = matchId;
+          
+          await update(ref(db), updates);
           return;
       }
     }
@@ -130,29 +187,69 @@ const LobbyPage: React.FC = () => {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setHostedCode(code);
     await set(ref(db, `rooms/${code}`), { host: user.uid, sid: selectedSubject, lid: selectedChapter, questionLimit: quizLimit, createdAt: Date.now() });
-    onValue(ref(db, `rooms/${code}`), (snap) => { if (!snap.exists()) setHostedCode(null); });
     playSound('click');
     showToast("Room Created!", "success");
   };
 
-  const joinRoom = async () => {
-    if (!user || !roomCode) return;
-    playSound('click');
-    const roomRef = ref(db, `rooms/${roomCode}`);
+  const joinRoom = async (codeOverride?: string) => {
+    const codeToJoin = codeOverride || roomCode;
+    if (!user || !codeToJoin) return;
+    
+    // Only play sound if manual click
+    if (!codeOverride) playSound('click');
+    
+    const roomRef = ref(db, `rooms/${codeToJoin}`);
     const snapshot = await get(roomRef);
     if (snapshot.exists()) {
       const rData = snapshot.val();
       if (rData.host === user.uid) { showToast("Your Room", "error"); return; }
-      await remove(roomRef);
+      
       const matchId = `match_${Date.now()}`;
-      await set(ref(db, `matches/${matchId}`), {
-        matchId, status: 'active', mode: 'custom', questionLimit: rData.questionLimit, turn: rData.host, currentQ: 0, answersCount: 0,
-        scores: { [rData.host]: 0, [user.uid]: 0 }, subject: rData.lid,
-        players: { [rData.host]: { name: 'Host', avatar: '' }, [user.uid]: { name: user.displayName, avatar: '' } }
-      });
-      await set(ref(db, `users/${rData.host}/activeMatch`), matchId);
-      await set(ref(db, `users/${user.uid}/activeMatch`), matchId);
-    } else showToast("Invalid Code", "error");
+      
+      // ATOMIC UPDATE FOR JOINING ROOM
+      // This prevents race conditions where one user updates and the other fails/lags
+      const updates: any = {};
+      
+      // 1. Delete Room
+      updates[`rooms/${codeToJoin}`] = null;
+      
+      // 2. Create Match
+      updates[`matches/${matchId}`] = {
+        matchId, 
+        status: 'active', 
+        mode: 'custom', 
+        questionLimit: rData.questionLimit || 10, 
+        turn: rData.host, 
+        currentQ: 0, 
+        answersCount: 0,
+        scores: { [rData.host]: 0, [user.uid]: 0 }, 
+        subject: rData.lid,
+        players: { 
+            [rData.host]: { name: 'Host', avatar: '' }, // Avatars fetched in GamePage
+            [user.uid]: { name: user.displayName, avatar: '' } 
+        },
+        createdAt: serverTimestamp()
+      };
+      
+      // 3. Set Active Match (Redirects users via App.tsx listener)
+      updates[`users/${rData.host}/activeMatch`] = matchId;
+      updates[`users/${user.uid}/activeMatch`] = matchId;
+
+      try {
+          await update(ref(db), updates);
+      } catch(e) {
+          console.error("Join Room Error", e);
+          showAlert("Error", "Failed to join room.", "error");
+      }
+      
+    } else {
+        if (!codeOverride) showToast("Invalid Code", "error");
+        // If auto-join failed, clear code
+        if (codeOverride) {
+            showAlert("Error", "Room not found or expired.", "error");
+            setRoomCode('');
+        }
+    }
   };
 
   const copyRoomCode = () => {
@@ -165,9 +262,10 @@ const LobbyPage: React.FC = () => {
 
   useEffect(() => () => {
      if (timerRef.current) clearTimeout(timerRef.current);
-     if (hostedCode) remove(ref(db, `rooms/${hostedCode}`));
+     // Note: We do NOT remove hostedCode on unmount if navigating to Game, 
+     // but we should if navigating back. handled by handleBack.
      if (queueKey && selectedChapter) remove(ref(db, `queue/${selectedChapter}/${queueKey}`));
-  }, [hostedCode, queueKey, selectedChapter]);
+  }, [queueKey, selectedChapter]);
 
   // Determine if Subject/Chapter Selection should be shown
   const showSelectors = (viewMode === 'auto' && !isSearching) || (viewMode === 'custom' && customSubMode === 'create' && !hostedCode);
@@ -257,7 +355,7 @@ const LobbyPage: React.FC = () => {
               )}
 
               {/* PRIVATE MENU SELECTION */}
-              {viewMode === 'custom' && customSubMode === 'menu' && (
+              {viewMode === 'custom' && customSubMode === 'menu' && !hostedCode && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 animate__animated animate__fadeInUp">
                       <div 
                         onClick={() => { playSound('click'); setCustomSubMode('join'); }}
@@ -294,7 +392,7 @@ const LobbyPage: React.FC = () => {
               )}
 
               {/* JOIN ROOM INPUT UI */}
-              {viewMode === 'custom' && customSubMode === 'join' && (
+              {viewMode === 'custom' && customSubMode === 'join' && !hostedCode && (
                   <div className="max-w-md mx-auto mt-8 animate__animated animate__fadeInUp">
                       <Card className="!p-8 text-center bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700">
                           <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/50 text-game-primary rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
@@ -309,7 +407,7 @@ const LobbyPage: React.FC = () => {
                               maxLength={4} 
                               type="tel"
                           />
-                          <Button fullWidth size="lg" onClick={joinRoom} disabled={roomCode.length !== 4} className="shadow-xl">
+                          <Button fullWidth size="lg" onClick={() => joinRoom()} disabled={roomCode.length !== 4} className="shadow-xl">
                               JOIN LOBBY
                           </Button>
                       </Card>

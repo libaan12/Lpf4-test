@@ -108,7 +108,7 @@ const SocialPage: React.FC = () => {
     <div className="min-h-full p-4 flex flex-col pb-24 max-w-4xl mx-auto w-full">
        {/* Header */}
        <div className="sticky top-0 z-30 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-md -mx-4 px-4 py-3 mb-6 border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between transition-colors">
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Social Hub</h1>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Students</h1>
             <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
                 <button onClick={() => setActiveTab('friends')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'friends' ? 'bg-white shadow text-game-primary' : 'text-slate-500'}`}>Friends</button>
                 <button onClick={() => setActiveTab('explore')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'explore' ? 'bg-white shadow text-game-primary' : 'text-slate-500'}`}>Explore</button>
@@ -125,7 +125,7 @@ const SocialPage: React.FC = () => {
                    <div className="text-center py-10 text-slate-400">
                        <i className="fas fa-user-friends text-4xl mb-3 opacity-50"></i>
                        <p className="font-bold">No friends yet.</p>
-                       <Button size="sm" variant="secondary" className="mt-4" onClick={() => setActiveTab('explore')}>Find Students</Button>
+                       <Button size="sm" variant="secondary" className="mt-4 w-full sm:w-auto" onClick={() => setActiveTab('explore')}>Find Students</Button>
                    </div>
                ) : (
                    friends.map(f => (
@@ -199,7 +199,15 @@ const SocialPage: React.FC = () => {
                            </div>
                            <div className="flex gap-2 w-full sm:w-auto">
                                <Button size="sm" fullWidth onClick={() => acceptRequest(r.uid)}><i className="fas fa-check mr-1"></i> Accept</Button>
-                               <Button size="sm" variant="outline" fullWidth onClick={() => rejectRequest(r.uid)}><i className="fas fa-times"></i></Button>
+                               <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    fullWidth 
+                                    onClick={() => rejectRequest(r.uid)}
+                                    className="!border-red-200 dark:!border-red-900/50 !text-red-500 hover:!bg-red-50 dark:hover:!bg-red-900/20 hover:!border-red-300 transition-colors"
+                                >
+                                   <i className="fas fa-times"></i>
+                               </Button>
                            </div>
                        </div>
                    ))
@@ -209,7 +217,7 @@ const SocialPage: React.FC = () => {
 
        {/* User Profile Modal */}
        {selectedUser && (
-           <Modal isOpen={true} onClose={() => setSelectedUser(null)} title="Student Card">
+           <Modal isOpen={true} onClose={() => setSelectedUser(null)} title={selectedUser.name}>
                <div className="flex flex-col items-center mb-6">
                    <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" isVerified={selectedUser.isVerified} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
                    <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
