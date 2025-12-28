@@ -57,7 +57,7 @@ const ChatPage: React.FC = () => {
               const data = snap.val();
               const list = Object.keys(data).map(k => ({ id: k, ...data[k] })).sort((a,b) => a.timestamp - b.timestamp);
               setMessages(list);
-              // Save to localStorage
+              // Save to localStorage immediately on updates
               localStorage.setItem(`chat_${derivedChatId}`, JSON.stringify(list));
               playSound('click'); // Incoming msg sound
           }
@@ -95,25 +95,34 @@ const ChatPage: React.FC = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Persist messages to LocalStorage whenever state changes (double safety for optimistic updates)
+  useEffect(() => {
+      if (chatId && messages.length > 0) {
+          localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
+      }
+  }, [messages, chatId]);
+
   const sendMessage = async (e?: React.FormEvent, type: 'text' | 'invite' = 'text', inviteCode?: string, subjectName?: string) => {
       e?.preventDefault();
       if ((!inputText.trim() && type === 'text') || !user || !chatId) return;
 
+      const tempId = `temp_${Date.now()}`;
       const msgData: any = {
           sender: user.uid,
           text: type === 'invite' ? 'CHALLENGE_INVITE' : inputText.trim(),
           type,
           inviteCode: inviteCode || null,
           subjectName: subjectName || null,
-          timestamp: serverTimestamp()
+          timestamp: Date.now(),
+          status: type === 'invite' ? 'waiting' : undefined
       };
-
-      if (type === 'invite') {
-          msgData.status = 'waiting';
-      }
 
       if (type === 'text') setInputText('');
 
+      // Optimistic Update: Add message immediately to UI and LocalStorage
+      const optimisticMsg: ChatMessage = { id: tempId, ...msgData };
+      setMessages(prev => [...prev, optimisticMsg]);
+      
       try {
           await push(ref(db, `chats/${chatId}/messages`), msgData);
           // Update last message metadata
@@ -124,6 +133,7 @@ const ChatPage: React.FC = () => {
           });
       } catch (err) {
           console.error(err);
+          // Rollback if needed, but Firebase typically handles retries offline
       }
   };
 
@@ -168,6 +178,10 @@ const ChatPage: React.FC = () => {
               timestamp: serverTimestamp(),
               status: 'waiting'
           };
+          
+          // Optimistic update for invite
+          setMessages(prev => [...prev, { id: newMsgRef.key || `temp_${Date.now()}`, ...msgData, timestamp: Date.now() }]);
+
           await set(newMsgRef, msgData);
           
           await update(ref(db, `chats/${chatId}`), {

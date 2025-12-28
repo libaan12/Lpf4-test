@@ -4,15 +4,15 @@ import Swal, { SweetAlertIcon, SweetAlertPosition, SweetAlertOptions } from 'swe
 const getIconHtml = (icon?: SweetAlertIcon) => {
   switch (icon) {
     case 'success': 
-      return '<div class="animate__animated animate__zoomIn"><i class="fas fa-check-circle text-6xl text-green-500 drop-shadow-[0_0_15px_rgba(34,197,94,0.6)]"></i></div>';
+      return '<div class="animate__animated animate__zoomIn"><i class="fas fa-check-circle text-4xl text-green-500 drop-shadow-[0_0_10px_rgba(34,197,94,0.4)]"></i></div>';
     case 'error': 
-      return '<div class="animate__animated animate__shakeX"><i class="fas fa-times-circle text-6xl text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]"></i></div>';
+      return '<div class="animate__animated animate__shakeX"><i class="fas fa-times-circle text-4xl text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.4)]"></i></div>';
     case 'warning': 
-      return '<div class="animate__animated animate__swing"><i class="fas fa-exclamation-triangle text-6xl text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]"></i></div>';
+      return '<div class="animate__animated animate__swing"><i class="fas fa-exclamation-triangle text-4xl text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.4)]"></i></div>';
     case 'info': 
-      return '<div class="animate__animated animate__fadeIn"><i class="fas fa-info-circle text-6xl text-somali-blue drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]"></i></div>';
+      return '<div class="animate__animated animate__fadeIn"><i class="fas fa-info-circle text-4xl text-somali-blue drop-shadow-[0_0_10px_rgba(59,130,246,0.4)]"></i></div>';
     case 'question': 
-      return '<div class="animate__animated animate__bounceIn"><i class="fas fa-question-circle text-6xl text-purple-500 drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]"></i></div>';
+      return '<div class="animate__animated animate__bounceIn"><i class="fas fa-question-circle text-4xl text-purple-500 drop-shadow-[0_0_10px_rgba(168,85,247,0.4)]"></i></div>';
     default: 
       return undefined;
   }
@@ -23,6 +23,7 @@ const glassConfig: SweetAlertOptions = {
   background: 'transparent',
   color: 'inherit',
   buttonsStyling: false,
+  showCloseButton: true, // ADDED: Close button (X icon)
   customClass: {
     popup: 'glass-swal-popup',
     title: 'glass-swal-title',
@@ -31,7 +32,7 @@ const glassConfig: SweetAlertOptions = {
     cancelButton: 'glass-swal-btn-cancel',
     denyButton: 'glass-swal-btn-deny',
     input: 'glass-swal-input',
-    icon: 'glass-swal-icon-custom' // Custom class to remove default border
+    icon: 'glass-swal-icon-custom' 
   },
   backdrop: `
     rgba(0,0,0,0.4)
@@ -53,10 +54,10 @@ export const showToast = (title: string, icon: SweetAlertIcon = 'success', posit
   // For toasts, we use a smaller icon size
   const getToastIconHtml = (icon?: SweetAlertIcon) => {
     switch (icon) {
-        case 'success': return '<i class="fas fa-check-circle text-2xl text-green-500"></i>';
-        case 'error': return '<i class="fas fa-times-circle text-2xl text-red-500"></i>';
-        case 'warning': return '<i class="fas fa-exclamation-triangle text-2xl text-yellow-400"></i>';
-        default: return '<i class="fas fa-info-circle text-2xl text-somali-blue"></i>';
+        case 'success': return '<i class="fas fa-check-circle text-xl text-green-500"></i>';
+        case 'error': return '<i class="fas fa-times-circle text-xl text-red-500"></i>';
+        case 'warning': return '<i class="fas fa-exclamation-triangle text-xl text-yellow-400"></i>';
+        default: return '<i class="fas fa-info-circle text-xl text-somali-blue"></i>';
     }
   };
 
@@ -65,6 +66,7 @@ export const showToast = (title: string, icon: SweetAlertIcon = 'success', posit
     title,
     position,
     toast: true,
+    showCloseButton: false, // Toast usually doesn't need X
     iconHtml: getToastIconHtml(icon),
     showConfirmButton: false,
     timer: 3000,
@@ -82,7 +84,7 @@ export const showToast = (title: string, icon: SweetAlertIcon = 'success', posit
 export const showConfirm = async (
   title: string, 
   text: string, 
-  confirmText: string = 'Yes, proceed',
+  confirmText: string = 'Yes',
   cancelText: string = 'Cancel',
   icon: SweetAlertIcon = 'warning'
 ): Promise<boolean> => {

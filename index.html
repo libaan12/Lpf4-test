@@ -120,14 +120,38 @@
       }
       
       /* Base Popup Style (Light Mode Default) */
-      .glass-swal-popup, .glass-swal-toast {
+      .glass-swal-popup {
         background: #ffffff !important; /* Fully Opaque White */
         border: 2px solid #fdba74 !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
-        border-radius: 2rem !important;
-        padding: 2rem !important;
+        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2) !important;
+        border-radius: 1.5rem !important;
+        padding: 1.25rem !important; /* Reduced padding */
         font-family: 'Poppins', sans-serif !important;
         color: #000000 !important; /* Pure Black Text for Visibility */
+        width: 22em !important; /* Reduced Width */
+        max-width: 90vw !important;
+      }
+      
+      .glass-swal-toast {
+        background: #ffffff !important;
+        border: 2px solid #fdba74 !important;
+        border-radius: 1rem !important;
+        padding: 0.75rem !important;
+      }
+
+      /* Close Button Styling */
+      .swal2-close {
+        color: #94a3b8 !important;
+        font-family: 'Poppins', sans-serif !important;
+        font-weight: bold !important;
+        font-size: 1.5rem !important;
+        box-shadow: none !important;
+        outline: none !important;
+        transition: color 0.2s !important;
+      }
+      .swal2-close:hover {
+        color: #ef4444 !important; /* Red on hover */
+        background: transparent !important;
       }
       
       /* Dark Mode Override */
@@ -139,46 +163,53 @@
       
       .glass-swal-title, .glass-swal-toast-title, .swal2-title {
         color: inherit !important;
-        font-weight: 900 !important;
+        font-weight: 800 !important;
         text-transform: uppercase !important;
         font-style: italic !important;
+        font-size: 1.25rem !important; /* Slightly smaller title */
         opacity: 1 !important;
+        padding-top: 0 !important;
       }
       
       .glass-swal-content, .swal2-html-container {
         color: inherit !important;
-        font-weight: 600 !important;
-        opacity: 1 !important; /* No Transparency */
+        font-weight: 500 !important;
+        font-size: 0.9rem !important; /* Smaller text */
+        opacity: 0.9 !important;
+        margin: 0.5rem 0 !important;
       }
 
       /* Alert Buttons */
       .glass-swal-btn-confirm {
         background-color: #f97316 !important;
         color: white !important;
-        border-bottom: 4px solid #ea580c !important;
-        border-radius: 1rem !important;
-        padding: 0.75rem 2rem !important;
-        font-weight: 900 !important;
+        border-bottom: 3px solid #ea580c !important;
+        border-radius: 0.75rem !important;
+        padding: 0.5rem 1.5rem !important;
+        font-weight: 800 !important;
         text-transform: uppercase !important;
-        margin: 0.5rem !important;
+        font-size: 0.85rem !important;
+        margin: 0.25rem !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
         transition: transform 0.1s !important;
+        width: auto !important;
       }
       .glass-swal-btn-confirm:active {
         transform: translateY(2px) !important;
         border-bottom-width: 0px !important;
-        margin-top: 0.75rem !important; /* Visual compensation */
+        margin-top: 0.5rem !important; /* Visual compensation */
       }
 
       .glass-swal-btn-cancel {
         background-color: #ef4444 !important;
         color: white !important;
-        border-bottom: 4px solid #b91c1c !important;
-        border-radius: 1rem !important;
-        padding: 0.75rem 2rem !important;
-        font-weight: 900 !important;
+        border-bottom: 3px solid #b91c1c !important;
+        border-radius: 0.75rem !important;
+        padding: 0.5rem 1.5rem !important;
+        font-weight: 800 !important;
         text-transform: uppercase !important;
-        margin: 0.5rem !important;
+        font-size: 0.85rem !important;
+        margin: 0.25rem !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
       }
 
@@ -186,12 +217,13 @@
       .glass-swal-input, .swal2-input {
         background-color: #fff7ed !important;
         border: 2px solid #fdba74 !important;
-        border-radius: 1rem !important;
+        border-radius: 0.75rem !important;
         color: #000000 !important; /* Dark text */
         font-weight: bold !important;
-        padding: 1rem !important;
+        padding: 0.75rem !important;
         text-align: center !important;
-        font-size: 1.25rem !important;
+        font-size: 1rem !important;
+        margin: 1rem auto !important;
       }
       .dark .glass-swal-input, .dark .swal2-input {
         background-color: #0f172a !important;
