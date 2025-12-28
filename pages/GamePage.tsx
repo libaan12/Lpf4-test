@@ -4,8 +4,8 @@ import { ref, onValue, update, onDisconnect, get, set, remove, serverTimestamp }
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { POINTS_PER_QUESTION } from '../constants';
-import { MatchState, Question, Chapter } from '../types';
-import { Avatar, Button, Card } from '../components/UI';
+import { MatchState, Question, Chapter, UserProfile } from '../types';
+import { Avatar, Button, Card, Modal } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { showToast, showConfirm } from '../services/alert';
 import confetti from 'canvas-confetti';
@@ -38,7 +38,7 @@ const GamePage: React.FC = () => {
   const navigate = useNavigate();
 
   const [match, setMatch] = useState<MatchState | null>(null);
-  const [opponentProfile, setOpponentProfile] = useState<{name: string, avatar: string, uid: string, level?: number} | null>(null);
+  const [opponentProfile, setOpponentProfile] = useState<UserProfile | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -48,6 +48,9 @@ const GamePage: React.FC = () => {
   const [showIntro, setShowIntro] = useState(false);
   const [showTurnAlert, setShowTurnAlert] = useState(false);
   const prevTurnRef = useRef<string | null>(null);
+  
+  // Opponent Details Modal
+  const [showOpponentModal, setShowOpponentModal] = useState(false);
   
   const processingRef = useRef(false);
 
@@ -124,8 +127,7 @@ const GamePage: React.FC = () => {
              const oppSnap = await get(ref(db, `users/${oppUid}`));
              if (oppSnap.exists()) {
                  const oppData = oppSnap.val();
-                 const oppLevel = Math.floor((oppData.points || 0) / 10) + 1;
-                 setOpponentProfile({ uid: oppUid, ...oppData, level: oppLevel });
+                 setOpponentProfile({ uid: oppUid, ...oppData });
                  
                  // Show Intro only if start
                  if (data.currentQ === 0 && data.answersCount === 0) {
@@ -293,11 +295,21 @@ const GamePage: React.FC = () => {
       showToast("Match Forfeited", "info");
   };
 
+  const addFriend = async () => {
+      if(!user || !opponentProfile) return;
+      await update(ref(db, `users/${opponentProfile.uid}/friendRequests/${user.uid}`), {
+          status: 'pending'
+      });
+      showToast("Friend Request Sent!", "success");
+      setShowOpponentModal(false);
+  };
+
   if (!match || !opponentProfile || (!currentQuestion && !isGameOver && !showIntro)) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-black text-2xl animate-pulse">CONNECTING...</div>;
   }
 
   const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
+  const oppLevel = Math.floor((opponentProfile.points || 0) / 10) + 1;
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans bg-slate-900 overflow-hidden transition-colors">
@@ -311,7 +323,7 @@ const GamePage: React.FC = () => {
               {/* Player 1 (Top / Left) */}
               <div className="relative w-full h-1/2 md:w-1/2 md:h-full bg-indigo-600 flex flex-col items-center justify-center animate__animated animate__slideInLeft shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10">
                   <div className="relative z-10 scale-90 md:scale-150 mb-2 md:mb-0">
-                     <Avatar src={profile?.avatar} seed={user!.uid} size="xl" className="border-4 border-white shadow-2xl" />
+                     <Avatar src={profile?.avatar} seed={user!.uid} size="xl" className="border-4 border-white shadow-2xl" isVerified={profile?.isVerified} />
                      <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 font-black px-2 py-0.5 rounded-full border-2 border-white text-sm">LVL {myLevel}</div>
                   </div>
                   <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full">
@@ -322,8 +334,8 @@ const GamePage: React.FC = () => {
               {/* Player 2 (Bottom / Right) */}
               <div className="relative w-full h-1/2 md:w-1/2 md:h-full bg-red-600 flex flex-col items-center justify-center animate__animated animate__slideInRight shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10">
                   <div className="relative z-10 scale-90 md:scale-150 mb-2 md:mb-0">
-                     <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="xl" className="border-4 border-white shadow-2xl" />
-                     <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 font-black px-2 py-0.5 rounded-full border-2 border-white text-sm">LVL {opponentProfile.level}</div>
+                     <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="xl" className="border-4 border-white shadow-2xl" isVerified={opponentProfile.isVerified} />
+                     <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 font-black px-2 py-0.5 rounded-full border-2 border-white text-sm">LVL {oppLevel}</div>
                   </div>
                   <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full">
                       {opponentProfile.name}
@@ -378,7 +390,7 @@ const GamePage: React.FC = () => {
             {/* Me */}
             <div className={`flex items-center gap-3 transition-all duration-300 ${isMyTurn && !isGameOver ? 'scale-105 opacity-100' : 'scale-95 opacity-60'}`}>
                  <div className="relative">
-                     <Avatar src={profile?.avatar} seed={user!.uid} size="sm" border={isMyTurn ? '3px solid #6366f1' : '3px solid transparent'} className={isMyTurn ? 'shadow-lg shadow-indigo-500/50' : ''} />
+                     <Avatar src={profile?.avatar} seed={user!.uid} size="sm" border={isMyTurn ? '3px solid #6366f1' : '3px solid transparent'} className={isMyTurn ? 'shadow-lg shadow-indigo-500/50' : ''} isVerified={profile?.isVerified} />
                      <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {myLevel}</div>
                  </div>
                  <div>
@@ -395,11 +407,14 @@ const GamePage: React.FC = () => {
                  <div className="text-xs font-bold text-slate-400">Q {match.currentQ + 1}/{questions.length}</div>
             </div>
 
-            {/* Opponent */}
-            <div className={`flex items-center gap-3 flex-row-reverse text-right transition-all duration-300 ${!isMyTurn && !isGameOver ? 'scale-105 opacity-100' : 'scale-95 opacity-60'}`}>
+            {/* Opponent (Clickable for details) */}
+            <div 
+                className={`flex items-center gap-3 flex-row-reverse text-right transition-all duration-300 cursor-pointer ${!isMyTurn && !isGameOver ? 'scale-105 opacity-100' : 'scale-95 opacity-60'}`}
+                onClick={() => setShowOpponentModal(true)}
+            >
                  <div className="relative">
-                    <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="sm" border={!isMyTurn ? '3px solid #ef4444' : '3px solid transparent'} className={!isMyTurn ? 'shadow-lg shadow-red-500/50' : ''}/>
-                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {opponentProfile.level}</div>
+                    <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="sm" border={!isMyTurn ? '3px solid #ef4444' : '3px solid transparent'} className={!isMyTurn ? 'shadow-lg shadow-red-500/50' : ''} isVerified={opponentProfile.isVerified} />
+                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {oppLevel}</div>
                  </div>
                  <div>
                      <div className="flex items-center gap-1 justify-end">
@@ -437,7 +452,7 @@ const GamePage: React.FC = () => {
                
                <div className="flex justify-center gap-4 md:gap-12 mb-10">
                    <div className="text-center bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-                       <Avatar src={profile?.avatar} size="lg" className="mx-auto mb-2 shadow-md" />
+                       <Avatar src={profile?.avatar} size="lg" className="mx-auto mb-2 shadow-md" isVerified={profile?.isVerified} />
                        <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{profile?.name}</div>
                        <div className="text-xs font-bold text-slate-400 mb-2">LVL {myLevel}</div>
                        <div className="font-black text-2xl text-game-primary">{match.scores[user!.uid]}</div>
@@ -446,9 +461,9 @@ const GamePage: React.FC = () => {
                    <div className="flex items-center text-slate-300 font-black text-2xl italic">VS</div>
 
                    <div className="text-center bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl border border-red-100 dark:border-red-800 opacity-90">
-                       <Avatar src={opponentProfile.avatar} size="lg" className="mx-auto mb-2 grayscale shadow-md" />
+                       <Avatar src={opponentProfile.avatar} size="lg" className="mx-auto mb-2 grayscale shadow-md" isVerified={opponentProfile.isVerified} />
                        <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{opponentProfile.name}</div>
-                       <div className="text-xs font-bold text-slate-400 mb-2">LVL {opponentProfile.level}</div>
+                       <div className="text-xs font-bold text-slate-400 mb-2">LVL {oppLevel}</div>
                        <div className="font-black text-2xl text-game-danger">{match.scores[opponentProfile.uid]}</div>
                    </div>
                </div>
@@ -536,6 +551,33 @@ const GamePage: React.FC = () => {
             </>
         )}
       </div>
+
+      {/* Opponent Modal */}
+      {showOpponentModal && (
+          <Modal isOpen={true} onClose={() => setShowOpponentModal(false)} title="Opponent Profile">
+               <div className="flex flex-col items-center mb-6">
+                   <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="xl" isVerified={opponentProfile.isVerified} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
+                   <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
+                       {opponentProfile.name}
+                       {opponentProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg"></i>}
+                   </h2>
+                   <p className="text-slate-500 dark:text-slate-400 font-mono font-bold mb-4">@{opponentProfile.username || 'unknown'}</p>
+                   
+                   <div className="grid grid-cols-2 gap-4 w-full">
+                       <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
+                           <div className="text-xs text-slate-400 font-bold uppercase">Level</div>
+                           <div className="text-xl font-black text-slate-800 dark:text-white">{oppLevel}</div>
+                       </div>
+                       <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
+                           <div className="text-xs text-slate-400 font-bold uppercase">Points</div>
+                           <div className="text-xl font-black text-game-primary dark:text-blue-400">{opponentProfile.points}</div>
+                       </div>
+                   </div>
+               </div>
+               
+               <Button fullWidth onClick={addFriend}><i className="fas fa-user-plus mr-2"></i> Add Friend</Button>
+          </Modal>
+      )}
     </div>
   );
 };

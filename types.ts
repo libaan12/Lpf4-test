@@ -2,7 +2,8 @@
 export interface UserProfile {
   uid: string;
   name: string;
-  email: string;
+  email?: string; // Optional for guests
+  username?: string; // Unique handle
   points: number;
   avatar: string; // URL
   gender?: 'male' | 'female';
@@ -10,6 +11,11 @@ export interface UserProfile {
   role?: 'user' | 'admin';
   banned?: boolean;
   avatarUpdated?: boolean;
+  isVerified?: boolean; // Blue tick
+  isGuest?: boolean;
+  isOnline?: boolean;
+  lastSeen?: number;
+  friends?: { [uid: string]: boolean };
 }
 
 export interface Subject {
@@ -62,4 +68,13 @@ export interface Room {
   code: string;
   questionLimit: number;
   createdAt: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: string;
+  text: string;
+  timestamp: number;
+  type?: 'text' | 'invite'; // Invite for match
+  inviteCode?: string; // Room code if type is invite
 }

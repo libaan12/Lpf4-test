@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, signInAnonymously } from 'firebase/auth';
 import { ref, set, get } from 'firebase/database';
 import { auth, db } from '../firebase';
 import { playSound } from '../services/audioService';
@@ -14,6 +14,7 @@ const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState(''); // New Username state
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +39,45 @@ const AuthPage: React.FC = () => {
     }
   };
 
+  const checkUsernameExists = async (userHandle: string) => {
+      // Use client-side filtering to avoid "Index not defined" error if rules aren't set
+      const snapshot = await get(ref(db, 'users'));
+      if (!snapshot.exists()) return false;
+      const users = snapshot.val();
+      return Object.values(users).some((u: any) => (u.username || '').toLowerCase() === userHandle.toLowerCase());
+  };
+
+  const handleGuestLogin = async () => {
+      setLoading(true);
+      playSound('click');
+      try {
+          const userCred = await signInAnonymously(auth);
+          const user = userCred.user;
+          const seed = Math.random().toString(36).substring(7);
+          const guestName = `Guest_${seed.substring(0,4)}`;
+          const guestUsername = `guest${seed}`;
+          
+          await set(ref(db, `users/${user.uid}`), {
+            name: guestName,
+            username: guestUsername,
+            points: 0,
+            avatar: generateAvatarUrl(seed),
+            gender: 'male',
+            activeMatch: null,
+            banned: false,
+            isGuest: true,
+            isVerified: false
+          });
+
+          await updateProfile(user, { displayName: guestName });
+      } catch (e: any) {
+          console.error(e);
+          showAlert('Error', 'Guest login failed.', 'error');
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -57,9 +97,17 @@ const AuthPage: React.FC = () => {
             }
         }
       } else {
-        if (!name.trim()) {
-            throw { code: 'custom/missing-name' };
-        }
+        if (!name.trim()) throw { code: 'custom/missing-name' };
+        if (!username.trim()) throw { code: 'custom/missing-username' };
+        
+        // Validate Username
+        const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (cleanUsername.length < 3) throw { code: 'custom/short-username' };
+        
+        // Check duplication
+        const exists = await checkUsernameExists(cleanUsername);
+        if (exists) throw { code: 'custom/username-taken' };
+
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCred.user;
         const seed = Math.random().toString(36).substring(7);
@@ -69,13 +117,15 @@ const AuthPage: React.FC = () => {
         
         // Initial Profile with Gender
         await set(ref(db, `users/${user.uid}`), {
-          name: name || 'Student',
+          name: name,
+          username: cleanUsername,
           email: user.email,
           points: 0,
           avatar: avatarUrl,
           gender: gender,
           activeMatch: null,
-          banned: false
+          banned: false,
+          isVerified: false
         });
         
         await updateProfile(user, { displayName: name });
@@ -87,6 +137,9 @@ const AuthPage: React.FC = () => {
       console.error(err.code);
       let msg = getErrorMessage(err.code || '');
       if (err.code === 'custom/missing-name') msg = 'Please enter your name.';
+      if (err.code === 'custom/missing-username') msg = 'Please choose a username.';
+      if (err.code === 'custom/short-username') msg = 'Username must be at least 3 chars.';
+      if (err.code === 'custom/username-taken') msg = 'This username is already taken.';
       if (err.code === 'custom/banned') msg = 'Your account has been suspended by an administrator.';
       
       showAlert('Authentication Error', msg, 'error');
@@ -140,9 +193,16 @@ const AuthPage: React.FC = () => {
                     <div className="animate__animated animate__fadeIn space-y-4">
                         <Input 
                             icon="fa-user" 
-                            placeholder="Player Name" 
+                            placeholder="Full Name" 
                             value={name} 
                             onChange={e => setName(e.target.value)} 
+                            required 
+                        />
+                        <Input 
+                            icon="fa-at" 
+                            placeholder="Username" 
+                            value={username} 
+                            onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} 
                             required 
                         />
 
@@ -199,6 +259,22 @@ const AuthPage: React.FC = () => {
                     </Button>
                 </div>
             </form>
+
+            <div className="my-4 flex items-center justify-between gap-2">
+                <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+                <span className="text-xs text-slate-400 font-bold uppercase">Or</span>
+                <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+            </div>
+
+            <Button 
+                type="button" 
+                variant="outline" 
+                fullWidth 
+                onClick={handleGuestLogin}
+                className="opacity-70 hover:opacity-100"
+            >
+                Continue as Guest
+            </Button>
             
             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 text-center">
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">

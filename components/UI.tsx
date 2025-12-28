@@ -94,7 +94,9 @@ export const Avatar: React.FC<{
   pulse?: boolean; 
   onClick?: () => void;
   border?: string;
-}> = ({ src, seed, size = 'md', className = '', pulse = false, onClick, border }) => {
+  isVerified?: boolean;
+  isOnline?: boolean;
+}> = ({ src, seed, size = 'md', className = '', pulse = false, onClick, border, isVerified, isOnline }) => {
   const sizes = {
     sm: "w-10 h-10",
     md: "w-16 h-16",
@@ -106,12 +108,28 @@ export const Avatar: React.FC<{
   const imageUrl = src || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(safeSeed)}&mouth=default&eyes=default&eyebrows=default&facialHairProbability=0`;
 
   return (
-    <div 
-      onClick={onClick}
-      className={`relative rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden ${sizes[size]} ${className} ${pulse ? 'animate-pulse ring-4 ring-game-danger' : ''} shadow-lg`}
-      style={{ border: border || '3px solid white' }}
-    >
-      <img src={imageUrl} alt="Avatar" className="w-full h-full object-cover" />
+    <div className="relative inline-block">
+        <div 
+          onClick={onClick}
+          className={`relative rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden ${sizes[size]} ${className} ${pulse ? 'animate-pulse ring-4 ring-game-danger' : ''} shadow-lg`}
+          style={{ border: border || '3px solid white' }}
+        >
+          <img src={imageUrl} alt="Avatar" className="w-full h-full object-cover" />
+        </div>
+        
+        {/* Verification Badge */}
+        {isVerified && (
+            <div className="absolute bottom-0 right-0 bg-white dark:bg-slate-800 rounded-full p-[2px]">
+                <div className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] border-2 border-white dark:border-slate-800" title="Verified Student">
+                    <i className="fas fa-check"></i>
+                </div>
+            </div>
+        )}
+        
+        {/* Online Status (Only show if not verified to avoid clutter, or position differently) */}
+        {isOnline && !isVerified && (
+             <div className="absolute bottom-1 right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></div>
+        )}
     </div>
   );
 };
@@ -120,7 +138,7 @@ export const Avatar: React.FC<{
 export const Modal: React.FC<{ isOpen: boolean; title?: string; children: React.ReactNode; onClose?: () => void }> = ({ isOpen, title, children, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate__animated animate__fadeIn">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate__animated animate__fadeIn">
       <div className="absolute inset-0" onClick={onClose}></div>
       <div className={`relative w-full max-w-md bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl animate__animated animate__zoomIn border-4 border-white dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh]`}>
         {title && (

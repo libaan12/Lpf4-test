@@ -159,6 +159,17 @@ const SuperAdminPage: React.FC = () => {
           showAlert('Error', `Failed to ${action} user`, 'error');
       }
   };
+  
+  const toggleVerification = async (uid: string, currentStatus?: boolean) => {
+      const newStatus = !currentStatus;
+      try {
+          await update(ref(db, `users/${uid}`), { isVerified: newStatus });
+          showToast(newStatus ? 'User Verified' : 'Verification Removed', 'success');
+          if (selectedUser && selectedUser.uid === uid) {
+              setSelectedUser({ ...selectedUser, isVerified: newStatus });
+          }
+      } catch(e) { console.error(e); }
+  };
 
   const deleteUser = async (uid: string) => {
       const confirmed = await showConfirm(
@@ -338,9 +349,10 @@ const SuperAdminPage: React.FC = () => {
                                                 <div>
                                                     <div className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                                         {u.name}
+                                                        {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
                                                         {u.role === 'admin' && <i className="fas fa-shield-alt text-somali-blue text-xs" title="Admin"></i>}
                                                     </div>
-                                                    <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{u.uid.substring(0,6)}...</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">@{u.username}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -450,7 +462,7 @@ const SuperAdminPage: React.FC = () => {
             <Modal isOpen={true} title="User Control" onClose={() => setSelectedUser(null)}>
                 <div className="flex flex-col items-center mb-6">
                     <div className="relative">
-                        <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" className="border-4 border-white dark:border-gray-700 shadow-xl" />
+                        <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" className="border-4 border-white dark:border-gray-700 shadow-xl" isVerified={selectedUser.isVerified} />
                         {selectedUser.banned && (
                             <div className="absolute inset-0 bg-red-500/50 rounded-full flex items-center justify-center backdrop-blur-sm">
                                 <i className="fas fa-ban text-4xl text-white"></i>
@@ -458,7 +470,7 @@ const SuperAdminPage: React.FC = () => {
                         )}
                     </div>
                     <h2 className="text-2xl font-black mt-4 text-gray-900 dark:text-white">{selectedUser.name}</h2>
-                    <p className="text-gray-600 dark:text-gray-300 font-bold">{selectedUser.email}</p>
+                    <p className="text-gray-600 dark:text-gray-300 font-bold font-mono">@{selectedUser.username}</p>
                     <div className="grid grid-cols-2 gap-4 w-full mt-6">
                         <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl text-center">
                             <div className="text-xs text-gray-400 uppercase font-bold">Role</div>
@@ -471,12 +483,17 @@ const SuperAdminPage: React.FC = () => {
                     </div>
                 </div>
                 <div className="space-y-3">
-                    <Button fullWidth onClick={() => toggleRole(selectedUser.uid, selectedUser.role)} variant={selectedUser.role === 'admin' ? 'secondary' : 'primary'}>
-                        {selectedUser.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
+                    <Button fullWidth onClick={() => toggleVerification(selectedUser.uid, selectedUser.isVerified)} variant="outline">
+                        {selectedUser.isVerified ? 'Remove Verification' : 'Verify User'}
                     </Button>
-                    <Button fullWidth onClick={() => toggleBan(selectedUser.uid, selectedUser.banned)} className={selectedUser.banned ? "bg-green-600" : "bg-orange-500"}>
-                        {selectedUser.banned ? 'Unban User' : 'Ban User'}
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button fullWidth onClick={() => toggleRole(selectedUser.uid, selectedUser.role)} variant={selectedUser.role === 'admin' ? 'secondary' : 'primary'}>
+                            {selectedUser.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
+                        </Button>
+                        <Button fullWidth onClick={() => toggleBan(selectedUser.uid, selectedUser.banned)} className={selectedUser.banned ? "bg-green-600" : "bg-orange-500"}>
+                            {selectedUser.banned ? 'Unban' : 'Ban'}
+                        </Button>
+                    </div>
                     <Button fullWidth onClick={() => deleteUser(selectedUser.uid)} variant="danger">Delete Data</Button>
                 </div>
             </Modal>

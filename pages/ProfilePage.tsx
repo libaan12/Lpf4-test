@@ -1,12 +1,13 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, updateProfile } from 'firebase/auth';
-import { ref, update } from 'firebase/database';
+import { ref, update, get } from 'firebase/database';
 import { auth, db } from '../firebase';
 import { UserContext, ThemeContext } from '../contexts';
 import { Avatar, Button, Card, Input, Modal } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { generateAvatarUrl } from '../constants';
+import { showToast, showAlert } from '../services/alert';
 
 const ProfilePage: React.FC = () => {
   const { profile, user } = useContext(UserContext);
@@ -22,10 +23,15 @@ const ProfilePage: React.FC = () => {
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [randomAvatars, setRandomAvatars] = useState<string[]>([]);
 
+  // Username prompt state
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+
   useEffect(() => {
     if (profile) {
       setEditName(profile.name);
       setCurrentAvatarUrl(profile.avatar);
+      if (!profile.username) setShowUsernamePrompt(true);
     }
   }, [profile]);
 
@@ -93,6 +99,43 @@ const ProfilePage: React.FC = () => {
       playSound('click');
   };
 
+  const handleSetUsername = async () => {
+      if (!user || !newUsername.trim()) return;
+      setLoading(true);
+      const clean = newUsername.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      
+      if (clean.length < 3) {
+          showToast("Username too short", "error");
+          setLoading(false);
+          return;
+      }
+
+      // Check uniqueness via client-side filter
+      // This is less efficient but avoids "Index not defined" error without updating Firebase Console rules
+      const snapshot = await get(ref(db, 'users'));
+      let exists = false;
+      if (snapshot.exists()) {
+          const users = snapshot.val();
+          exists = Object.values(users).some((u: any) => (u.username || '').toLowerCase() === clean);
+      }
+      
+      if (exists) {
+           showToast("Username taken", "error");
+           setLoading(false);
+           return;
+      }
+
+      try {
+          await update(ref(db, `users/${user.uid}`), { username: clean });
+          setShowUsernamePrompt(false);
+          showToast("Username set!", "success");
+      } catch (e) {
+          showAlert("Error", "Failed to set username", "error");
+      } finally {
+          setLoading(false);
+      }
+  };
+
   if (!profile) return null;
 
   const level = Math.floor(profile.points / 10) + 1;
@@ -122,6 +165,7 @@ const ProfilePage: React.FC = () => {
                 src={currentAvatarUrl} 
                 seed={user?.uid} 
                 size="xl" 
+                isVerified={profile.isVerified}
                 className="mb-4 border-4 border-white dark:border-gray-800 shadow-xl cursor-pointer hover:opacity-90 transition-opacity" 
                 onClick={() => setShowAvatarSelector(true)}
             />
@@ -160,10 +204,11 @@ const ProfilePage: React.FC = () => {
                     title="Click to edit name"
                 >
                     {profile.name}
+                    {profile.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg" title="Verified"></i>}
                     <i className="fas fa-pencil-alt text-xs opacity-0 group-hover:opacity-100 transition-opacity text-game-primary"></i>
                 </h2>
-                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-bold">
-                    {profile.email}
+                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-bold font-mono bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full mt-2">
+                    @{profile.username || 'unknown'}
                 </div>
             </>
         )}
@@ -185,6 +230,20 @@ const ProfilePage: React.FC = () => {
           <Button fullWidth variant="secondary" className="mt-6" onClick={() => setRandomAvatars(Array.from({length: 9}, () => Math.random().toString(36).substring(7)))}>
              <i className="fas fa-sync mr-2"></i> Load New List
           </Button>
+      </Modal>
+      
+      {/* Username Modal */}
+      <Modal isOpen={showUsernamePrompt} title="Set Username">
+          <div className="space-y-4">
+              <p className="text-sm text-gray-500 text-center">You need a unique username to use social features.</p>
+              <Input 
+                  placeholder="Username" 
+                  value={newUsername} 
+                  onChange={e => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  className="text-center font-bold"
+              />
+              <Button fullWidth onClick={handleSetUsername} isLoading={loading}>Save Username</Button>
+          </div>
       </Modal>
 
       <Card className="mb-6 relative overflow-hidden">

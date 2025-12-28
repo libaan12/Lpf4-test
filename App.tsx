@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, update, serverTimestamp, onDisconnect } from 'firebase/database';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
@@ -21,6 +21,8 @@ import AdminPage from './pages/AdminPage';
 import AboutPage from './pages/AboutPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import DownloadPage from './pages/DownloadPage'; 
+import SocialPage from './pages/SocialPage';
+import ChatPage from './pages/ChatPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -82,6 +84,12 @@ const AppContent: React.FC = () => {
       setUser(currentUser);
       if (currentUser) {
         const userRef = ref(db, `users/${currentUser.uid}`);
+        
+        // Presence Logic
+        const presenceRef = ref(db, `users/${currentUser.uid}`);
+        update(presenceRef, { isOnline: true, lastSeen: serverTimestamp() });
+        onDisconnect(presenceRef).update({ isOnline: false, lastSeen: serverTimestamp() });
+
         onValue(userRef, (snapshot) => {
           const data = snapshot.val();
           
@@ -136,8 +144,8 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const showNavbar = ['/', '/lobby', '/leaderboard', '/profile', '/about'].includes(location.pathname);
-  const showAssistant = user && !location.pathname.includes('/game');
+  const showNavbar = ['/', '/lobby', '/leaderboard', '/profile', '/about', '/social'].includes(location.pathname);
+  const showAssistant = user && !location.pathname.includes('/game') && !location.pathname.includes('/chat');
 
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
@@ -173,6 +181,8 @@ const AppContent: React.FC = () => {
                       <Route path="/download" element={<DownloadPage />} />
                       <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
                       <Route path="/lobby" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
+                      <Route path="/social" element={<ProtectedRoute><SocialPage /></ProtectedRoute>} />
+                      <Route path="/chat/:uid" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                       <Route path="/game/:matchId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
                       <Route path="/solo" element={<ProtectedRoute><SoloPage /></ProtectedRoute>} />
                       <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
