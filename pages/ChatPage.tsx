@@ -105,9 +105,12 @@ const ChatPage: React.FC = () => {
           type,
           inviteCode: inviteCode || null,
           subjectName: subjectName || null,
-          timestamp: serverTimestamp(),
-          status: type === 'invite' ? 'waiting' : undefined
+          timestamp: serverTimestamp()
       };
+
+      if (type === 'invite') {
+          msgData.status = 'waiting';
+      }
 
       if (type === 'text') setInputText('');
 
