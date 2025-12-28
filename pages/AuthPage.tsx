@@ -24,6 +24,8 @@ const AuthPage: React.FC = () => {
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [loading, setLoading] = useState(false);
 
+  const generateRandomId = () => Math.random().toString(36).substring(2, 8);
+
   const getErrorMessage = (code: string) => {
     switch (code) {
         case 'auth/invalid-credential': 
@@ -41,7 +43,7 @@ const AuthPage: React.FC = () => {
         case 'auth/network-request-failed':
             return 'Network error.';
         case 'auth/admin-restricted-operation':
-            return 'Operation not allowed (Check Firebase Console).';
+            return 'Anonymous login disabled in Console.';
         case 'auth/operation-not-allowed':
              return 'Sign-in provider disabled.';
         default: 
@@ -65,7 +67,6 @@ const AuthPage: React.FC = () => {
   const handleGuestClick = () => {
       playSound('click');
       // Check if we have a saved guest session or profile mapping
-      // Note: Firebase auth persists session, but we want to know if we need to setup a profile
       const cachedGuest = localStorage.getItem('is_guest_setup');
       
       if (cachedGuest === 'true') {
@@ -76,24 +77,66 @@ const AuthPage: React.FC = () => {
   };
 
   // Step 2: Actually sign in (either after modal or auto)
+  // UPDATED: Includes fallback to shadow email account if anonymous is disabled
   const performGuestLogin = async (customName?: string, customUsername?: string) => {
       setLoading(true);
+      let user = null;
+      let isShadowAccount = false;
+
       try {
-          // 1. Sign In
+          // 1. Try Native Anonymous Auth
           const userCred = await signInAnonymously(auth);
-          const user = userCred.user;
+          user = userCred.user;
+      } catch (e: any) {
+          console.warn("Anonymous auth failed, attempting fallback...", e.code);
           
-          // 2. Check if profile exists in DB
+          // 2. Fallback: Create a shadow email account if Anonymous is disabled (admin-restricted-operation)
+          // This ensures the app works even if the developer forgot to enable Anonymous Auth in Firebase Console
+          if (e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed') {
+              try {
+                  const randId = generateRandomId();
+                  const timestamp = Date.now();
+                  // Create a unique non-existent email
+                  const fakeEmail = `guest_${timestamp}_${randId}@lpf4-temp.com`;
+                  const fakePass = `guest_${randId}_${timestamp}`;
+                  
+                  const userCred = await createUserWithEmailAndPassword(auth, fakeEmail, fakePass);
+                  user = userCred.user;
+                  isShadowAccount = true;
+              } catch (fallbackErr: any) {
+                  console.error("Fallback guest login failed", fallbackErr);
+                  showAlert('Login Error', 'Guest access is unavailable. Please try registering normally.', 'error');
+                  setLoading(false);
+                  return;
+              }
+          } else {
+              // Real error (network, etc)
+              showAlert('Login Error', getErrorMessage(e.code), 'error');
+              setLoading(false);
+              return;
+          }
+      }
+
+      if (!user) {
+          setLoading(false);
+          return;
+      }
+
+      try {
+          // 3. Check if profile exists in DB
           const userRef = ref(db, `users/${user.uid}`);
           const snapshot = await get(userRef);
           
           if (!snapshot.exists()) {
-              // 3. Create Profile
-              const seed = Math.random().toString(36).substring(7);
+              // 4. Create Profile
+              const seed = generateRandomId();
               
-              // Use provided name/username or fallbacks (should be provided by modal)
-              const finalName = customName || `Guest_${seed.substring(0,4)}`;
-              const finalUsername = customUsername || `guest_${seed}`;
+              // Ensure we have a name and username
+              const uniqueSuffix = seed.substring(0, 4);
+              const finalName = customName || `Guest ${uniqueSuffix}`;
+              
+              // Generate a very unique username if not provided
+              const finalUsername = customUsername || `guest_${uniqueSuffix}_${Date.now().toString().slice(-5)}`;
               
               await set(userRef, {
                 name: finalName,
@@ -104,6 +147,7 @@ const AuthPage: React.FC = () => {
                 activeMatch: null,
                 banned: false,
                 isGuest: true,
+                isShadowAccount: isShadowAccount, // Flag for admin to know this is a fallback guest
                 isVerified: false,
                 createdAt: Date.now()
               });
@@ -111,19 +155,13 @@ const AuthPage: React.FC = () => {
               await updateProfile(user, { displayName: finalName });
               localStorage.setItem('is_guest_setup', 'true');
           } else {
-              // Profile exists, mark local storage just in case
+              // Profile exists
               localStorage.setItem('is_guest_setup', 'true');
           }
           // App.tsx listener will handle redirection
       } catch (e: any) {
-          console.error(e);
-          let msg = 'Could not sign in as guest. Please try again.';
-          if (e.code === 'auth/admin-restricted-operation') {
-              msg = 'Anonymous login is disabled in Firebase Console.';
-          } else if (e.code === 'auth/operation-not-allowed') {
-              msg = 'Guest login is currently disabled.';
-          }
-          showAlert('Login Error', msg, 'error');
+          console.error("Profile creation failed", e);
+          showAlert('Error', 'Failed to create guest profile data.', 'error');
           setLoading(false);
       }
   };
