@@ -127,7 +127,7 @@
         border-radius: 1.5rem !important;
         padding: 1.25rem !important; /* Reduced padding */
         font-family: 'Poppins', sans-serif !important;
-        color: #000000 !important; /* Pure Black Text for Visibility */
+        color: #1e293b !important; /* Slate 800 - Explicit Dark Text */
         width: 22em !important; /* Reduced Width */
         max-width: 90vw !important;
       }
@@ -137,6 +137,7 @@
         border: 2px solid #fdba74 !important;
         border-radius: 1rem !important;
         padding: 0.75rem !important;
+        color: #1e293b !important; /* Slate 800 - Explicit Dark Text */
       }
 
       /* Close Button Styling */
@@ -154,29 +155,38 @@
         background: transparent !important;
       }
       
-      /* Dark Mode Override */
-      .dark .glass-swal-popup, .dark .glass-swal-toast {
-        background: #1e293b !important;
-        border-color: #334155 !important;
-        color: #ffffff !important; /* Pure White Text */
-      }
-      
+      /* Text Elements - Explicit Colors for Light Mode */
       .glass-swal-title, .glass-swal-toast-title, .swal2-title {
-        color: inherit !important;
+        color: #1e293b !important; /* Slate 800 */
         font-weight: 800 !important;
         text-transform: uppercase !important;
         font-style: italic !important;
-        font-size: 1.25rem !important; /* Slightly smaller title */
+        font-size: 1.25rem !important;
         opacity: 1 !important;
         padding-top: 0 !important;
       }
       
       .glass-swal-content, .swal2-html-container {
-        color: inherit !important;
+        color: #334151 !important; /* Slate 700 */
         font-weight: 500 !important;
-        font-size: 0.9rem !important; /* Smaller text */
-        opacity: 0.9 !important;
+        font-size: 0.9rem !important;
+        opacity: 1 !important;
         margin: 0.5rem 0 !important;
+      }
+
+      /* Dark Mode Override */
+      .dark .glass-swal-popup, .dark .glass-swal-toast {
+        background: #1e293b !important;
+        border-color: #334155 !important;
+        color: #ffffff !important; 
+      }
+      
+      .dark .glass-swal-title, .dark .glass-swal-toast-title, .dark .swal2-title {
+        color: #ffffff !important;
+      }
+      
+      .dark .glass-swal-content, .dark .swal2-html-container {
+        color: #e2e8f0 !important; /* Slate 200 */
       }
 
       /* Alert Buttons */
@@ -218,7 +228,7 @@
         background-color: #fff7ed !important;
         border: 2px solid #fdba74 !important;
         border-radius: 0.75rem !important;
-        color: #000000 !important; /* Dark text */
+        color: #1e293b !important; /* Dark text */
         font-weight: bold !important;
         padding: 0.75rem !important;
         text-align: center !important;
