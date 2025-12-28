@@ -68,6 +68,7 @@ export interface Room {
   code: string;
   questionLimit: number;
   createdAt: number;
+  linkedChatPath?: string;
 }
 
 export interface ChatMessage {
@@ -78,4 +79,5 @@ export interface ChatMessage {
   type?: 'text' | 'invite'; // Invite for match
   inviteCode?: string; // Room code if type is invite
   subjectName?: string; // Subject name for the invite
+  status?: 'waiting' | 'played' | 'canceled';
 }

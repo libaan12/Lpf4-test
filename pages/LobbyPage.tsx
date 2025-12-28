@@ -33,6 +33,7 @@ const LobbyPage: React.FC = () => {
   const [queueKey, setQueueKey] = useState<string | null>(null);
   
   const timerRef = useRef<any>(null);
+  const linkedChatPathRef = useRef<string | null>(null);
 
   // Handle Incoming Navigation State (Seamless from Chat)
   useEffect(() => {
@@ -84,6 +85,12 @@ const LobbyPage: React.FC = () => {
       if (hostedCode) {
          const roomRef = ref(db, `rooms/${hostedCode}`);
          const unsub = onValue(roomRef, (snap) => {
+             // Store linked chat path if available to update later
+             if (snap.exists()) {
+                 const val = snap.val();
+                 if (val.linkedChatPath) linkedChatPathRef.current = val.linkedChatPath;
+             }
+
              // If room is gone, it means someone joined (which deletes the room and creates match)
              // or it was aborted. 
              // Note: Game start navigation is handled by the `App.tsx` global `activeMatch` listener.
@@ -106,6 +113,12 @@ const LobbyPage: React.FC = () => {
     
     // If hosting a room, abort it first
     if (hostedCode) {
+        // If there was a linked chat message, mark it as canceled
+        if (linkedChatPathRef.current) {
+            update(ref(db, linkedChatPathRef.current), { status: 'canceled' });
+            linkedChatPathRef.current = null;
+        }
+
         remove(ref(db, `rooms/${hostedCode}`));
         setHostedCode(null);
         // Clear history state to prevent re-triggering
@@ -235,6 +248,11 @@ const LobbyPage: React.FC = () => {
       updates[`users/${rData.host}/activeMatch`] = matchId;
       updates[`users/${user.uid}/activeMatch`] = matchId;
 
+      // 4. Update Chat Message if linked
+      if (rData.linkedChatPath) {
+          updates[rData.linkedChatPath + '/status'] = 'played';
+      }
+
       try {
           await update(ref(db), updates);
       } catch(e) {
@@ -272,26 +290,32 @@ const LobbyPage: React.FC = () => {
   const pageTitle = viewMode === 'auto' ? 'Ranked Match' : customSubMode === 'join' ? 'Join' : customSubMode === 'create' ? 'Create Room' : 'Private Mode';
 
   return (
-    <div className="min-h-full flex flex-col p-4 pb-24 pt-20 max-w-4xl mx-auto w-full">
+    <div className="min-h-full flex flex-col p-4 pb-24 pt-24 max-w-4xl mx-auto w-full">
+      
+      {/* View Mode Header - Fixed */}
       {viewMode !== 'selection' && (
           <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
-                 <button onClick={handleBack} className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center transition-colors hover:bg-slate-300 dark:hover:bg-slate-700">
-                    <i className="fas fa-chevron-left dark:text-white"></i>
+                 <button onClick={handleBack} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
+                    <i className="fas fa-arrow-left fa-lg"></i>
                  </button>
-                 <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase">{pageTitle}</h2>
+                 <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">{pageTitle}</h2>
+          </div>
+      )}
+
+      {/* Main Selection Header - Fixed */}
+      {viewMode === 'selection' && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
+                 <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
+                    <i className="fas fa-arrow-left fa-lg"></i>
+                 </button>
+                 <h1 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase italic tracking-tight">Battle Mode</h1>
           </div>
       )}
 
       {viewMode === 'selection' && (
-        <div className="flex flex-col gap-6 pt-10">
-             <div className="flex items-center gap-4 mb-4 bg-white/50 dark:bg-slate-800/50 p-6 rounded-3xl backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-700">
-                 <button onClick={() => navigate('/')} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-700 flex items-center justify-center hover:bg-slate-50 transition-colors shadow-sm">
-                    <i className="fas fa-arrow-left text-slate-600 dark:text-slate-300"></i>
-                 </button>
-                 <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-white uppercase italic tracking-tighter">Battle Mode</h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-bold text-sm tracking-wide">Choose your path</p>
-                 </div>
+        <div className="flex flex-col gap-6 animate__animated animate__fadeIn">
+             <div className="text-center mb-2">
+                <p className="text-slate-500 dark:text-slate-400 font-bold text-sm tracking-wide uppercase">Choose your path</p>
              </div>
 
              <div onClick={() => { playSound('click'); setViewMode('auto'); }} className="bg-game-primary rounded-3xl p-8 text-white relative overflow-hidden cursor-pointer shadow-xl shadow-indigo-500/30 group hover:scale-[1.02] transition-transform">
@@ -351,7 +375,7 @@ const LobbyPage: React.FC = () => {
                          <p className="text-slate-500 dark:text-slate-300 font-bold">Waiting for opponent to join...</p>
                       </div>
                       
-                      <Button variant="danger" fullWidth onClick={() => {remove(ref(db, `rooms/${hostedCode}`)); setHostedCode(null);}}>
+                      <Button variant="danger" fullWidth onClick={handleBack}>
                           ABORT ROOM
                       </Button>
                   </Card>

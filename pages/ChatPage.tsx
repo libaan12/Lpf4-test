@@ -105,14 +105,15 @@ const ChatPage: React.FC = () => {
           type,
           inviteCode: inviteCode || null,
           subjectName: subjectName || null,
-          timestamp: serverTimestamp()
+          timestamp: serverTimestamp(),
+          status: type === 'invite' ? 'waiting' : undefined
       };
 
       if (type === 'text') setInputText('');
 
       try {
           await push(ref(db, `chats/${chatId}/messages`), msgData);
-          // Update last message metadata for chat lists if implemented
+          // Update last message metadata
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
@@ -129,36 +130,53 @@ const ChatPage: React.FC = () => {
   };
 
   const confirmMatchInvite = async () => {
-      if (!user || !selectedSubject || !selectedChapter) {
+      if (!user || !selectedSubject || !selectedChapter || !chatId) {
           showToast("Please select a subject and chapter", "warning");
           return;
       }
       setSetupLoading(true);
       
       try {
-          // Get Subject Name for display
           const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "Unknown Subject";
-
-          // Create Room
           const code = Math.floor(1000 + Math.random() * 9000).toString();
+          
+          // Create message Ref first to link it
+          const msgsRef = ref(db, `chats/${chatId}/messages`);
+          const newMsgRef = push(msgsRef);
+          
           const roomData = { 
               host: user.uid, 
               sid: selectedSubject, 
               lid: selectedChapter, 
               questionLimit: 10, 
-              createdAt: Date.now() 
+              createdAt: Date.now(),
+              linkedChatPath: `chats/${chatId}/messages/${newMsgRef.key}`
           };
           
           await set(ref(db, `rooms/${code}`), roomData);
           
-          // Send Invite Message with Subject Name
-          await sendMessage(undefined, 'invite', code, subjectName);
+          // Send Invite Message manually to use the ref
+          const msgData = {
+              sender: user.uid,
+              text: 'CHALLENGE_INVITE',
+              type: 'invite',
+              inviteCode: code,
+              subjectName: subjectName,
+              timestamp: serverTimestamp(),
+              status: 'waiting'
+          };
+          await set(newMsgRef, msgData);
+          
+          await update(ref(db, `chats/${chatId}`), {
+              lastMessage: msgData.text,
+              lastTimestamp: serverTimestamp(),
+              participants: { [user.uid]: true, [uid!]: true }
+          });
           
           setShowGameSetup(false);
           playSound('correct');
           showToast('Invite sent! Redirecting to lobby...', 'success');
           
-          // Redirect Host to Lobby in "Waiting" state
           navigate('/lobby', { state: { hostedCode: code } });
           
       } catch (e) {
@@ -219,6 +237,8 @@ const ChatPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 relative z-10 custom-scrollbar">
             {messages.map((msg) => {
                 const isMe = msg.sender === user?.uid;
+                const status = msg.status || 'waiting'; // default for backward compatibility
+                
                 return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate__animated animate__fadeInUp`}>
                         {msg.type === 'invite' ? (
@@ -227,7 +247,7 @@ const ChatPage: React.FC = () => {
                                      <i className="fas fa-gamepad text-6xl"></i>
                                  </div>
                                  <div className={`font-black uppercase text-[10px] mb-3 ${isMe ? 'text-indigo-200' : 'text-game-primary'} tracking-widest border-b border-white/20 pb-2`}>
-                                     Battle Invitation
+                                     Quiz Invitation
                                  </div>
                                  <div className="text-center">
                                      <h3 className={`text-lg font-bold leading-tight mb-1 ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
@@ -237,12 +257,24 @@ const ChatPage: React.FC = () => {
                                          <div className="text-[10px] uppercase font-bold opacity-70">Room Code</div>
                                          <div className="text-2xl font-mono font-black tracking-widest">{msg.inviteCode}</div>
                                      </div>
-                                     {!isMe ? (
+                                     
+                                     {/* Status Rendering */}
+                                     {status === 'played' ? (
+                                         <div className="bg-green-500/20 text-green-300 dark:text-green-400 font-bold px-4 py-2 rounded-xl text-xs border border-green-500/30 flex items-center justify-center gap-2">
+                                             <i className="fas fa-check-circle"></i> Played
+                                         </div>
+                                     ) : status === 'canceled' ? (
+                                         <div className="bg-red-500/20 text-red-300 dark:text-red-400 font-bold px-4 py-2 rounded-xl text-xs border border-red-500/30 flex items-center justify-center gap-2">
+                                             <i className="fas fa-ban"></i> Canceled
+                                         </div>
+                                     ) : !isMe ? (
                                          <button onClick={() => acceptInvite(msg.inviteCode!)} className="bg-game-primary text-white px-4 py-2 rounded-xl font-bold w-full shadow-lg hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wider">
                                              Join Match
                                          </button>
                                      ) : (
-                                         <div className="text-[10px] font-bold italic opacity-70">Waiting for opponent...</div>
+                                         <div className="text-[10px] font-bold italic opacity-70 flex items-center justify-center gap-2">
+                                             <i className="fas fa-spinner fa-spin"></i> Waiting for opponent...
+                                         </div>
                                      )}
                                  </div>
                                  <div className={`text-[9px] text-right mt-3 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{formatTime(msg.timestamp)}</div>
