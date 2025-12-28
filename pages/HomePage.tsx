@@ -54,40 +54,42 @@ const HomePage: React.FC = () => {
   const progress = ((profile?.points || 0) % 10) / 10 * 100;
 
   return (
-    <div className="min-h-full flex flex-col pb-28 md:pb-6 max-w-5xl mx-auto w-full px-4 pt-4">
-      {/* Header Stat Bar */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center justify-between px-4 py-3 mb-6 transition-colors duration-300 rounded-3xl mt-2 mx-1">
-         <div className="flex items-center gap-4">
-             <div onClick={() => handleNav('/profile')} className="relative cursor-pointer group">
-                 <div className="absolute inset-0 bg-white rounded-full blur opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                 <Avatar src={profile?.avatar} seed={profile?.uid} size="md" className="border-4 border-white dark:border-slate-700 shadow-lg" />
-                 <div className="absolute -bottom-1 -right-1 bg-game-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-white dark:border-slate-700">
-                    LVL {level}
-                 </div>
-             </div>
-             <div>
-                 <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white leading-none mb-1">
-                     Hi, {profile?.name}
-                 </h1>
-                 <div className="w-28 md:w-32 h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden border border-slate-300 dark:border-slate-600 relative">
-                     <div className="h-full bg-game-success rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" style={{ width: `${progress}%` }}></div>
-                     <span className="absolute inset-0 text-[8px] font-bold flex items-center justify-center text-slate-600 dark:text-slate-300 mix-blend-difference">
-                        {profile?.points} / {nextLevel} PTS
-                     </span>
-                 </div>
-             </div>
-         </div>
-         
-         {/* Currency / Admin Icon */}
-         <div className="flex gap-2">
-            {profile?.role === 'admin' && (
-                <button onClick={() => handleNav('/admin')} className="w-12 h-12 rounded-2xl bg-slate-800 text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
-                    <i className="fas fa-cogs"></i>
-                </button>
-            )}
-            <div className="px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border-2 border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                <i className="fas fa-star text-game-accent text-xl animate-pulse-fast"></i>
-                <span className="font-black text-lg text-slate-800 dark:text-white">{profile?.points}</span>
+    <div className="min-h-full flex flex-col pb-28 md:pb-6 max-w-5xl mx-auto w-full px-4 pt-28">
+      {/* Fixed Header Stat Bar */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-orange-50/95 to-white/95 dark:from-slate-900/95 dark:to-slate-800/95 backdrop-blur-xl border-b border-orange-200/50 dark:border-slate-700/50 shadow-sm transition-colors duration-300">
+         <div className="max-w-5xl mx-auto w-full px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <div onClick={() => handleNav('/profile')} className="relative cursor-pointer group">
+                    <div className="absolute inset-0 bg-white rounded-full blur opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                    <Avatar src={profile?.avatar} seed={profile?.uid} size="md" className="border-4 border-white dark:border-slate-700 shadow-lg" />
+                    <div className="absolute -bottom-1 -right-1 bg-game-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-white dark:border-slate-700">
+                        LVL {level}
+                    </div>
+                </div>
+                <div>
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white leading-none mb-1">
+                        Hi, {profile?.name}
+                    </h1>
+                    <div className="w-28 md:w-32 h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden border border-slate-300 dark:border-slate-600 relative">
+                        <div className="h-full bg-game-success rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" style={{ width: `${progress}%` }}></div>
+                        <span className="absolute inset-0 text-[8px] font-bold flex items-center justify-center text-slate-600 dark:text-slate-300 mix-blend-difference">
+                            {profile?.points} / {nextLevel} PTS
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Currency / Admin Icon */}
+            <div className="flex gap-2">
+                {profile?.role === 'admin' && (
+                    <button onClick={() => handleNav('/admin')} className="w-12 h-12 rounded-2xl bg-slate-800 text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
+                        <i className="fas fa-cogs"></i>
+                    </button>
+                )}
+                <div className="px-4 py-2 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border-2 border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i className="fas fa-star text-game-accent text-xl animate-pulse-fast"></i>
+                    <span className="font-black text-lg text-slate-800 dark:text-white">{profile?.points}</span>
+                </div>
             </div>
          </div>
       </div>

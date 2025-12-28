@@ -376,7 +376,7 @@ const LobbyPage: React.FC = () => {
                       </div>
                       
                       <Button variant="danger" fullWidth onClick={handleBack}>
-                          ABORT ROOM
+                          CANCEL ROOM
                       </Button>
                   </Card>
               )}

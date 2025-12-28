@@ -12,7 +12,7 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
   const navItems = [
     { path: '/', icon: 'fa-home', label: 'Home' },
     { path: '/lobby', icon: 'fa-gamepad', label: 'Battle' },
-    { path: '/social', icon: 'fa-user-friends', label: 'Social' },
+    { path: '/social', icon: 'fa-user-friends', label: 'Social', isNew: true },
     { path: '/leaderboard', icon: 'fa-trophy', label: 'Rank' },
     { path: '/profile', icon: 'fa-user', label: 'Me' },
   ];
@@ -45,6 +45,12 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
                                     <i className={`fas ${item.icon} text-lg`}></i>
                                 </div>
                                 <span className="text-sm font-bold hidden lg:block">{item.label}</span>
+                                {item.isNew && (
+                                    <span className="ml-auto bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md animate-pulse hidden lg:block">
+                                        NEW
+                                    </span>
+                                )}
+                                {item.isNew && <span className="lg:hidden absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                             </button>
                         );
                     })}
@@ -84,7 +90,14 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
                     {isActive && (
                         <div className="absolute inset-0 bg-game-primary/10 dark:bg-game-primary/20 rounded-xl animate__animated animate__fadeIn"></div>
                     )}
-                    <i className={`fas ${item.icon} text-xl mb-1 z-10 transition-transform ${isActive ? '-translate-y-1' : ''}`}></i>
+                    <div className="relative">
+                        <i className={`fas ${item.icon} text-xl mb-1 z-10 transition-transform ${isActive ? '-translate-y-1' : ''}`}></i>
+                        {item.isNew && (
+                            <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1 rounded-full animate-pulse border border-white dark:border-slate-900">
+                                NEW
+                            </span>
+                        )}
+                    </div>
                     <span className={`text-[10px] font-bold leading-none z-10 ${isActive ? 'block' : 'hidden'}`}>
                         {item.label}
                     </span>
