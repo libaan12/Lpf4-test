@@ -451,6 +451,13 @@ const GamePage: React.FC = () => {
                                 <button key={idx} disabled={!isMyTurn || selectedOption !== null} onClick={() => handleOptionClick(idx)} className={`relative p-5 rounded-2xl text-left transition-all duration-150 active:scale-[0.98] ${bgClass} ${!isMyTurn ? 'cursor-not-allowed' : ''} shadow-lg hover:brightness-105 min-h-[80px] flex items-center`}>
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black mr-4 text-sm shrink-0 ${isActive || (showFeedback && idx === showFeedback.answer) ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}>{String.fromCharCode(65 + idx)}</div>
                                     <span className="font-bold text-lg leading-tight">{opt}</span>
+                                    {isActive && !showFeedback && <i className="fas fa-spinner fa-spin ml-2"></i>}
+                                    {selectedOption !== null && idx === currentQuestion.answer && showFeedback && (
+                                        <i className="fas fa-check-circle absolute right-4 text-white text-xl animate__animated animate__zoomIn"></i>
+                                    )}
+                                     {selectedOption !== null && idx === selectedOption && idx !== currentQuestion.answer && showFeedback && (
+                                        <i className="fas fa-times-circle absolute right-4 text-white text-xl animate__animated animate__zoomIn"></i>
+                                    )}
                                 </button>
                             );
                         })}

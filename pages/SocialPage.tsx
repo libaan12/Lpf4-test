@@ -316,26 +316,40 @@ const SocialPage: React.FC = () => {
                />
                
                <div className="space-y-3">
-                   {filteredExplore.map(u => (
-                       <div key={u.uid} onClick={() => setSelectedUser(u)} className={`bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${u.isVerified ? 'border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-700'} flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors`}>
-                            <div className="flex items-center gap-3">
-                               <Avatar src={u.avatar} seed={u.uid} size="md" isVerified={u.isVerified} isOnline={u.isOnline} />
-                               <div>
-                                   <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                                        {u.name} 
-                                        {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
+                   {filteredExplore.map(u => {
+                       const hasSent = (u as any).friendRequests && (u as any).friendRequests[user?.uid || ''];
+                       
+                       return (
+                           <div key={u.uid} onClick={() => setSelectedUser(u)} className={`bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${u.isVerified ? 'border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-700'} flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors`}>
+                                <div className="flex items-center gap-3">
+                                   <Avatar src={u.avatar} seed={u.uid} size="md" isVerified={u.isVerified} isOnline={u.isOnline} />
+                                   <div>
+                                       <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                                            {u.name} 
+                                            {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
+                                       </div>
+                                       <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">@{u.username || 'unknown'}</div>
                                    </div>
-                                   <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">@{u.username || 'unknown'}</div>
                                </div>
+                               
+                               {hasSent ? (
+                                   <button 
+                                     disabled
+                                     className="px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold cursor-default flex items-center gap-1"
+                                   >
+                                       <i className="fas fa-check"></i> Sent
+                                   </button>
+                               ) : (
+                                   <button 
+                                     onClick={(e) => { e.stopPropagation(); sendRequest(u.uid); }}
+                                     className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-game-primary hover:text-white transition-colors"
+                                   >
+                                       <i className="fas fa-user-plus mr-1"></i> Add
+                                   </button>
+                               )}
                            </div>
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); sendRequest(u.uid); }}
-                             className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-game-primary hover:text-white transition-colors"
-                           >
-                               <i className="fas fa-user-plus mr-1"></i> Add
-                           </button>
-                       </div>
-                   ))}
+                       );
+                   })}
                    {filteredExplore.length === 0 && <div className="text-center text-slate-400 py-4">No users found.</div>}
                </div>
            </div>
@@ -397,7 +411,11 @@ const SocialPage: React.FC = () => {
                
                <div className="flex gap-3">
                    {!friends.find(f => f.uid === selectedUser.uid) ? (
-                        <Button fullWidth onClick={() => { sendRequest(selectedUser.uid); setSelectedUser(null); }}>Send Friend Request</Button>
+                        (selectedUser as any).friendRequests?.[user?.uid || ''] ? (
+                            <Button fullWidth disabled className="bg-green-500 border-green-600 opacity-90"><i className="fas fa-check mr-2"></i> Request Sent</Button>
+                        ) : (
+                            <Button fullWidth onClick={() => { sendRequest(selectedUser.uid); setSelectedUser(null); }}>Send Friend Request</Button>
+                        )
                    ) : (
                         <Button fullWidth onClick={() => { startChat(selectedUser.uid); setSelectedUser(null); }}><i className="fas fa-comment mr-2"></i> Message</Button>
                    )}
