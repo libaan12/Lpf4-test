@@ -274,7 +274,7 @@ const ChatPage: React.FC = () => {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 relative z-10 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-28 md:pb-32 relative z-10 custom-scrollbar">
             {messages.map((msg) => {
                 const isMe = msg.sender === user?.uid;
                 const status = msg.status || 'waiting'; // default for backward compatibility
@@ -335,23 +335,31 @@ const ChatPage: React.FC = () => {
             <div ref={messagesEndRef}></div>
         </div>
 
-        {/* Responsive Fixed Input */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-gray-200 dark:border-slate-800 p-4 z-50 md:max-w-screen-md lg:max-w-none mx-auto">
-            <form onSubmit={(e) => sendMessage(e, 'text')} className="flex gap-2 max-w-4xl mx-auto">
-                <input 
-                    className="flex-1 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-game-primary focus:ring-4 focus:ring-game-primary/10 transition-all font-medium placeholder-slate-400"
-                    placeholder="Type a message..."
-                    value={inputText}
-                    onChange={e => setInputText(e.target.value)}
-                />
-                <button 
-                    type="submit" 
-                    disabled={!inputText.trim()}
-                    className="w-14 h-auto rounded-2xl bg-game-primary text-white flex items-center justify-center disabled:opacity-50 shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 transition-colors transform active:scale-95"
-                >
-                    <i className="fas fa-paper-plane text-lg"></i>
-                </button>
-            </form>
+        {/* Modern Responsive Fixed Input Area */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 transition-all duration-300">
+             {/* Safe area spacer for iOS */}
+            <div className="pb-[env(safe-area-inset-bottom)]">
+                <div className="max-w-4xl mx-auto w-full p-2 sm:p-3 md:p-4">
+                    <form onSubmit={(e) => sendMessage(e, 'text')} className="flex items-center gap-2">
+                        <div className="flex-1 relative group">
+                            <input 
+                                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 md:py-3.5 pl-5 pr-12 text-sm md:text-base text-slate-900 dark:text-white focus:outline-none focus:border-game-primary focus:ring-2 focus:ring-game-primary/20 transition-all font-medium placeholder-slate-400 dark:placeholder-slate-500 shadow-inner"
+                                placeholder="Message..."
+                                value={inputText}
+                                onChange={e => setInputText(e.target.value)}
+                            />
+                        </div>
+                        
+                        <button 
+                            type="submit" 
+                            disabled={!inputText.trim()}
+                            className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-gradient-to-tr from-game-primary to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:scale-95 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-90 transition-all duration-200"
+                        >
+                            <i className={`fas fa-paper-plane text-sm md:text-base ${!inputText.trim() ? 'translate-x-0' : 'translate-x-0.5 -translate-y-0.5'}`}></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
 
         {/* Game Setup Modal */}
