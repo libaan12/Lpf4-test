@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ref, push, get, remove, set, onValue, update, serverTimestamp } from 'firebase/database';
@@ -6,7 +7,7 @@ import { UserContext } from '../contexts';
 import { Button, Input, Avatar, Card } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { showToast, showAlert } from '../services/alert';
-import { MATCH_TIMEOUT_MS } from '../constants';
+import { MATCH_TIMEOUT_MS, PRIVATE_ROOM_TIMEOUT_MS } from '../constants';
 import { Subject, Chapter } from '../types';
 
 const LobbyPage: React.FC = () => {
@@ -33,6 +34,7 @@ const LobbyPage: React.FC = () => {
   const [queueKey, setQueueKey] = useState<string | null>(null);
   
   const timerRef = useRef<any>(null);
+  const hostTimerRef = useRef<any>(null);
   const linkedChatPathRef = useRef<string | null>(null);
 
   // Handle Incoming Navigation State (Seamless from Chat)
@@ -84,6 +86,14 @@ const LobbyPage: React.FC = () => {
   useEffect(() => {
       if (hostedCode) {
          const roomRef = ref(db, `rooms/${hostedCode}`);
+         
+         // Start 15s Timeout for Social/Private Room
+         hostTimerRef.current = setTimeout(() => {
+             // Timeout reached - Cancel room
+             handleBack(); // This cleans up the room
+             showAlert("Room Expired", "No opponent joined in time.", "info");
+         }, PRIVATE_ROOM_TIMEOUT_MS);
+
          const unsub = onValue(roomRef, (snap) => {
              // Store linked chat path if available to update later
              if (snap.exists()) {
@@ -93,18 +103,15 @@ const LobbyPage: React.FC = () => {
 
              // If room is gone, it means someone joined (which deletes the room and creates match)
              // or it was aborted. 
-             // Note: Game start navigation is handled by the `App.tsx` global `activeMatch` listener.
-             // We just need to handle UI here if aborted externally.
              if (!snap.exists()) {
-                 // Check if it was because we joined a match (handled by App.tsx) or just deleted
-                 // Small delay to let App.tsx catch activeMatch
-                 setTimeout(() => {
-                     if (!hostedCode) return; // Cleaned up
-                     // If we are still on this page and room is gone, assume game started or cleaned up
-                 }, 1000);
+                 // Clear timeout if match started
+                 if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
              }
          });
-         return () => unsub();
+         return () => {
+             unsub();
+             if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
+         };
       }
   }, [hostedCode]);
 
@@ -182,9 +189,15 @@ const LobbyPage: React.FC = () => {
     setQueueKey(newRef.key);
     await set(newRef, { uid: user.uid });
     setMatchStatus('In Queue...');
+    
+    // Set 10s Timeout for Ranked/Auto
     timerRef.current = setTimeout(async () => {
         if (isSearching) {
-          await remove(newRef); setQueueKey(null); setMatchStatus('Timeout'); setIsSearching(false);
+          await remove(newRef); 
+          setQueueKey(null); 
+          setMatchStatus(''); 
+          setIsSearching(false);
+          showAlert("No Match Found", "Try again later or change topic.", "info");
         }
     }, MATCH_TIMEOUT_MS);
   };
@@ -280,6 +293,7 @@ const LobbyPage: React.FC = () => {
 
   useEffect(() => () => {
      if (timerRef.current) clearTimeout(timerRef.current);
+     if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
      // Note: We do NOT remove hostedCode on unmount if navigating to Game, 
      // but we should if navigating back. handled by handleBack.
      if (queueKey && selectedChapter) remove(ref(db, `queue/${selectedChapter}/${queueKey}`));

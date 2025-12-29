@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, onValue, push, set, serverTimestamp, update, get, runTransaction } from 'firebase/database';
@@ -355,7 +356,7 @@ const ChatPage: React.FC = () => {
                             disabled={!inputText.trim()}
                             className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-gradient-to-tr from-game-primary to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:scale-95 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-90 transition-all duration-200"
                         >
-                            <i className={`fas fa-paper-plane text-sm md:text-base ${!inputText.trim() ? 'translate-x-0' : 'translate-x-0.5 -translate-y-0.5'}`}></i>
+                            <i className="fas fa-paper-plane text-sm md:text-base"></i>
                         </button>
                     </form>
                 </div>
