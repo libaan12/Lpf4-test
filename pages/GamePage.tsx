@@ -113,13 +113,19 @@ const GamePage: React.FC = () => {
       const cachedData = localStorage.getItem(cacheKey);
       
       try {
+        // Set Subject Name (if available in match data)
         if (match.subjectTitle) {
             setSubjectName(match.subjectTitle);
-        } else if (match.subject.startsWith('ALL_')) {
+        }
+
+        if (match.subject.startsWith('ALL_')) {
             const subjectId = match.subject.replace('ALL_', '');
-            // Fetch subject name
-            const subSnap = await get(ref(db, `subjects/${subjectId}`));
-            if(subSnap.exists()) setSubjectName(subSnap.val().name);
+            
+            // Fetch subject name if not already set
+            if (!match.subjectTitle) {
+                const subSnap = await get(ref(db, `subjects/${subjectId}`));
+                if(subSnap.exists()) setSubjectName(subSnap.val().name);
+            }
 
             const chaptersSnap = await get(ref(db, `chapters/${subjectId}`));
             if (chaptersSnap.exists()) {
@@ -128,6 +134,7 @@ const GamePage: React.FC = () => {
                 snaps.forEach(s => s.exists() && loadedQ.push(...Object.values(s.val()) as Question[]));
             }
         } else {
+            // Specific Chapter
             if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
             if (loadedQ.length === 0) {
                 const snap = await get(ref(db, `questions/${match.subject}`));
