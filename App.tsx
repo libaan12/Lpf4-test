@@ -135,7 +135,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900 text-white transition-colors">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-orange-50 dark:bg-slate-900 text-white transition-colors">
         <div className="absolute inset-0 bg-white/5 backdrop-blur-xl z-0"></div>
         <div className="relative z-10 w-24 h-24 mb-4">
              <div className="absolute inset-0 bg-orange-500 opacity-20 rounded-full animate-ping"></div>
@@ -156,23 +156,21 @@ const AppContent: React.FC = () => {
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
       <ThemeContext.Provider value={{ theme, setTheme }}>
-        {/* Global Modern Background - Mesh Gradient */}
-        <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
-            {/* Dark Mode / Default Base */}
-            <div className="absolute inset-0 bg-slate-900"></div>
+        {/* Global Modern Background - Theme Aware & Vibrant */}
+        <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden transition-colors duration-500">
+            {/* Base Layer: Light Mode = Orange Tint, Dark Mode = Deep Slate */}
+            <div className="absolute inset-0 bg-orange-50 dark:bg-slate-950 transition-colors duration-500"></div>
+
+            {/* Gradient Orb 1: Primary Orange */}
+            <div className="absolute top-[-10%] left-[-10%] w-[70vw] h-[70vw] bg-orange-400/30 dark:bg-orange-600/10 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[80px] animate-blob"></div>
+
+            {/* Gradient Orb 2: Indigo */}
+            <div className="absolute top-[-10%] right-[-10%] w-[70vw] h-[70vw] bg-indigo-400/30 dark:bg-indigo-600/10 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[80px] animate-blob animation-delay-2000"></div>
+
+            {/* Gradient Orb 3: Red/Pink (Accent) */}
+            <div className="absolute bottom-[-20%] left-[20%] w-[70vw] h-[70vw] bg-red-400/30 dark:bg-red-600/10 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[80px] animate-blob animation-delay-4000"></div>
             
-            {/* Animated Mesh Gradients - Primary Colors (Orange, Indigo, Dark Slate) */}
-            <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-40 dark:opacity-30 animate-bg-shift"
-                 style={{
-                     background: 'radial-gradient(circle at 50% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 80% 20%, #6366f1 0%, transparent 40%), radial-gradient(circle at 20% 80%, #b91c1c 0%, transparent 40%)',
-                     filter: 'blur(80px)'
-                 }}>
-            </div>
-            
-            {/* Light Mode Overlay (Subtle) */}
-            <div className="absolute inset-0 bg-white/80 dark:bg-black/20 mix-blend-overlay"></div>
-            
-            {/* Noise Texture for Realism */}
+            {/* Subtle Noise Overlay for Texture */}
             <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/noise.png")' }}></div>
         </div>
 
