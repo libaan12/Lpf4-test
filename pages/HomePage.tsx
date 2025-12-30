@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, update } from 'firebase/database';
@@ -153,8 +154,8 @@ const HomePage: React.FC = () => {
                        <i className="fas fa-dumbbell"></i>
                    </div>
                    <div>
-                       <h3 className="text-base md:text-xl font-black text-slate-800 dark:text-white leading-tight">Training</h3>
-                       <p className="text-[10px] md:text-xs font-bold text-slate-400 dark:text-slate-500 mt-1">Solo Practice</p>
+                       <h3 className="text-base md:text-xl font-black text-slate-800 dark:text-white leading-tight">Practice</h3>
+                       <p className="text-[10px] md:text-xs font-bold text-slate-400 dark:text-slate-500 mt-1">Solo Training</p>
                    </div>
                    <div className="absolute bottom-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-green-500 transition-colors">
                        <i className="fas fa-arrow-right"></i>

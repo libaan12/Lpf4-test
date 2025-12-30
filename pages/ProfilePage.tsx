@@ -1,4 +1,5 @@
-import React, { useContext, useState, useEffect } from 'react';
+
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut, updateProfile } from 'firebase/auth';
 import { ref, update, get } from 'firebase/database';
@@ -22,6 +23,9 @@ const ProfilePage: React.FC = () => {
   // Avatar Selection State
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [randomAvatars, setRandomAvatars] = useState<string[]>([]);
+  
+  // Custom Upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Username prompt state
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
@@ -139,6 +143,56 @@ const ProfilePage: React.FC = () => {
       }
   };
 
+  // Image Upload Handler
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+              // Resize logic to prevent DB bloat
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 300;
+              const MAX_HEIGHT = 300;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                  if (width > MAX_WIDTH) {
+                      height *= MAX_WIDTH / width;
+                      width = MAX_WIDTH;
+                  }
+              } else {
+                  if (height > MAX_HEIGHT) {
+                      width *= MAX_HEIGHT / height;
+                      height = MAX_HEIGHT;
+                  }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              setCurrentAvatarUrl(dataUrl);
+              setShowAvatarSelector(false);
+              
+              if (!isEditing) {
+                  handleSaveAvatarOnly(dataUrl);
+              }
+          };
+          img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+  };
+
+  const triggerFileUpload = () => {
+      fileInputRef.current?.click();
+  };
+
   if (!profile) return null;
 
   const currentPoints = profile.points || 0;
@@ -228,20 +282,38 @@ const ProfilePage: React.FC = () => {
 
       {/* Avatar Selection Modal */}
       <Modal isOpen={showAvatarSelector} title="Choose Avatar" onClose={() => setShowAvatarSelector(false)}>
-          <div className="grid grid-cols-3 gap-4">
-              {randomAvatars.map((seed, idx) => (
-                  <div 
-                    key={idx} 
-                    onClick={() => selectAvatar(seed)}
-                    className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-game-primary cursor-pointer transition-all hover:scale-110 bg-gray-100 dark:bg-gray-800"
-                  >
-                      <img src={generateAvatarUrl(seed)} alt="avatar" className="w-full h-full object-cover" />
+          <div className="text-center mb-4">
+              {profile.allowCustomAvatar && (
+                  <div className="mb-6">
+                      <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={handleImageUpload}
+                      />
+                      <Button fullWidth onClick={triggerFileUpload} className="shadow-lg bg-indigo-600 border-indigo-800 hover:bg-indigo-700">
+                          <i className="fas fa-upload mr-2"></i> Upload from Gallery
+                      </Button>
+                      <p className="text-xs text-gray-400 mt-2">Upload a profile picture (max 300px)</p>
                   </div>
-              ))}
+              )}
+              
+              <div className="grid grid-cols-3 gap-4">
+                  {randomAvatars.map((seed, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => selectAvatar(seed)}
+                        className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-game-primary cursor-pointer transition-all hover:scale-110 bg-gray-100 dark:bg-gray-800"
+                      >
+                          <img src={generateAvatarUrl(seed)} alt="avatar" className="w-full h-full object-cover" />
+                      </div>
+                  ))}
+              </div>
+              <Button fullWidth variant="secondary" className="mt-6" onClick={() => setRandomAvatars(Array.from({length: 9}, () => Math.random().toString(36).substring(7)))}>
+                 <i className="fas fa-sync mr-2"></i> Randomize
+              </Button>
           </div>
-          <Button fullWidth variant="secondary" className="mt-6" onClick={() => setRandomAvatars(Array.from({length: 9}, () => Math.random().toString(36).substring(7)))}>
-             <i className="fas fa-sync mr-2"></i> Load New List
-          </Button>
       </Modal>
       
       {/* Username Modal */}

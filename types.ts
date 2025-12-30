@@ -13,6 +13,7 @@ export interface UserProfile {
   avatarUpdated?: boolean;
   usernameUpdated?: boolean; // Track if guest has set/skipped username
   isVerified?: boolean; // Blue tick
+  allowCustomAvatar?: boolean; // Privilege to upload custom pics
   isGuest?: boolean;
   isOnline?: boolean;
   lastSeen?: number;

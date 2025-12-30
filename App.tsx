@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
@@ -134,11 +135,11 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-orange-50 dark:bg-gray-900 transition-colors">
-        <div className="absolute inset-0 bg-white/40 dark:bg-black/40 backdrop-blur-xl z-0"></div>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900 text-white transition-colors">
+        <div className="absolute inset-0 bg-white/5 backdrop-blur-xl z-0"></div>
         <div className="relative z-10 w-24 h-24 mb-4">
              <div className="absolute inset-0 bg-orange-500 opacity-20 rounded-full animate-ping"></div>
-             <div className="relative w-full h-full bg-white/20 backdrop-blur-md border border-white/50 rounded-full flex items-center justify-center shadow-xl z-10">
+             <div className="relative w-full h-full bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center shadow-xl z-10">
                  <img src="https://files.catbox.moe/qn40s6.png" alt="Logo" className="w-12 h-12" />
              </div>
         </div>
@@ -155,22 +156,24 @@ const AppContent: React.FC = () => {
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
       <ThemeContext.Provider value={{ theme, setTheme }}>
-        {/* Global Background Elements - Reimplemented for consistency */}
-        <div className="fixed inset-0 -z-10 pointer-events-none">
-            {/* Light Mode Gradient - Orange/Warm */}
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-red-50 dark:hidden"></div>
+        {/* Global Modern Background - Mesh Gradient */}
+        <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+            {/* Dark Mode / Default Base */}
+            <div className="absolute inset-0 bg-slate-900"></div>
             
-            {/* Dark Mode Background */}
-            <div className="absolute inset-0 bg-slate-950 hidden dark:block">
-                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-orange-900/10 via-slate-950 to-slate-950"></div>
+            {/* Animated Mesh Gradients - Primary Colors (Orange, Indigo, Dark Slate) */}
+            <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-40 dark:opacity-30 animate-bg-shift"
+                 style={{
+                     background: 'radial-gradient(circle at 50% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 80% 20%, #6366f1 0%, transparent 40%), radial-gradient(circle at 20% 80%, #b91c1c 0%, transparent 40%)',
+                     filter: 'blur(80px)'
+                 }}>
             </div>
-
-            {/* Subtle Noise Texture */}
-            <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/noise.png")' }}></div>
             
-            {/* Floating Orbs (Subtle) */}
-            <div className="absolute top-[-10%] right-[-10%] w-[50vh] h-[50vh] bg-orange-400/20 dark:bg-orange-600/10 rounded-full blur-[100px] animate-blob"></div>
-            <div className="absolute bottom-[-10%] left-[-10%] w-[50vh] h-[50vh] bg-red-400/20 dark:bg-red-600/10 rounded-full blur-[100px] animate-blob animation-delay-4000"></div>
+            {/* Light Mode Overlay (Subtle) */}
+            <div className="absolute inset-0 bg-white/80 dark:bg-black/20 mix-blend-overlay"></div>
+            
+            {/* Noise Texture for Realism */}
+            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/noise.png")' }}></div>
         </div>
 
         <div className="w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden relative z-10">

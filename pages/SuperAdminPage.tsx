@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ref, update, onValue, off, set, remove, get } from 'firebase/database';
 import { db } from '../firebase';
@@ -15,6 +16,8 @@ const SuperAdminPage: React.FC = () => {
   
   // --- USER MANAGEMENT STATE ---
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
 
@@ -66,6 +69,20 @@ const SuperAdminPage: React.FC = () => {
       }
   }, [isAuthenticated, activeTab]);
 
+  // FILTER USERS
+  useEffect(() => {
+      if (searchTerm.trim() === '') {
+          setFilteredUsers(users);
+      } else {
+          const lower = searchTerm.toLowerCase();
+          setFilteredUsers(users.filter(u => 
+              (u.name && u.name.toLowerCase().includes(lower)) || 
+              (u.username && u.username.toLowerCase().includes(lower)) ||
+              (u.email && u.email.toLowerCase().includes(lower))
+          ));
+      }
+  }, [searchTerm, users]);
+
   // FETCH SUBJECTS (Only when tab is quizzes)
   useEffect(() => {
       if (isAuthenticated && activeTab === 'quizzes') {
@@ -90,7 +107,7 @@ const SuperAdminPage: React.FC = () => {
           const handleMatches = (snap: any) => {
               if (snap.exists()) {
                   const data = snap.val();
-                  // Map and sort by newest first (assuming keys usually correlate with time or we can check createdAt)
+                  // Map and sort by newest first
                   const list: MatchState[] = Object.keys(data).map(key => ({ ...data[key], matchId: key }));
                   setMatches(list.reverse());
               } else {
@@ -195,6 +212,17 @@ const SuperAdminPage: React.FC = () => {
       } catch(e) { console.error(e); }
   };
 
+  const toggleCustomAvatarPrivilege = async (uid: string, currentStatus?: boolean) => {
+      const newStatus = !currentStatus;
+      try {
+          await update(ref(db, `users/${uid}`), { allowCustomAvatar: newStatus });
+          showToast(newStatus ? 'Custom Avatar Allowed' : 'Custom Avatar Revoked', 'success');
+          if (selectedUser && selectedUser.uid === uid) {
+              setSelectedUser({ ...selectedUser, allowCustomAvatar: newStatus });
+          }
+      } catch (e) { console.error(e); }
+  };
+
   const deleteUser = async (uid: string) => {
       const confirmed = await showConfirm(
           "Delete User Permanently?", 
@@ -284,7 +312,7 @@ const SuperAdminPage: React.FC = () => {
           // Delete Match
           updates[`matches/${matchId}`] = null;
           
-          // Clear activeMatch for players to ensure they aren't stuck
+          // Clear activeMatch for players
           if (match && match.players) {
               Object.keys(match.players).forEach(uid => {
                   updates[`users/${uid}/activeMatch`] = null;
@@ -381,59 +409,69 @@ const SuperAdminPage: React.FC = () => {
 
             {/* --- USER MANAGEMENT TAB --- */}
             {activeTab === 'users' && (
-                <Card className="!bg-white dark:!bg-gray-800 overflow-hidden shadow-lg border-0 p-0 animate__animated animate__fadeIn">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                                    <th className="p-4 pl-6">User</th>
-                                    <th className="p-4">Stats</th>
-                                    <th className="p-4">Status</th>
-                                    <th className="p-4 text-right pr-6">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {users.map(u => (
-                                    <tr key={u.uid} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${u.banned ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-                                        <td className="p-4 pl-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                                                    <img src={u.avatar} alt="" className="w-full h-full object-cover" />
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                                        {u.name}
-                                                        {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                                        {u.role === 'admin' && <i className="fas fa-shield-alt text-somali-blue text-xs" title="Admin"></i>}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">@{u.username}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-mono font-bold text-somali-blue dark:text-blue-400">{u.points} pts</span>
-                                                <span className="text-[10px] text-gray-400 uppercase">LVL {Math.floor(u.points / 10) + 1}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            {u.banned ? (
-                                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">BANNED</span>
-                                            ) : (
-                                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">ACTIVE</span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-right pr-6">
-                                            <Button size="sm" onClick={() => setSelectedUser(u)} variant="secondary">
-                                                Edit
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div className="animate__animated animate__fadeIn">
+                    <div className="mb-4">
+                        <Input 
+                            placeholder="Search users..." 
+                            icon="fa-search" 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                        />
                     </div>
-                </Card>
+                    <Card className="!bg-white dark:!bg-gray-800 overflow-hidden shadow-lg border-0 p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                                        <th className="p-4 pl-6">User</th>
+                                        <th className="p-4">Stats</th>
+                                        <th className="p-4">Status</th>
+                                        <th className="p-4 text-right pr-6">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                    {filteredUsers.map(u => (
+                                        <tr key={u.uid} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${u.banned ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                                            <td className="p-4 pl-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                        <img src={u.avatar} alt="" className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                                            {u.name}
+                                                            {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
+                                                            {u.role === 'admin' && <i className="fas fa-shield-alt text-somali-blue text-xs" title="Admin"></i>}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">@{u.username}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono font-bold text-somali-blue dark:text-blue-400">{u.points} pts</span>
+                                                    <span className="text-[10px] text-gray-400 uppercase">LVL {Math.floor(u.points / 10) + 1}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                {u.banned ? (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">BANNED</span>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">ACTIVE</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-right pr-6">
+                                                <Button size="sm" onClick={() => setSelectedUser(u)} variant="secondary">
+                                                    Edit
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
             )}
 
             {/* --- QUIZ MANAGEMENT TAB --- */}
@@ -604,6 +642,9 @@ const SuperAdminPage: React.FC = () => {
                 <div className="space-y-3">
                     <Button fullWidth onClick={() => toggleVerification(selectedUser.uid, selectedUser.isVerified)} variant="outline">
                         {selectedUser.isVerified ? 'Remove Verification' : 'Verify User'}
+                    </Button>
+                    <Button fullWidth onClick={() => toggleCustomAvatarPrivilege(selectedUser.uid, selectedUser.allowCustomAvatar)} className="bg-purple-600 hover:bg-purple-700 border-purple-800">
+                        {selectedUser.allowCustomAvatar ? 'Revoke Custom Avatar' : 'Allow Custom Avatar'}
                     </Button>
                     <div className="flex gap-2">
                         <Button fullWidth onClick={() => toggleRole(selectedUser.uid, selectedUser.role)} variant={selectedUser.role === 'admin' ? 'secondary' : 'primary'}>

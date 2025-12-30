@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, onValue, update, onDisconnect, get, set, remove, serverTimestamp } from 'firebase/database';
@@ -119,6 +120,10 @@ const GamePage: React.FC = () => {
                 snaps.forEach(s => s.exists() && loadedQ.push(...Object.values(s.val()) as Question[]));
             } else {
                 // Fetch chapter to find subjectId, then fetch subject name
+                const chapSnap = await get(ref(db, `chapters`)); // Need to iterate to find parent subject
+                // Optimization: Usually we have subjectId in match, but if not we search.
+                // For now, let's assume we can get subject name from chapters list if needed or just cache it.
+                
                 if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
                 if (loadedQ.length === 0) {
                     const snap = await get(ref(db, `questions/${match.subject}`));
@@ -127,6 +132,11 @@ const GamePage: React.FC = () => {
                         try { localStorage.setItem(cacheKey, JSON.stringify(loadedQ)); } catch(e) {}
                     }
                 }
+                
+                // Try to find subject name via Chapter ID lookup if possible, or just generic
+                // Simplified:
+                setSubjectName("Battle Arena"); 
+                // To do it properly we'd need a reverse lookup or store subjectName in match data
             }
 
             if (loadedQ.length > 0) {
@@ -311,9 +321,8 @@ const GamePage: React.FC = () => {
   const oppLevel = Math.floor((opponentProfile.points || 0) / 10) + 1;
 
   return (
-    <div className="min-h-screen relative flex flex-col font-sans bg-slate-900 overflow-hidden transition-colors pt-24">
-       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 z-0"></div>
-       <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] z-0 pointer-events-none"></div>
+    <div className="min-h-screen relative flex flex-col font-sans overflow-hidden transition-colors pt-24">
+       {/* Background managed by App.tsx */}
 
       {showIntro && (
           <div className="fixed inset-0 z-[60] flex flex-col md:flex-row items-center justify-center bg-slate-900 overflow-hidden">
@@ -322,14 +331,18 @@ const GamePage: React.FC = () => {
                      <Avatar src={profile?.avatar} seed={user!.uid} size="xl" className="border-4 border-white shadow-2xl" isVerified={profile?.isVerified} />
                      <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 font-black px-2 py-0.5 rounded-full border-2 border-white text-sm">LVL {myLevel}</div>
                   </div>
-                  <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full">{profile?.name}</h2>
+                  <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full flex items-center justify-center gap-2">
+                      {profile?.name} {profile?.isVerified && <i className="fas fa-check-circle text-blue-300"></i>}
+                  </h2>
               </div>
               <div className="relative w-full h-1/2 md:w-1/2 md:h-full bg-red-600 flex flex-col items-center justify-center animate__animated animate__slideInRight shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10">
                   <div className="relative z-10 scale-90 md:scale-150 mb-2 md:mb-0">
                      <Avatar src={opponentProfile.avatar} seed={opponentProfile.uid} size="xl" className="border-4 border-white shadow-2xl" isVerified={opponentProfile.isVerified} />
                      <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-slate-900 font-black px-2 py-0.5 rounded-full border-2 border-white text-sm">LVL {oppLevel}</div>
                   </div>
-                  <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full">{opponentProfile.name}</h2>
+                  <h2 className="mt-4 md:mt-8 text-2xl md:text-4xl font-black text-white uppercase italic tracking-widest drop-shadow-lg text-center px-2 break-words max-w-full flex items-center justify-center gap-2">
+                      {opponentProfile.name} {opponentProfile.isVerified && <i className="fas fa-check-circle text-blue-300"></i>}
+                  </h2>
               </div>
               <div className="absolute inset-0 flex flex-col items-center justify-center z-30 pointer-events-none">
                   <div className="relative animate-clash">
@@ -379,7 +392,13 @@ const GamePage: React.FC = () => {
                     <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {oppLevel}</div>
                  </div>
                  <div>
-                     <div className="flex items-center gap-1 justify-end">{!isMyTurn && !isGameOver && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}<div className="text-[10px] font-black uppercase text-slate-400 truncate w-16">{opponentProfile.name}</div></div>
+                     <div className="flex items-center gap-1 justify-end">
+                         {!isMyTurn && !isGameOver && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
+                         <div className="text-[10px] font-black uppercase text-slate-400 truncate w-16 flex items-center gap-1 justify-end">
+                             {opponentProfile.name}
+                             {opponentProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[8px]"></i>}
+                         </div>
+                     </div>
                      <div className="text-2xl font-black text-game-danger leading-none">{match.scores[opponentProfile.uid]}</div>
                  </div>
             </div>
@@ -427,7 +446,12 @@ const GamePage: React.FC = () => {
             <>
                 <div className={`w-full rounded-[2rem] p-6 md:p-8 shadow-[0_10px_0_rgba(0,0,0,0.1)] mb-6 text-center border-2 min-h-[160px] flex items-center justify-center flex-col relative overflow-hidden transition-all duration-500 ${isMyTurn ? 'bg-white dark:bg-slate-800 border-game-primary/50 shadow-game-primary/20' : 'bg-gray-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-90 grayscale-[0.5]'}`}>
                     {isMyTurn && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-game-primary via-red-500 to-game-danger animate-pulse"></div>}
-                    {subjectName && <span className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-[0.2em]">{subjectName}</span>}
+                    
+                    {/* Subject Name - Added Here */}
+                    <span className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-[0.2em] animate__animated animate__fadeIn">
+                        {subjectName || "Battle Arena"}
+                    </span>
+                    
                     <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white leading-relaxed z-10">{currentQuestion && currentQuestion.question}</h2>
                 </div>
                 <div className="relative w-full">

@@ -42,11 +42,16 @@
               'bounce-slow': 'bounce 3s infinite',
               'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'float': 'float 6s ease-in-out infinite',
+              'bg-shift': 'bg-shift 15s ease infinite',
             },
             keyframes: {
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
                 '50%': { transform: 'translateY(-10px)' },
+              },
+              'bg-shift': {
+                '0%, 100%': { backgroundPosition: '0% 50%' },
+                '50%': { backgroundPosition: '100% 50%' },
               }
             }
           }
@@ -69,15 +74,10 @@
       }
       body {
         font-family: 'Poppins', sans-serif;
-        background-color: #fff7ed; /* Orange 50 */
-        /* Subtle Grid Pattern */
-        background-image: radial-gradient(#fdba74 1.5px, transparent 1.5px);
-        background-size: 24px 24px;
-        overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
-      }
-      .dark body {
-        background-color: #0f172a;
-        background-image: radial-gradient(#334155 1.5px, transparent 1.5px);
+        margin: 0;
+        padding: 0;
+        overscroll-behavior-y: none;
+        background-color: #0f172a; /* Fallback */
       }
       
       /* Disable scrollbar for immersive feel */
