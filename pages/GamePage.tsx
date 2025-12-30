@@ -197,6 +197,13 @@ const GamePage: React.FC = () => {
       loadOpponent();
   }, [match?.scores, user, opponentProfile]);
 
+  // 4. Reset Selection on Question Change (Fix for sticky selection/hover)
+  useEffect(() => {
+      setSelectedOption(null);
+      setShowFeedback(null);
+      processingRef.current = false;
+  }, [match?.currentQ]);
+
   // Handle Intro Timeout
   useEffect(() => {
       if (showIntro && match && opponentProfile) {
@@ -532,7 +539,7 @@ const GamePage: React.FC = () => {
 
                         return (
                             <button 
-                                key={idx} 
+                                key={`${currentQuestion.id}_${idx}`} 
                                 disabled={!isMyTurn || selectedOption !== null} 
                                 onClick={() => handleOptionClick(idx)} 
                                 className={`group relative w-full p-5 rounded-2xl text-left transition-all duration-100 flex items-center gap-4 ${bgClass} ${!isMyTurn ? 'cursor-not-allowed' : ''}`}
