@@ -12,6 +12,8 @@ interface ChatMeta {
   lastMessage: string;
   lastTimestamp: number;
   unreadCount: number;
+  lastMessageSender?: string; // Track who sent the last message
+  lastMessageStatus?: string; // Track status for ticks
 }
 
 const SocialPage: React.FC = () => {
@@ -109,17 +111,25 @@ const SocialPage: React.FC = () => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 const unreadForMe = data.unread?.[user.uid]?.count || 0;
+                const lastSender = data.lastMessageSender;
+                const lastStatus = data.lastMessageStatus;
+
+                const updates: any = {};
                 
-                // Logic: If there are unread messages for me, and I have "received" this data update (i.e. I am online in the app),
-                // we should attempt to mark those messages as 'delivered' if they are currently 'sent'.
+                // 1. DELIVERY REPORT LOGIC
+                // If I am receiving this update (I am online), and the last message was NOT sent by me,
+                // and it is still 'sent', mark it as 'delivered' on the root.
+                if (lastSender && lastSender !== user.uid && lastStatus === 'sent') {
+                     updates[`chats/${chatId}/lastMessageStatus`] = 'delivered';
+                }
+
+                // 2. MSG LEVEL DELIVERY (Existing Logic)
                 if (unreadForMe > 0) {
-                    // We only check the last few messages to be efficient
                     try {
                         const msgsQuery = query(ref(db, `chats/${chatId}/messages`), limitToLast(unreadForMe + 2));
                         const msgsSnap = await get(msgsQuery);
                         if (msgsSnap.exists()) {
                             const msgs = msgsSnap.val();
-                            const updates: any = {};
                             Object.keys(msgs).forEach(key => {
                                 const m = msgs[key];
                                 // If I am NOT the sender, and status is 'sent', mark as 'delivered'
@@ -127,13 +137,12 @@ const SocialPage: React.FC = () => {
                                     updates[`chats/${chatId}/messages/${key}/msgStatus`] = 'delivered';
                                 }
                             });
-                            if (Object.keys(updates).length > 0) {
-                                update(ref(db), updates);
-                            }
                         }
-                    } catch(e) {
-                         // silent fail for delivery updates
-                    }
+                    } catch(e) { /* ignore */ }
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    try { update(ref(db), updates); } catch(e) {}
                 }
 
                 setChatMetadata(prev => {
@@ -142,7 +151,9 @@ const SocialPage: React.FC = () => {
                         [friend.uid]: {
                             lastMessage: data.lastMessage || 'Start a conversation',
                             lastTimestamp: data.lastTimestamp || 0,
-                            unreadCount: unreadForMe
+                            unreadCount: unreadForMe,
+                            lastMessageSender: lastSender,
+                            lastMessageStatus: lastStatus
                         }
                     };
                     return updated;
@@ -220,6 +231,14 @@ const SocialPage: React.FC = () => {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
+  // Helper for Status Ticks
+  const renderStatusIcon = (status?: string) => {
+      if (!status || status === 'sent') return <i className="fas fa-check text-slate-400 text-[10px] ml-1"></i>;
+      if (status === 'delivered') return <i className="fas fa-check-double text-slate-400 text-[10px] ml-1"></i>;
+      if (status === 'read') return <i className="fas fa-check-double text-blue-500 text-[10px] ml-1"></i>;
+      return null;
+  };
+
   // Filter Users
   // SAFE FILTER: Checks for undefined name/username to prevent crash
   // UPDATED SORT: 1. Online, 2. Verified, 3. Alphabetical
@@ -292,6 +311,7 @@ const SocialPage: React.FC = () => {
                    sortedFriends.map(f => {
                        const meta = chatMetadata[f.uid] || { lastMessage: 'Start a conversation', lastTimestamp: 0, unreadCount: 0 };
                        const hasUnread = meta.unreadCount > 0;
+                       const isMeLast = meta.lastMessageSender === user?.uid;
 
                        return (
                            <div key={f.uid} onClick={() => startChat(f.uid)} className={`bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${hasUnread ? 'border-l-4 border-l-game-primary border-y-slate-100 border-r-slate-100 dark:border-y-slate-700 dark:border-r-slate-700' : 'border-slate-100 dark:border-slate-700'} flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors relative overflow-hidden`}>
@@ -310,7 +330,10 @@ const SocialPage: React.FC = () => {
                                        </div>
                                        
                                        <div className="flex justify-between items-center mt-0.5">
-                                            <div className={`text-sm truncate pr-2 ${hasUnread ? 'font-bold text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            <div className={`text-sm truncate pr-2 flex items-center gap-1 ${hasUnread ? 'font-bold text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {/* Status Tick for Sent Messages */}
+                                                {isMeLast && renderStatusIcon(meta.lastMessageStatus)}
+                                                
                                                 {meta.lastMessage.startsWith('CHALLENGE_INVITE') ? (
                                                     <span className="text-game-primary italic"><i className="fas fa-gamepad mr-1"></i> Game Invite</span>
                                                 ) : meta.lastMessage}

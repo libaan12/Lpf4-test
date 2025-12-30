@@ -70,12 +70,21 @@ const ChatPage: React.FC = () => {
               // Mark incoming messages as read if I am the recipient
               const updates: any = {};
               let hasReadUpdates = false;
+              let latestMsgId = list[list.length - 1]?.id;
+
               list.forEach(m => {
                   if (m.sender !== user.uid && m.msgStatus !== 'read') {
+                      // Update Message Status
                       updates[`chats/${derivedChatId}/messages/${m.id}/msgStatus`] = 'read';
                       hasReadUpdates = true;
+                      
+                      // If this is the LATEST message, update root status too so sender sees blue tick in list
+                      if (m.id === latestMsgId) {
+                          updates[`chats/${derivedChatId}/lastMessageStatus`] = 'read';
+                      }
                   }
               });
+
               if (hasReadUpdates) {
                   update(ref(db), updates);
               }
@@ -83,12 +92,7 @@ const ChatPage: React.FC = () => {
               // Only play sound if the last message is NOT from me and was recently added (simple check)
               const lastMsg = list[list.length - 1];
               if (lastMsg.sender !== user.uid) {
-                 // Debounce sound could be added here, but for now simple check
-                 // We don't want to play sound on initial load of old messages, 
-                 // but checking timestamp vs 'now' is decent approximation if we wanted.
-                 // Current logic plays sound on every update which might include Read receipts.
-                 // To fix sound spam, we should check if text content actually changed or if it's new.
-                 // For now, let's just keep 'click' sound on active chat update.
+                 // Sound logic here
               }
           }
       });
@@ -159,10 +163,12 @@ const ChatPage: React.FC = () => {
           // Push to Firebase
           await push(ref(db, `chats/${chatId}/messages`), msgData);
           
-          // Update last message metadata
+          // Update last message metadata AND Root Status
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
+              lastMessageSender: user.uid, // Track who sent it
+              lastMessageStatus: 'sent',   // Track status for list view
               participants: { [user.uid]: true, [uid!]: true }
           });
 
@@ -224,9 +230,12 @@ const ChatPage: React.FC = () => {
 
           await set(newMsgRef, msgData);
           
+          // Update root metadata
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
+              lastMessageSender: user.uid,
+              lastMessageStatus: 'sent',
               participants: { [user.uid]: true, [uid!]: true }
           });
 
@@ -258,11 +267,21 @@ const ChatPage: React.FC = () => {
       return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Helper to render ticks
+  // Improved Tick Rendering with High Contrast
   const renderMessageStatus = (status?: string) => {
-      if (status === 'read') return <i className="fas fa-check-double text-blue-400 text-[10px] ml-1"></i>;
-      if (status === 'delivered') return <i className="fas fa-check-double text-gray-400 text-[10px] ml-1"></i>;
-      return <i className="fas fa-check text-gray-400 text-[10px] ml-1"></i>;
+      // Sent: Single Tick (White Transparent)
+      if (!status || status === 'sent') {
+          return <i className="fas fa-check text-white/60 text-[10px] ml-1" title="Sent"></i>;
+      }
+      // Delivered: Double Tick (White Transparent)
+      if (status === 'delivered') {
+          return <i className="fas fa-check-double text-white/60 text-[10px] ml-1" title="Delivered"></i>;
+      }
+      // Read: Double Tick (Blue/Cyan for visibility on orange)
+      if (status === 'read') {
+          return <i className="fas fa-check-double text-blue-200 text-[10px] ml-1 filter drop-shadow-sm" title="Read"></i>;
+      }
+      return null;
   };
 
   if (!targetUser) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-slate-500 dark:text-white font-bold">Loading Chat...</div>;
@@ -305,7 +324,7 @@ const ChatPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-28 md:pb-32 relative z-10 custom-scrollbar">
             {messages.map((msg) => {
                 const isMe = msg.sender === user?.uid;
-                const status = msg.status || 'waiting'; // default for backward compatibility
+                const status = msg.status || 'waiting'; 
                 
                 return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate__animated animate__fadeInUp`}>
@@ -345,7 +364,7 @@ const ChatPage: React.FC = () => {
                                          </div>
                                      )}
                                  </div>
-                                 <div className={`text-[9px] text-right mt-3 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                 <div className={`text-[9px] text-right mt-3 flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                      {formatTime(msg.timestamp)}
                                      {isMe && renderMessageStatus(msg.msgStatus)}
                                  </div>
@@ -357,7 +376,7 @@ const ChatPage: React.FC = () => {
                                  : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700'
                              }`}>
                                  {msg.text}
-                                 <div className={`text-[9px] text-right mt-1 font-medium ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                 <div className={`text-[9px] text-right mt-1 font-medium flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                      {formatTime(msg.timestamp)}
                                      {isMe && renderMessageStatus(msg.msgStatus)}
                                  </div>
