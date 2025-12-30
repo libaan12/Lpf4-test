@@ -18,7 +18,7 @@ const DownloadPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors flex flex-col font-sans pt-24">
+    <div className="min-h-screen relative overflow-hidden transition-colors flex flex-col font-sans pt-24">
       {/* Navbar - Fixed Glass */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 p-4 shadow-sm flex justify-between items-center transition-colors duration-300">
          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')}>

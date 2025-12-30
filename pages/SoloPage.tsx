@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, get, onValue, off } from 'firebase/database';
@@ -186,13 +187,13 @@ const SoloPage: React.FC = () => {
   // --- Render Selection Screens ---
 
   if (loading) {
-    return <div className="min-h-screen bg-game-primary flex items-center justify-center text-white font-bold animate-pulse">Loading Content...</div>;
+    return <div className="min-h-screen flex items-center justify-center text-slate-800 dark:text-white font-bold animate-pulse">Loading Content...</div>;
   }
 
   // STEP 1: Select Subject
   if (step === 'subject') {
       return (
-          <div className="min-h-full bg-gray-50 dark:bg-gray-900 p-4 pt-20 max-w-4xl mx-auto w-full">
+          <div className="min-h-full p-4 pt-20 max-w-4xl mx-auto w-full">
               <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
                   <button onClick={() => navigate('/')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
@@ -227,7 +228,7 @@ const SoloPage: React.FC = () => {
   // STEP 2: Select Chapter (Dropdown)
   if (step === 'chapter') {
       return (
-          <div className="min-h-full bg-gray-50 dark:bg-gray-900 p-4 pt-20 max-w-4xl mx-auto w-full">
+          <div className="min-h-full p-4 pt-20 max-w-4xl mx-auto w-full">
               <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
                   <button onClick={() => setStep('subject')} className="text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors">
                     <i className="fas fa-arrow-left fa-lg"></i>
@@ -274,21 +275,18 @@ const SoloPage: React.FC = () => {
   const currentQ = questions[currentQIndex];
 
   return (
-    <div className="min-h-full bg-game-primary p-6 flex flex-col items-center justify-center text-white w-full h-full relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
+    <div className="min-h-full p-6 flex flex-col items-center justify-center text-slate-800 dark:text-white w-full h-full relative overflow-hidden">
       
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-md relative z-10 pt-20">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={() => setFinished(true)} className="text-white/80 hover:text-white transition-colors bg-white/10 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+          <button onClick={() => setFinished(true)} className="text-slate-500 dark:text-slate-400 hover:text-red-500 transition-colors bg-white/50 dark:bg-black/20 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm border border-slate-200 dark:border-slate-700">
             <i className="fas fa-times mr-2"></i> Quit
           </button>
-          <div className="font-bold bg-white/10 px-3 py-1 rounded-full text-sm backdrop-blur-sm">Q {currentQIndex + 1}/{questions.length}</div>
+          <div className="font-bold bg-white/50 dark:bg-black/20 px-3 py-1 rounded-full text-sm backdrop-blur-sm border border-slate-200 dark:border-slate-700">Q {currentQIndex + 1}/{questions.length}</div>
         </div>
 
         {finished ? (
-          <Card className="text-center animate__animated animate__zoomIn !bg-white/95 dark:!bg-gray-900/95 backdrop-blur-xl">
+          <Card className="text-center animate__animated animate__zoomIn !bg-white/95 dark:!bg-slate-800/95 backdrop-blur-xl">
             <h2 className="text-3xl font-black mb-4 text-gray-900 dark:text-white uppercase italic tracking-tight">Training Complete</h2>
             <div className="text-7xl mb-6 animate__animated animate__tada animate__delay-1s">🎯</div>
             <p className="text-xl mb-8 text-gray-800 dark:text-gray-200 font-medium">You scored <span className="text-game-primary dark:text-blue-400 font-black text-3xl">{score}</span> / {questions.length}</p>
@@ -305,12 +303,13 @@ const SoloPage: React.FC = () => {
         ) : (
           <>
              {/* Progress Bar */}
-             <div className="w-full bg-black/20 rounded-full h-2.5 mb-8 backdrop-blur-sm overflow-hidden">
-                <div className="bg-white h-2.5 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
+             <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mb-8 backdrop-blur-sm overflow-hidden">
+                <div className="bg-game-primary h-2.5 rounded-full transition-all duration-500 ease-out shadow-lg" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
              </div>
 
              {/* Question Card */}
-             <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-[1.5rem] p-6 shadow-2xl text-center mb-6 min-h-[140px] flex items-center justify-center flex-col transition-colors border-2 border-white/20 dark:border-gray-700 animate__animated animate__fadeIn">
+             <div className="bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-[1.5rem] p-6 shadow-2xl text-center mb-6 min-h-[140px] flex items-center justify-center flex-col transition-colors border-2 border-slate-100 dark:border-slate-700 animate__animated animate__fadeIn relative">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-game-primary to-purple-600"></div>
                  <span className="text-[10px] font-black text-gray-400 uppercase mb-2 tracking-[0.2em]">
                      {selectedSubject?.name}
                  </span>
@@ -320,16 +319,18 @@ const SoloPage: React.FC = () => {
              {/* Options Grid */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                  {currentQ.options.map((opt, idx) => {
-                    let btnClasses = "bg-white/10 backdrop-blur-md text-white border-white/20 hover:bg-white/20";
-                    let circleClasses = "bg-white/20 text-white";
+                    let btnClasses = "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-game-primary";
+                    let circleClasses = "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400";
 
                     if (selected !== null) {
                         if (idx === currentQ.answer) {
-                             btnClasses = "bg-green-500 border-green-500 text-white shadow-lg scale-[1.02]";
+                             btnClasses = "bg-green-500 border-green-600 text-white shadow-lg scale-[1.02]";
+                             circleClasses = "bg-white/20 text-white";
                         } else if (idx === selected) {
-                             btnClasses = "bg-red-500 border-red-500 text-white opacity-90";
+                             btnClasses = "bg-red-500 border-red-600 text-white opacity-90";
+                             circleClasses = "bg-white/20 text-white";
                         } else {
-                             btnClasses = "bg-white/5 border-transparent text-white/50 grayscale";
+                             btnClasses = "bg-slate-50 dark:bg-slate-900 border-transparent text-slate-400 grayscale opacity-50";
                         }
                     }
 
@@ -344,7 +345,7 @@ const SoloPage: React.FC = () => {
                                 ${btnClasses}
                             `}
                         >
-                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shrink-0 transition-colors ${circleClasses}`}>
+                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black shrink-0 transition-colors ${circleClasses}`}>
                                 {String.fromCharCode(65 + idx)}
                             </div>
                             <span className="leading-tight">{opt}</span>

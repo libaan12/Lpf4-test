@@ -231,7 +231,7 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors">
+    <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative overflow-hidden transition-colors">
       
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-md">
