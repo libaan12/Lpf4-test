@@ -88,12 +88,6 @@ const ChatPage: React.FC = () => {
               if (hasReadUpdates) {
                   update(ref(db), updates);
               }
-              
-              // Only play sound if the last message is NOT from me and was recently added (simple check)
-              const lastMsg = list[list.length - 1];
-              if (lastMsg.sender !== user.uid) {
-                 // Sound logic here
-              }
           }
       });
 
@@ -129,7 +123,7 @@ const ChatPage: React.FC = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Persist messages to LocalStorage whenever state changes (double safety for optimistic updates)
+  // Persist messages to LocalStorage whenever state changes
   useEffect(() => {
       if (chatId && messages.length > 0) {
           localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
@@ -150,7 +144,7 @@ const ChatPage: React.FC = () => {
           subjectName: subjectName || null,
           timestamp: Date.now(),
           status: type === 'invite' ? 'waiting' : null,
-          msgStatus: 'sent' // Default to sent (One tick)
+          msgStatus: 'sent'
       };
 
       if (type === 'text') setInputText('');
@@ -167,8 +161,8 @@ const ChatPage: React.FC = () => {
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
-              lastMessageSender: user.uid, // Track who sent it
-              lastMessageStatus: 'sent',   // Track status for list view
+              lastMessageSender: user.uid, 
+              lastMessageStatus: 'sent',   
               participants: { [user.uid]: true, [uid!]: true }
           });
 
@@ -267,19 +261,24 @@ const ChatPage: React.FC = () => {
       return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Improved Tick Rendering with High Contrast
-  const renderMessageStatus = (status?: string) => {
-      // Sent: Single Tick (White Transparent)
+  // Improved Tick Rendering: High Contrast Colors
+  const renderMessageStatus = (status: string | undefined, isInvite: boolean = false) => {
+      // Base color for Sent/Delivered (White transparent works on both Orange and Blue backgrounds)
+      const baseColor = "text-white/60";
+      
+      // Read Color Logic:
+      // If Invite (Blue BG) -> Orange Tick (text-orange-400)
+      // If Text (Orange BG) -> Blue Tick (text-blue-800)
+      const readColor = isInvite ? "text-orange-400" : "text-blue-800";
+
       if (!status || status === 'sent') {
-          return <i className="fas fa-check text-white/60 text-[10px] ml-1" title="Sent"></i>;
+          return <i className={`fas fa-check ${baseColor} text-[10px] ml-1`} title="Sent"></i>;
       }
-      // Delivered: Double Tick (White Transparent)
       if (status === 'delivered') {
-          return <i className="fas fa-check-double text-white/60 text-[10px] ml-1" title="Delivered"></i>;
+          return <i className={`fas fa-check-double ${baseColor} text-[10px] ml-1`} title="Delivered"></i>;
       }
-      // Read: Double Tick (Blue/Cyan for visibility on orange)
       if (status === 'read') {
-          return <i className="fas fa-check-double text-blue-200 text-[10px] ml-1 filter drop-shadow-sm" title="Read"></i>;
+          return <i className={`fas fa-check-double ${readColor} text-[10px] ml-1`} title="Read"></i>;
       }
       return null;
   };
@@ -325,10 +324,11 @@ const ChatPage: React.FC = () => {
             {messages.map((msg) => {
                 const isMe = msg.sender === user?.uid;
                 const status = msg.status || 'waiting'; 
+                const isInvite = msg.type === 'invite';
                 
                 return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate__animated animate__fadeInUp`}>
-                        {msg.type === 'invite' ? (
+                        {isInvite ? (
                              <div className={`max-w-[85%] w-64 p-5 rounded-3xl ${isMe ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 border-2 border-game-primary rounded-bl-sm'} shadow-xl relative overflow-hidden`}>
                                  <div className={`absolute top-0 right-0 p-2 opacity-10 pointer-events-none`}>
                                      <i className="fas fa-gamepad text-6xl"></i>
@@ -366,7 +366,7 @@ const ChatPage: React.FC = () => {
                                  </div>
                                  <div className={`text-[9px] text-right mt-3 flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                      {formatTime(msg.timestamp)}
-                                     {isMe && renderMessageStatus(msg.msgStatus)}
+                                     {isMe && renderMessageStatus(msg.msgStatus, true)}
                                  </div>
                              </div>
                         ) : (
@@ -378,7 +378,7 @@ const ChatPage: React.FC = () => {
                                  {msg.text}
                                  <div className={`text-[9px] text-right mt-1 font-medium flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                      {formatTime(msg.timestamp)}
-                                     {isMe && renderMessageStatus(msg.msgStatus)}
+                                     {isMe && renderMessageStatus(msg.msgStatus, false)}
                                  </div>
                              </div>
                         )}
