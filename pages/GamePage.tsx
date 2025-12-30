@@ -100,61 +100,72 @@ const GamePage: React.FC = () => {
   useEffect(() => {
       if (!match || !match.subject || questions.length > 0 || questionsLoadedRef.current) return;
 
-      const loadQuestions = async () => {
-          questionsLoadedRef.current = true; // Lock
-          setIsLoadingError(false);
-          let loadedQ: Question[] = [];
-          const cacheKey = `questions_cache_${match.subject}`;
-          const cachedData = localStorage.getItem(cacheKey);
-          
-          try {
-            if (match.subjectTitle) {
-                setSubjectName(match.subjectTitle);
-            } else if (match.subject.startsWith('ALL_')) {
-                const subjectId = match.subject.replace('ALL_', '');
-                // Fetch subject name
-                const subSnap = await get(ref(db, `subjects/${subjectId}`));
-                if(subSnap.exists()) setSubjectName(subSnap.val().name);
+      loadQuestions();
+  }, [match?.subject, match?.matchId]);
 
-                const chaptersSnap = await get(ref(db, `chapters/${subjectId}`));
+  const loadQuestions = async () => {
+      if (!match) return;
+      
+      questionsLoadedRef.current = true; // Lock
+      setIsLoadingError(false);
+      let loadedQ: Question[] = [];
+      const cacheKey = `questions_cache_${match.subject}`;
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      try {
+        if (match.subjectTitle) {
+            setSubjectName(match.subjectTitle);
+        } else if (match.subject.startsWith('ALL_')) {
+            const subjectId = match.subject.replace('ALL_', '');
+            // Fetch subject name
+            const subSnap = await get(ref(db, `subjects/${subjectId}`));
+            if(subSnap.exists()) setSubjectName(subSnap.val().name);
+
+            const chaptersSnap = await get(ref(db, `chapters/${subjectId}`));
+            if (chaptersSnap.exists()) {
                 const chapters = Object.values(chaptersSnap.val() || {}) as Chapter[];
                 const snaps = await Promise.all(chapters.map(c => get(ref(db, `questions/${c.id}`))));
                 snaps.forEach(s => s.exists() && loadedQ.push(...Object.values(s.val()) as Question[]));
-            } else {
-                if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
-                if (loadedQ.length === 0) {
-                    const snap = await get(ref(db, `questions/${match.subject}`));
-                    if(snap.exists()) {
-                        loadedQ = Object.values(snap.val()) as Question[];
-                        try { localStorage.setItem(cacheKey, JSON.stringify(loadedQ)); } catch(e) {}
-                    }
+            }
+        } else {
+            if (cachedData) try { loadedQ = JSON.parse(cachedData); } catch(e) {}
+            if (loadedQ.length === 0) {
+                const snap = await get(ref(db, `questions/${match.subject}`));
+                if(snap.exists()) {
+                    loadedQ = Object.values(snap.val()) as Question[];
+                    try { localStorage.setItem(cacheKey, JSON.stringify(loadedQ)); } catch(e) {}
                 }
-                setSubjectName("Battle Arena"); 
             }
+            if(!match.subjectTitle) setSubjectName("Battle Arena"); 
+        }
 
-            if (loadedQ.length > 0) {
-                const rng = createSeededRandom(match.matchId);
-                let shuffledQ = shuffleArraySeeded(loadedQ, rng).map(q => {
-                    const opts = q.options.map((o, i) => ({ t: o, c: i === q.answer }));
-                    const sOpts = shuffleArraySeeded(opts, rng);
-                    return { ...q, options: sOpts.map(o => o.t), answer: sOpts.findIndex(o => o.c) };
-                });
-                const limit = match.questionLimit || 10;
-                setQuestions(shuffledQ.slice(0, limit));
-            } else {
-                // No questions found
-                setIsLoadingError(true);
-                questionsLoadedRef.current = false; // Allow retry if needed
-            }
-          } catch(e) {
-              console.error("Q Load Error", e);
-              setIsLoadingError(true);
-              questionsLoadedRef.current = false;
-          }
-      };
+        if (loadedQ.length > 0) {
+            const rng = createSeededRandom(match.matchId);
+            let shuffledQ = shuffleArraySeeded(loadedQ, rng).map(q => {
+                const opts = q.options.map((o, i) => ({ t: o, c: i === q.answer }));
+                const sOpts = shuffleArraySeeded(opts, rng);
+                return { ...q, options: sOpts.map(o => o.t), answer: sOpts.findIndex(o => o.c) };
+            });
+            const limit = match.questionLimit || 10;
+            setQuestions(shuffledQ.slice(0, limit));
+        } else {
+            // No questions found
+            console.warn("No questions found for subject:", match.subject);
+            setIsLoadingError(true);
+            questionsLoadedRef.current = false; // Allow retry
+        }
+      } catch(e) {
+          console.error("Q Load Error", e);
+          setIsLoadingError(true);
+          questionsLoadedRef.current = false;
+      }
+  };
 
+  const handleRetry = () => {
+      questionsLoadedRef.current = false;
+      setIsLoadingError(false);
       loadQuestions();
-  }, [match?.subject, match?.matchId]);
+  };
 
   // 3. Load Opponent Profile
   useEffect(() => {
@@ -290,7 +301,10 @@ const GamePage: React.FC = () => {
                      <i className="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
                      <h2 className="font-bold text-xl mb-2">Connection Issue</h2>
                      <p className="text-slate-400 text-sm mb-6">Could not load match data.</p>
-                     <Button onClick={handleLeave} variant="secondary">Return to Home</Button>
+                     <div className="flex gap-3 justify-center">
+                        <Button onClick={handleLeave} variant="secondary">Return Home</Button>
+                        <Button onClick={handleRetry} variant="primary">Retry</Button>
+                     </div>
                 </div>
             ) : questions.length === 0 ? (
                 <>
