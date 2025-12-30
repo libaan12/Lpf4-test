@@ -220,12 +220,19 @@ const ChatPage: React.FC = () => {
           const newRef = push(ref(db, `chats/${chatId}/messages`));
           const realId = newRef.key!;
           
-          const finalMsg = { 
+          const finalMsg: any = { 
               ...msgData, 
               id: realId, 
               msgStatus: 'sent' as const 
           };
-          delete finalMsg.tempId; // Clean up before sending to DB (though type allows optional)
+          delete finalMsg.tempId; 
+          
+          // Remove undefined fields because Firebase set() does not allow them
+          Object.keys(finalMsg).forEach(key => {
+              if (finalMsg[key] === undefined) {
+                  delete finalMsg[key];
+              }
+          });
 
           await set(newRef, finalMsg);
           
