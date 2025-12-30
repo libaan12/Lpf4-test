@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // --- Base Styles ---
@@ -95,8 +96,9 @@ export const Avatar: React.FC<{
   onClick?: () => void;
   border?: string;
   isVerified?: boolean;
+  isSupport?: boolean;
   isOnline?: boolean;
-}> = ({ src, seed, size = 'md', className = '', pulse = false, onClick, border, isVerified, isOnline }) => {
+}> = ({ src, seed, size = 'md', className = '', pulse = false, onClick, border, isVerified, isSupport, isOnline }) => {
   const sizes = {
     sm: "w-10 h-10",
     md: "w-16 h-16",

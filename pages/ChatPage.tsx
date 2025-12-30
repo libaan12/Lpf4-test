@@ -69,9 +69,7 @@ const ChatPage: React.FC = () => {
       // --- 1. LOAD CACHE ---
       chatCache.getMessages(derivedChatId, 50).then(cachedMsgs => {
           setMessages(prev => {
-              // Merge cache with any live messages that might have arrived already
               const combined = [...cachedMsgs, ...prev];
-              // Dedupe by ID
               const unique = Array.from(new Map(combined.map(m => [m.id, m])).values());
               return unique.sort((a,b) => a.timestamp - b.timestamp);
           });
@@ -90,17 +88,13 @@ const ChatPage: React.FC = () => {
           
           const newMsg: ChatMessage = { id: snapshot.key!, ...data, chatId: derivedChatId };
 
-          // Filter ghost messages (e.g. from status updates on non-existent paths)
           if (newMsg.type !== 'invite' && (!newMsg.text || !newMsg.text.trim())) return;
           
-          // Save to cache async
           chatCache.saveMessage(newMsg);
 
           setMessages(prev => {
-              // Prevent duplicates
               if (prev.some(m => m.id === newMsg.id)) return prev;
               
-              // Handle optimistic temporary messages replacement
               const tempIndex = prev.findIndex(m => 
                   m.tempId && 
                   m.text === newMsg.text && 
@@ -114,21 +108,16 @@ const ChatPage: React.FC = () => {
                   return updated;
               }
               
-              const updatedList = [...prev, newMsg].sort((a,b) => a.timestamp - b.timestamp);
-              return updatedList;
+              return [...prev, newMsg].sort((a,b) => a.timestamp - b.timestamp);
           });
 
-          // Mark as read if not mine
           if (newMsg.sender !== user.uid && newMsg.msgStatus !== 'read') {
               update(ref(db, `chats/${derivedChatId}/messages/${newMsg.id}`), { msgStatus: 'read' });
-              // Also update unread count for me to 0
               update(ref(db, `chats/${derivedChatId}/unread/${user.uid}`), { count: 0 });
-              // Update last message status globally
               update(ref(db, `chats/${derivedChatId}`), { lastMessageStatus: 'read' });
           }
       });
 
-      // Listen for global status updates (like read receipts)
       const metaRef = ref(db, `chats/${derivedChatId}/lastMessageStatus`);
       const metaUnsub = onValue(metaRef, (snap) => {
           if (snap.exists() && snap.val() === 'read') {
@@ -142,40 +131,27 @@ const ChatPage: React.FC = () => {
       };
   }, [user, uid]);
 
-  // Auto-Scroll Handling
-  useEffect(() => {
-      if (loadingHistory) return;
-      
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const lastMsg = messages[messages.length - 1];
-      const isMe = lastMsg?.sender === user?.uid;
-      
-      // Smart scroll: If I sent it, or if we were already near bottom, or if it's initial load
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
-      
-      if (isMe || isNearBottom || messages.length <= 20) {
-          // Use setTimeout to ensure DOM is updated
-          setTimeout(() => {
-             container.scrollTop = container.scrollHeight;
-          }, 100);
+  // --- AUTO-SCROLL LOGIC ---
+  // Use layout effect to scroll immediately after render to prevent flash
+  useLayoutEffect(() => {
+      if (scrollContainerRef.current) {
+          // Instant scroll to bottom on every update to ensure "Always Bottom" behavior
+          // This overrides user scrolling if they are reading history while a message comes in,
+          // but matches the request "always default to bottom".
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
       }
-  }, [messages, loadingHistory, user?.uid]);
+  }, [messages, loadingHistory]);
 
-  // Pagination & Scroll Button Handler
   const handleScroll = async () => {
       const container = scrollContainerRef.current;
       if (!container) return;
 
-      // 1. Floating Button Logic
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
       setShowScrollButton(!isNearBottom);
 
-      // 2. Pagination Logic (Load older messages)
+      // Pagination (Load older messages)
       if (container.scrollTop === 0 && chatId && messages.length > 0 && !loadingHistory) {
           const oldestTs = messages[0].timestamp;
-          // Simple pagination using cache for now, or could implement Firebase pagination here
           const olderMsgs = await chatCache.getMessages(chatId, 20, oldestTs - 1);
           
           if (olderMsgs.length > 0) {
@@ -187,7 +163,7 @@ const ChatPage: React.FC = () => {
                    return unique.sort((a,b) => a.timestamp - b.timestamp);
               });
               
-              // Restore scroll position
+              // Maintain scroll position after loading history
               requestAnimationFrame(() => {
                   const newHeight = container.scrollHeight;
                   container.scrollTop = newHeight - oldHeight;
@@ -202,7 +178,7 @@ const ChatPage: React.FC = () => {
       }
   };
 
-  // Load Subjects
+  // Load Subjects for Game Invite
   useEffect(() => {
       if (showGameSetup) {
           get(ref(db, 'subjects')).then(snap => {
@@ -235,7 +211,7 @@ const ChatPage: React.FC = () => {
       const timestamp = Date.now();
       
       const msgData: ChatMessage = {
-          id: tempId, // Use temp ID initially
+          id: tempId,
           tempId: tempId,
           chatId: chatId,
           sender: user.uid,
@@ -245,20 +221,18 @@ const ChatPage: React.FC = () => {
           subjectName: subjectName || undefined,
           timestamp: timestamp,
           status: type === 'invite' ? 'waiting' : undefined,
-          msgStatus: 'sending' // Optimistic Status
+          msgStatus: 'sending'
       };
 
       if (type === 'text') setInputText('');
 
-      // 1. Optimistic UI Update
       setMessages(prev => [...prev, msgData]);
-      scrollToBottom();
+      // Force scroll after adding message
+      setTimeout(scrollToBottom, 50);
       
-      // 2. Save to Cache immediately
       chatCache.saveMessage(msgData);
       
       try {
-          // 3. Push to Firebase
           const newRef = push(ref(db, `chats/${chatId}/messages`));
           const realId = newRef.key!;
           
@@ -269,7 +243,6 @@ const ChatPage: React.FC = () => {
           };
           delete finalMsg.tempId; 
           
-          // Remove undefined fields
           Object.keys(finalMsg).forEach(key => {
               if (finalMsg[key] === undefined) {
                   delete finalMsg[key];
@@ -277,14 +250,10 @@ const ChatPage: React.FC = () => {
           });
 
           await set(newRef, finalMsg);
-          
-          // 4. Update Cache with Real ID
           chatCache.saveMessage({ ...finalMsg, chatId });
 
-          // 5. Update UI with Real ID
           setMessages(prev => prev.map(m => m.tempId === tempId ? { ...finalMsg, chatId } : m));
 
-          // Update root metadata
           await update(ref(db, `chats/${chatId}`), {
               lastMessage: msgData.text,
               lastTimestamp: serverTimestamp(),
@@ -318,21 +287,20 @@ const ChatPage: React.FC = () => {
           const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "Unknown Subject";
           const code = Math.floor(1000 + Math.random() * 9000).toString();
           
-          // Create Room
           await set(ref(db, `rooms/${code}`), { 
               host: user.uid, 
               sid: selectedSubject, 
               lid: selectedChapter, 
               questionLimit: 10, 
               createdAt: Date.now(),
-              linkedChatPath: `chats/${chatId}/messages/temp` // Placeholder - logic needs real ID, but this is fine for now
+              linkedChatPath: `chats/${chatId}/messages/temp` 
           });
           
           await sendMessage(undefined, 'invite', code, subjectName);
           
           setShowGameSetup(false);
           playSound('correct');
-          showToast('Invite sent! Redirecting to lobby...', 'success');
+          showToast('Invite sent!', 'success');
           
           navigate('/lobby', { state: { hostedCode: code } });
           
@@ -358,22 +326,14 @@ const ChatPage: React.FC = () => {
       const baseColor = "text-white/60";
       const readColor = isInvite ? "text-orange-400" : "text-blue-800";
 
-      if (status === 'sending') {
-          return <i className={`fas fa-clock ${baseColor} text-[10px] ml-1 animate-pulse`} title="Sending..."></i>;
-      }
-      if (!status || status === 'sent') {
-          return <i className={`fas fa-check ${baseColor} text-[10px] ml-1`} title="Sent"></i>;
-      }
-      if (status === 'delivered') {
-          return <i className={`fas fa-check-double ${baseColor} text-[10px] ml-1`} title="Delivered"></i>;
-      }
-      if (status === 'read') {
-          return <i className={`fas fa-check-double ${readColor} text-[10px] ml-1`} title="Read"></i>;
-      }
+      if (status === 'sending') return <i className={`fas fa-clock ${baseColor} text-[10px] ml-1 animate-pulse`}></i>;
+      if (!status || status === 'sent') return <i className={`fas fa-check ${baseColor} text-[10px] ml-1`}></i>;
+      if (status === 'delivered') return <i className={`fas fa-check-double ${baseColor} text-[10px] ml-1`}></i>;
+      if (status === 'read') return <i className={`fas fa-check-double ${readColor} text-[10px] ml-1`}></i>;
       return null;
   };
 
-  if (!targetUser) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-slate-500 dark:text-white font-bold">Loading Chat...</div>;
+  if (!targetUser) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-slate-500 dark:text-white font-bold">Loading...</div>;
 
   return (
     <div className="fixed inset-0 flex flex-col z-50 bg-slate-100 dark:bg-slate-900 transition-colors">
@@ -384,31 +344,26 @@ const ChatPage: React.FC = () => {
                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` 
              }}
         ></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/50 dark:to-black/50 pointer-events-none z-0"></div>
 
-        {/* Header - Fixed Glass */}
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 p-4 shadow-sm flex items-center justify-between relative z-20 transition-colors duration-300">
+        {/* Header */}
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 p-4 shadow-sm flex items-center justify-between relative z-20">
             <div className="flex items-center gap-3">
                 <button onClick={() => navigate(-1)} className="text-gray-500 dark:text-gray-300 w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"><i className="fas fa-arrow-left"></i></button>
                 <div className="relative">
-                    <Avatar src={targetUser.avatar} seed={targetUser.uid} size="sm" isVerified={targetUser.isVerified} isOnline={targetUser.isOnline} />
+                    <Avatar src={targetUser.avatar} seed={targetUser.uid} size="sm" isVerified={targetUser.isVerified} isSupport={targetUser.isSupport} isOnline={targetUser.isOnline} />
                 </div>
                 <div>
                     <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1">
                         {targetUser.name}
                         {targetUser.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                        {targetUser.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Support"></i>}
+                        {targetUser.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                         {isOffline ? <span className="text-red-500"><i className="fas fa-wifi"></i> Offline</span> : `@${targetUser.username}`}
                     </div>
                 </div>
             </div>
-            <button 
-                onClick={openMatchSetup}
-                disabled={isOffline}
-                className="bg-game-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform hover:bg-indigo-600 disabled:opacity-50 disabled:grayscale"
-            >
+            <button onClick={openMatchSetup} disabled={isOffline} className="bg-game-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform hover:bg-indigo-600 disabled:opacity-50">
                 <i className="fas fa-gamepad mr-2"></i> Play
             </button>
         </div>
@@ -426,9 +381,6 @@ const ChatPage: React.FC = () => {
             )}
             
             {messages.map((msg, index) => {
-                // Filter ghost messages
-                if (msg.type !== 'invite' && (!msg.text || !msg.text.trim())) return null;
-
                 const isMe = msg.sender === user?.uid;
                 const status = msg.status || 'waiting'; 
                 const isInvite = msg.type === 'invite';
@@ -440,34 +392,21 @@ const ChatPage: React.FC = () => {
                                  <div className={`absolute top-0 right-0 p-2 opacity-10 pointer-events-none`}>
                                      <i className="fas fa-gamepad text-6xl"></i>
                                  </div>
-                                 <div className={`font-black uppercase text-[10px] mb-3 ${isMe ? 'text-indigo-200' : 'text-game-primary'} tracking-widest border-b border-white/20 pb-2`}>
-                                     Quiz Invitation
-                                 </div>
+                                 <div className={`font-black uppercase text-[10px] mb-3 ${isMe ? 'text-indigo-200' : 'text-game-primary'} tracking-widest border-b border-white/20 pb-2`}>Quiz Invitation</div>
                                  <div className="text-center">
-                                     <h3 className={`text-lg font-bold leading-tight mb-1 ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
-                                         {msg.subjectName || "Unknown Subject"}
-                                     </h3>
+                                     <h3 className={`text-lg font-bold leading-tight mb-1 ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{msg.subjectName || "Unknown Subject"}</h3>
                                      <div className="my-3 bg-black/20 rounded-lg p-2 backdrop-blur-sm">
                                          <div className="text-[10px] uppercase font-bold opacity-70">Room Code</div>
                                          <div className="text-2xl font-mono font-black tracking-widest">{msg.inviteCode}</div>
                                      </div>
-                                     
                                      {status === 'played' ? (
-                                         <div className="bg-green-500/20 text-green-300 dark:text-green-400 font-bold px-4 py-2 rounded-xl text-xs border border-green-500/30 flex items-center justify-center gap-2">
-                                             <i className="fas fa-check-circle"></i> Played
-                                         </div>
+                                         <div className="bg-green-500/20 text-green-300 dark:text-green-400 font-bold px-4 py-2 rounded-xl text-xs border border-green-500/30 flex items-center justify-center gap-2"><i className="fas fa-check-circle"></i> Played</div>
                                      ) : status === 'canceled' ? (
-                                         <div className="bg-red-500/20 text-red-300 dark:text-red-400 font-bold px-4 py-2 rounded-xl text-xs border border-red-500/30 flex items-center justify-center gap-2">
-                                             <i className="fas fa-ban"></i> Canceled
-                                         </div>
+                                         <div className="bg-red-500/20 text-red-300 dark:text-red-400 font-bold px-4 py-2 rounded-xl text-xs border border-red-500/30 flex items-center justify-center gap-2"><i className="fas fa-ban"></i> Canceled</div>
                                      ) : !isMe ? (
-                                         <button disabled={isOffline} onClick={() => acceptInvite(msg.inviteCode!)} className="bg-game-primary text-white px-4 py-2 rounded-xl font-bold w-full shadow-lg hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50">
-                                             Join Match
-                                         </button>
+                                         <button disabled={isOffline} onClick={() => acceptInvite(msg.inviteCode!)} className="bg-game-primary text-white px-4 py-2 rounded-xl font-bold w-full shadow-lg hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50">Join Match</button>
                                      ) : (
-                                         <div className="text-[10px] font-bold italic opacity-70 flex items-center justify-center gap-2">
-                                             <i className="fas fa-spinner fa-spin"></i> Waiting for opponent...
-                                         </div>
+                                         <div className="text-[10px] font-bold italic opacity-70 flex items-center justify-center gap-2"><i className="fas fa-spinner fa-spin"></i> Waiting...</div>
                                      )}
                                  </div>
                                  <div className={`text-[9px] text-right mt-3 flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
@@ -476,11 +415,7 @@ const ChatPage: React.FC = () => {
                                  </div>
                              </div>
                         ) : (
-                             <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm shadow-md ${
-                                 isMe 
-                                 ? 'bg-game-primary text-white rounded-br-none' 
-                                 : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700'
-                             }`}>
+                             <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm shadow-md ${isMe ? 'bg-game-primary text-white rounded-br-none' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700'}`}>
                                  {msg.text}
                                  <div className={`text-[9px] text-right mt-1 font-medium flex items-center justify-end gap-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                      {formatTime(msg.timestamp)}
@@ -494,44 +429,31 @@ const ChatPage: React.FC = () => {
             <div ref={messagesEndRef}></div>
         </div>
 
-        {/* Scroll to Bottom Floating Button */}
+        {/* Scroll Button */}
         {showScrollButton && (
-            <button 
-                onClick={scrollToBottom}
-                className="fixed bottom-24 right-4 z-50 w-10 h-10 bg-slate-900/50 dark:bg-slate-700/50 text-white rounded-full shadow-lg backdrop-blur-md flex items-center justify-center animate__animated animate__fadeInUp hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors"
-            >
+            <button onClick={scrollToBottom} className="fixed bottom-24 right-4 z-50 w-10 h-10 bg-slate-900/50 dark:bg-slate-700/50 text-white rounded-full shadow-lg backdrop-blur-md flex items-center justify-center animate__animated animate__fadeInUp hover:bg-slate-900 transition-colors">
                 <i className="fas fa-arrow-down"></i>
-                {messages.length > 0 && messages[messages.length - 1].sender !== user?.uid && (
-                    <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
-                )}
+                {messages.length > 0 && messages[messages.length - 1].sender !== user?.uid && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
             </button>
         )}
 
-        {/* Modern Responsive Fixed Input Area */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 transition-all duration-300">
-             {/* Safe area spacer for iOS */}
-            <div className="pb-[env(safe-area-inset-bottom)]">
-                <div className="max-w-4xl mx-auto w-full p-2 sm:p-3 md:p-4">
-                    <form onSubmit={(e) => sendMessage(e, 'text')} className="flex items-center gap-2">
-                        <div className="flex-1 relative group">
-                            <input 
-                                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 md:py-3.5 pl-5 pr-12 text-sm md:text-base text-slate-900 dark:text-white focus:outline-none focus:border-game-primary focus:ring-2 focus:ring-game-primary/20 transition-all font-medium placeholder-slate-400 dark:placeholder-slate-500 shadow-inner"
-                                placeholder={isOffline ? "Waiting for connection..." : "Message..."}
-                                value={inputText}
-                                onChange={e => setInputText(e.target.value)}
-                                disabled={isOffline}
-                            />
-                        </div>
-                        
-                        <button 
-                            type="submit" 
-                            disabled={!inputText.trim() || isOffline}
-                            className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-gradient-to-tr from-game-primary to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:scale-95 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-90 transition-all duration-200"
-                        >
-                            <i className="fas fa-paper-plane text-sm md:text-base"></i>
-                        </button>
-                    </form>
-                </div>
+        {/* Input Area */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 transition-all duration-300 pb-[env(safe-area-inset-bottom)]">
+            <div className="max-w-4xl mx-auto w-full p-2 sm:p-3 md:p-4">
+                <form onSubmit={(e) => sendMessage(e, 'text')} className="flex items-center gap-2">
+                    <div className="flex-1 relative group">
+                        <input 
+                            className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 md:py-3.5 pl-5 pr-12 text-sm md:text-base text-slate-900 dark:text-white focus:outline-none focus:border-game-primary focus:ring-2 focus:ring-game-primary/20 transition-all font-medium placeholder-slate-400"
+                            placeholder={isOffline ? "Waiting for connection..." : "Message..."}
+                            value={inputText}
+                            onChange={e => setInputText(e.target.value)}
+                            disabled={isOffline}
+                        />
+                    </div>
+                    <button type="submit" disabled={!inputText.trim() || isOffline} className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-full bg-gradient-to-tr from-game-primary to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:scale-95 shadow-lg hover:scale-105 active:scale-90 transition-all">
+                        <i className="fas fa-paper-plane"></i>
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -541,44 +463,26 @@ const ChatPage: React.FC = () => {
                 <div>
                     <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 uppercase mb-2">1. Select Subject</label>
                     <div className="relative">
-                        <select 
-                            value={selectedSubject} 
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            className="w-full p-4 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border-2 border-transparent focus:border-game-primary rounded-xl appearance-none font-bold cursor-pointer"
-                        >
+                        <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full p-4 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border-2 border-transparent focus:border-game-primary rounded-xl appearance-none font-bold cursor-pointer">
                             <option value="">-- Choose Subject --</option>
                             {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                         <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"></i>
                     </div>
                 </div>
-
                 <div className={!selectedSubject ? 'opacity-50 pointer-events-none' : ''}>
                     <label className="block text-xs font-bold text-slate-800 dark:text-slate-300 uppercase mb-2">2. Select Chapter</label>
                     <div className="relative">
-                        <select 
-                            value={selectedChapter} 
-                            onChange={(e) => setSelectedChapter(e.target.value)}
-                            className="w-full p-4 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border-2 border-transparent focus:border-game-primary rounded-xl appearance-none font-bold cursor-pointer"
-                            disabled={!selectedSubject}
-                        >
+                        <select value={selectedChapter} onChange={(e) => setSelectedChapter(e.target.value)} className="w-full p-4 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border-2 border-transparent focus:border-game-primary rounded-xl appearance-none font-bold cursor-pointer" disabled={!selectedSubject}>
                             <option value="">-- Choose Chapter --</option>
                             {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                         <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"></i>
                     </div>
                 </div>
-
                 <div className="pt-4 flex gap-3">
                     <Button variant="secondary" fullWidth onClick={() => setShowGameSetup(false)}>Cancel</Button>
-                    <Button 
-                        fullWidth 
-                        onClick={confirmMatchInvite} 
-                        isLoading={setupLoading} 
-                        disabled={!selectedChapter}
-                    >
-                        Send Invite
-                    </Button>
+                    <Button fullWidth onClick={confirmMatchInvite} isLoading={setupLoading} disabled={!selectedChapter}>Send Invite</Button>
                 </div>
             </div>
         </Modal>

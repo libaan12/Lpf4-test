@@ -1,485 +1,440 @@
 
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { ref, onValue, off, update, push, remove, get, query, orderByChild, limitToLast } from 'firebase/database';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import { ref, onValue, off, update, remove } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { UserProfile } from '../types';
-import { Button, Input, Avatar, Card, Modal } from '../components/UI';
+import { Button, Input, Avatar, Modal } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
-import { playSound } from '../services/audioService';
 import { showToast } from '../services/alert';
 
 interface ChatMeta {
   lastMessage: string;
   lastTimestamp: number;
   unreadCount: number;
-  lastMessageSender?: string; // Track who sent the last message
-  lastMessageStatus?: string; // Track status for ticks
+  lastMessageSender?: string; 
+  lastMessageStatus?: string; 
+  type?: string; 
 }
 
 const SocialPage: React.FC = () => {
-  const { user, profile } = useContext(UserContext);
+  const { user } = useContext(UserContext);
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'friends' | 'explore' | 'requests'>('friends');
+  
+  // Tab State & Swipe Refs
+  const [activeTab, setActiveTab] = useState<'chats' | 'explore' | 'requests'>('chats');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  
-  // Initialize Friends from Cache
+
+  // --- DATA STATES WITH LOCAL STORAGE INIT ---
+
   const [friends, setFriends] = useState<UserProfile[]>(() => {
       try {
-          const cached = localStorage.getItem('friends_cache');
+          const cached = localStorage.getItem(`lp_social_friends_${user?.uid}`);
           return cached ? JSON.parse(cached) : [];
       } catch { return []; }
   });
 
-  // Initialize Chat Metadata from Cache
+  const [requests, setRequests] = useState<{uid: string, user: UserProfile}[]>(() => {
+      try {
+          const cached = localStorage.getItem(`lp_social_requests_${user?.uid}`);
+          return cached ? JSON.parse(cached) : [];
+      } catch { return []; }
+  });
+
+  const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
+      try {
+          const cached = localStorage.getItem(`lp_social_all_users`);
+          return cached ? JSON.parse(cached) : [];
+      } catch { return []; }
+  });
+
   const [chatMetadata, setChatMetadata] = useState<Record<string, ChatMeta>>(() => {
       try {
-          const cached = localStorage.getItem('chat_meta_cache');
+          const cached = localStorage.getItem(`lp_chat_meta_${user?.uid}`);
           return cached ? JSON.parse(cached) : {};
       } catch { return {}; }
   });
 
-  const [requests, setRequests] = useState<{uid: string, user: UserProfile}[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(friends.length === 0);
-  
-  // Track previous unread total for sound notifications
-  const totalUnreadRef = useRef(0);
 
-  // Persist Chat Metadata
+  // --- PERSISTENCE EFFECT ---
   useEffect(() => {
-      localStorage.setItem('chat_meta_cache', JSON.stringify(chatMetadata));
-  }, [chatMetadata]);
+      if(user) {
+          localStorage.setItem(`lp_social_friends_${user.uid}`, JSON.stringify(friends));
+          localStorage.setItem(`lp_social_requests_${user.uid}`, JSON.stringify(requests));
+          localStorage.setItem(`lp_social_all_users`, JSON.stringify(allUsers));
+          localStorage.setItem(`lp_chat_meta_${user.uid}`, JSON.stringify(chatMetadata));
+      }
+  }, [friends, requests, allUsers, chatMetadata, user]);
 
-  // Load Users Data
+  // --- FIREBASE LISTENERS ---
+
   useEffect(() => {
       if (!user) return;
-      
       const usersRef = ref(db, 'users');
       
       const handleData = (snap: any) => {
-          if (!snap.exists()) {
-              setLoading(false);
-              return;
-          }
+          if (!snap.exists()) return;
           const data = snap.val();
           
-          // Process Requests
+          // 1. Requests
           const myRequests = data[user.uid]?.friendRequests || {};
           const reqList: any[] = [];
-          Object.keys(myRequests).forEach(reqUid => {
-              if (data[reqUid]) reqList.push({ uid: reqUid, user: { uid: reqUid, ...data[reqUid] } });
+          Object.keys(myRequests).forEach(uid => {
+              if(data[uid]) reqList.push({ uid, user: { uid, ...data[uid] } });
           });
           setRequests(reqList);
 
-          // Process Friends
+          // 2. Friends (Chats)
           const myFriends = data[user.uid]?.friends || {};
           const friendList: UserProfile[] = [];
-          Object.keys(myFriends).forEach(fUid => {
-              if (data[fUid]) friendList.push({ uid: fUid, ...data[fUid] });
+          Object.keys(myFriends).forEach(uid => {
+              if(data[uid]) friendList.push({ uid, ...data[uid] });
           });
           setFriends(friendList);
-          
-          // Cache Friends
-          localStorage.setItem('friends_cache', JSON.stringify(friendList));
 
-          // Process All Users (for Explore)
+          // 3. All Users (Explore)
           const all: UserProfile[] = Object.keys(data).map(k => ({ uid: k, ...data[k] }));
-          // Filter out self and already friends
-          setAllUsers(all.filter(u => u.uid !== user.uid && !myFriends[u.uid]));
-          
-          setLoading(false);
+          const filtered = all.filter(u => u.uid !== user.uid);
+          setAllUsers(filtered);
       };
 
       onValue(usersRef, handleData);
       return () => off(usersRef);
   }, [user]);
 
-  // Listen to Chat Metadata & Mark Delivered
+  // Chat Metadata Listener
   useEffect(() => {
     if (!user || friends.length === 0) return;
-
     const listeners: Function[] = [];
 
-    friends.forEach(friend => {
-        const participants = [user.uid, friend.uid].sort();
+    friends.forEach(f => {
+        const participants = [user.uid, f.uid].sort();
         const chatId = `${participants[0]}_${participants[1]}`;
         const chatRef = ref(db, `chats/${chatId}`);
 
-        const unsub = onValue(chatRef, async (snapshot) => {
+        const unsub = onValue(chatRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const unreadForMe = data.unread?.[user.uid]?.count || 0;
-                const lastSender = data.lastMessageSender;
-                const lastStatus = data.lastMessageStatus;
+                const meta = {
+                    lastMessage: data.lastMessage || '',
+                    lastTimestamp: data.lastTimestamp || 0,
+                    unreadCount: data.unread?.[user.uid]?.count || 0,
+                    lastMessageSender: data.lastMessageSender,
+                    lastMessageStatus: data.lastMessageStatus,
+                    type: (data.lastMessage === 'CHALLENGE_INVITE') ? 'invite' : 'text'
+                };
 
-                const updates: any = {};
-                
-                // 1. DELIVERY REPORT LOGIC
-                // If I am receiving this update (I am online), and the last message was NOT sent by me,
-                // and it is still 'sent', mark it as 'delivered' on the root.
-                if (lastSender && lastSender !== user.uid && lastStatus === 'sent') {
-                     updates[`chats/${chatId}/lastMessageStatus`] = 'delivered';
-                }
-
-                // 2. MSG LEVEL DELIVERY (Existing Logic)
-                if (unreadForMe > 0) {
-                    try {
-                        const msgsQuery = query(ref(db, `chats/${chatId}/messages`), limitToLast(unreadForMe + 2));
-                        const msgsSnap = await get(msgsQuery);
-                        if (msgsSnap.exists()) {
-                            const msgs = msgsSnap.val();
-                            Object.keys(msgs).forEach(key => {
-                                const m = msgs[key];
-                                // If I am NOT the sender, and status is 'sent', mark as 'delivered'
-                                if (m.sender !== user.uid && (!m.msgStatus || m.msgStatus === 'sent')) {
-                                    updates[`chats/${chatId}/messages/${key}/msgStatus`] = 'delivered';
-                                }
-                            });
-                        }
-                    } catch(e) { /* ignore */ }
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    try { update(ref(db), updates); } catch(e) {}
-                }
-
-                setChatMetadata(prev => {
-                    const updated = {
-                        ...prev,
-                        [friend.uid]: {
-                            lastMessage: data.lastMessage || 'Start a conversation',
-                            lastTimestamp: data.lastTimestamp || 0,
-                            unreadCount: unreadForMe,
-                            lastMessageSender: lastSender,
-                            lastMessageStatus: lastStatus
-                        }
-                    };
-                    return updated;
-                });
+                setChatMetadata(prev => ({ ...prev, [f.uid]: meta }));
             }
         });
         listeners.push(() => off(chatRef));
     });
-
     return () => listeners.forEach(unsub => unsub());
   }, [user, friends]);
 
-  // Play Sound on Unread Increase
-  useEffect(() => {
-      let currentTotal = 0;
-      Object.values(chatMetadata).forEach((meta: ChatMeta) => currentTotal += meta.unreadCount);
-      
-      if (currentTotal > totalUnreadRef.current) {
-          playSound('message');
-      }
-      totalUnreadRef.current = currentTotal;
-  }, [chatMetadata]);
+  // --- ACTIONS ---
 
   const sendRequest = async (targetUid: string) => {
-      if (!user) return;
-      try {
-          await update(ref(db, `users/${targetUid}/friendRequests`), {
-              [user.uid]: true
-          });
-          showToast("Friend request sent!", "success");
-          playSound('click');
-      } catch (e) {
-          console.error(e);
-      }
+      if(!user) return;
+      await update(ref(db, `users/${targetUid}/friendRequests`), { [user.uid]: true });
+      showToast("Request sent", "success");
   };
 
-  const acceptRequest = async (targetUid: string) => {
-      if (!user) return;
-      try {
-          const updates: any = {};
-          // Add to my friends
-          updates[`users/${user.uid}/friends/${targetUid}`] = true;
-          // Add to their friends
-          updates[`users/${targetUid}/friends/${user.uid}`] = true;
-          // Remove request
-          updates[`users/${user.uid}/friendRequests/${targetUid}`] = null;
-          
-          await update(ref(db), updates);
-          showToast("Friend added!", "success");
-          playSound('correct');
-      } catch (e) {
-          console.error(e);
-      }
-  };
-
-  const rejectRequest = async (targetUid: string) => {
-      if (!user) return;
-      try {
-          await remove(ref(db, `users/${user.uid}/friendRequests/${targetUid}`));
-          playSound('click');
-      } catch (e) { console.error(e); }
-  };
-
-  const startChat = (targetUid: string) => {
-      navigate(`/chat/${targetUid}`);
-  };
-
-  const formatLastTime = (timestamp: number) => {
-      if (!timestamp) return '';
-      const date = new Date(timestamp);
+  const formatTime = (ts: number) => {
+      if(!ts) return '';
+      const d = new Date(ts);
       const now = new Date();
-      if (date.toDateString() === now.toDateString()) {
-          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if(d.toDateString() === now.toDateString()) {
+          return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
       }
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return d.toLocaleDateString([], {month:'short', day:'numeric'});
   };
 
-  // Helper for Status Ticks
   const renderStatusIcon = (status?: string) => {
-      if (!status || status === 'sent') return <i className="fas fa-check text-slate-400 text-[10px] ml-1"></i>;
-      if (status === 'delivered') return <i className="fas fa-check-double text-slate-400 text-[10px] ml-1"></i>;
-      if (status === 'read') return <i className="fas fa-check-double text-blue-500 text-[10px] ml-1"></i>;
-      return null;
+      switch(status) {
+          case 'sending': return <i className="fas fa-clock text-slate-400 text-[10px]"></i>;
+          case 'sent': return <i className="fas fa-check text-slate-400 text-[10px]"></i>;
+          case 'delivered': return <i className="fas fa-check-double text-slate-400 text-[10px]"></i>;
+          case 'read': return <i className="fas fa-check-double text-blue-500 text-[10px]"></i>;
+          default: return <i className="fas fa-check text-slate-400 text-[10px]"></i>;
+      }
   };
 
-  // Filter Users
-  // SAFE FILTER: Checks for undefined name/username to prevent crash
-  // UPDATED SORT: 1. Online, 2. Verified, 3. Alphabetical
-  const filteredExplore = allUsers.filter(u => 
-      (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (u.username && (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()))
-  ).sort((a, b) => {
-      // 1. Online status first
-      const aOnline = a.isOnline ? 1 : 0;
-      const bOnline = b.isOnline ? 1 : 0;
-      if (aOnline !== bOnline) return bOnline - aOnline;
+  // --- SWIPE LOGIC ---
+  
+  const handleScroll = () => {
+      if (scrollContainerRef.current) {
+          const x = scrollContainerRef.current.scrollLeft;
+          const w = scrollContainerRef.current.offsetWidth;
+          const index = Math.round(x / w);
+          if (index === 0 && activeTab !== 'chats') setActiveTab('chats');
+          if (index === 1 && activeTab !== 'explore') setActiveTab('explore');
+          if (index === 2 && activeTab !== 'requests') setActiveTab('requests');
+      }
+  };
 
-      // 2. Verified/Support users next
-      const aVerified = (a.isVerified || a.isSupport) ? 1 : 0;
-      const bVerified = (b.isVerified || b.isSupport) ? 1 : 0;
-      if (aVerified !== bVerified) return bVerified - aVerified;
-      
-      // 3. Then alphabetical
-      return (a.name || '').localeCompare(b.name || '');
-  });
+  const switchTab = (tab: 'chats' | 'explore' | 'requests') => {
+      setActiveTab(tab);
+      if (scrollContainerRef.current) {
+          const w = scrollContainerRef.current.offsetWidth;
+          let targetX = 0;
+          if (tab === 'explore') targetX = w;
+          if (tab === 'requests') targetX = w * 2;
+          scrollContainerRef.current.scrollTo({ left: targetX, behavior: 'smooth' });
+      }
+  };
 
-  // Sort Friends by Recent Interaction
-  const sortedFriends = [...friends].sort((a, b) => {
-      const timeA = chatMetadata[a.uid]?.lastTimestamp || 0;
-      const timeB = chatMetadata[b.uid]?.lastTimestamp || 0;
-      
-      // 1. Most recent timestamp first
-      if (timeB !== timeA) return timeB - timeA;
-      // 2. Verified users next
-      if ((a.isVerified || a.isSupport) && (!b.isVerified && !b.isSupport)) return -1;
-      if ((!a.isVerified && !a.isSupport) && (b.isVerified || b.isSupport)) return 1;
-      return (a.name || '').localeCompare(b.name || '');
-  });
+  // Filter & Sort
+  const exploreList = useMemo(() => {
+      return allUsers.filter(u => {
+          const isFriend = friends.some(f => f.uid === u.uid);
+          const matchesSearch = (u.name||'').toLowerCase().includes(searchTerm.toLowerCase());
+          return !isFriend && matchesSearch;
+      }).sort((a, b) => {
+          // 0. Support First
+          if (a.isSupport !== b.isSupport) return a.isSupport ? -1 : 1;
+          // 1. Verified First
+          if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
+          // 2. Online First
+          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+          // 3. Name fallback
+          return (a.name || '').localeCompare(b.name || '');
+      });
+  }, [allUsers, friends, searchTerm]);
+
+  const sortedFriends = useMemo(() => {
+      return [...friends].sort((a, b) => {
+          const tA = chatMetadata[a.uid]?.lastTimestamp || 0;
+          const tB = chatMetadata[b.uid]?.lastTimestamp || 0;
+          return tB - tA;
+      });
+  }, [friends, chatMetadata]);
 
   return (
-    <div className="min-h-full p-4 flex flex-col pb-24 pt-24 max-w-4xl mx-auto w-full">
-       {/* Header - Softer Colors */}
-       <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center justify-between px-4 py-3 transition-colors duration-300">
-            <h1 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase italic tracking-tight">Students</h1>
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                <button onClick={() => setActiveTab('friends')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'friends' ? 'bg-white shadow text-game-primary' : 'text-slate-500 hover:text-slate-700'}`}>Chats</button>
-                <button onClick={() => setActiveTab('explore')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'explore' ? 'bg-white shadow text-game-primary' : 'text-slate-500 hover:text-slate-700'}`}>Explore</button>
-                <button onClick={() => setActiveTab('requests')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'requests' ? 'bg-white shadow text-game-primary' : 'text-slate-500 hover:text-slate-700'}`}>
-                    Requests {requests.length > 0 && <span className="ml-1 bg-red-500 text-white px-1.5 rounded-full text-[10px]">{requests.length}</span>}
-                </button>
+    <div className="absolute inset-0 flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+        
+        {/* Top Header */}
+        <div className="z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 pt-10 pb-3 px-4 shadow-sm md:pt-4 transition-all shrink-0">
+            <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
+                <h1 className="text-2xl font-black italic text-slate-800 dark:text-white uppercase tracking-tighter transform scale-y-110">STUDENTS</h1>
+                
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button onClick={() => switchTab('chats')} className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeTab === 'chats' ? 'bg-white dark:bg-slate-700 text-game-primary shadow-sm' : 'text-slate-400'}`}>Chats</button>
+                    <button onClick={() => switchTab('explore')} className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeTab === 'explore' ? 'bg-white dark:bg-slate-700 text-game-primary shadow-sm' : 'text-slate-400'}`}>Explore</button>
+                    <button onClick={() => switchTab('requests')} className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeTab === 'requests' ? 'bg-white dark:bg-slate-700 text-game-primary shadow-sm' : 'text-slate-400'}`}>
+                        Requests
+                        {requests.length > 0 && <span className="ml-1 bg-red-500 text-white px-1.5 rounded-full text-[9px]">{requests.length}</span>}
+                    </button>
+                </div>
             </div>
-       </div>
+        </div>
 
-       {/* FRIENDS TAB (Like WhatsApp) */}
-       {activeTab === 'friends' && (
-           <div className="space-y-3 animate__animated animate__fadeIn">
-               {loading && sortedFriends.length === 0 ? (
-                   // LOADING SKELETON
-                   [...Array(5)].map((_, i) => (
-                       <div key={i} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-3 animate-pulse">
-                           <div className="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-                           <div className="flex-1 space-y-3">
-                               <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
-                               <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-                           </div>
-                       </div>
-                   ))
-               ) : sortedFriends.length === 0 ? (
-                   <div className="text-center py-10 text-slate-400">
-                       <i className="fas fa-comment-slash text-4xl mb-3 opacity-50"></i>
-                       <p className="font-bold">No chats yet.</p>
-                       <Button size="sm" variant="secondary" className="mt-4 w-full sm:w-auto" onClick={() => setActiveTab('explore')}>Find Students</Button>
-                   </div>
-               ) : (
-                   sortedFriends.map(f => {
-                       const meta = chatMetadata[f.uid] || { lastMessage: 'Start a conversation', lastTimestamp: 0, unreadCount: 0 };
-                       const hasUnread = meta.unreadCount > 0;
-                       const isMeLast = meta.lastMessageSender === user?.uid;
-
-                       return (
-                           <div key={f.uid} onClick={() => startChat(f.uid)} className={`bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${hasUnread ? 'border-l-4 border-l-game-primary border-y-slate-100 border-r-slate-100 dark:border-y-slate-700 dark:border-r-slate-700' : 'border-slate-100 dark:border-slate-700'} flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors relative overflow-hidden`}>
-                               <div className="flex items-center gap-3 w-full">
-                                   <div className="relative shrink-0">
-                                      <Avatar src={f.avatar} seed={f.uid} size="md" isVerified={f.isVerified} isOnline={f.isOnline} />
-                                   </div>
-                                   <div className="flex-1 min-w-0 pr-2">
-                                       <div className="flex justify-between items-baseline">
-                                            <div className="font-bold text-slate-900 dark:text-white text-base truncate flex items-center gap-1">
-                                                {f.name} 
+        {/* Swipe Container */}
+        <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+            
+            {/* CHATS TAB */}
+            <div className="min-w-full w-full snap-center overflow-y-auto p-4 custom-scrollbar pb-24" style={{ scrollSnapStop: 'always' }}>
+                <div className="max-w-2xl mx-auto space-y-3">
+                    {sortedFriends.length === 0 ? (
+                        <div className="text-center py-20 opacity-50">
+                            <i className="fas fa-comments text-4xl mb-2 text-slate-300"></i>
+                            <p className="font-bold text-slate-400">No active chats</p>
+                        </div>
+                    ) : (
+                        sortedFriends.map(f => {
+                            const meta = chatMetadata[f.uid] || { lastMessage: '', lastTimestamp: 0, unreadCount: 0 };
+                            const isGameInvite = meta.type === 'invite' || meta.lastMessage === 'CHALLENGE_INVITE';
+                            const isMe = meta.lastMessageSender === user?.uid;
+                            
+                            return (
+                                <div 
+                                    key={f.uid} 
+                                    onClick={() => navigate(`/chat/${f.uid}`)} 
+                                    className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-50 dark:border-slate-700/50 flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-all relative"
+                                >
+                                    {/* Online Indicator on Card (Optional visual cue) - we use Avatar's dot mostly */}
+                                    <div className="relative">
+                                        <Avatar src={f.avatar} seed={f.uid} size="md" isVerified={f.isVerified} isSupport={f.isSupport} isOnline={f.isOnline} />
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-black text-slate-900 dark:text-white text-base truncate flex items-center gap-1.5">
+                                                {f.name}
                                                 {f.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                                {f.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Support"></i>}
-                                            </div>
-                                            <div className={`text-[10px] font-bold ${hasUnread ? 'text-game-primary' : 'text-slate-400'}`}>
-                                                {formatLastTime(meta.lastTimestamp)}
-                                            </div>
-                                       </div>
-                                       
-                                       <div className="flex justify-between items-center mt-0.5">
-                                            <div className={`text-sm truncate pr-2 flex items-center gap-1 ${hasUnread ? 'font-bold text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                {/* Status Tick for Sent Messages */}
-                                                {isMeLast && renderStatusIcon(meta.lastMessageStatus)}
-                                                
-                                                {meta.lastMessage.startsWith('CHALLENGE_INVITE') ? (
-                                                    <span className="text-game-primary italic"><i className="fas fa-gamepad mr-1"></i> Game Invite</span>
-                                                ) : meta.lastMessage}
-                                            </div>
-                                            
-                                            {hasUnread && (
-                                                <div className="bg-game-danger text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shrink-0 shadow-sm animate-pulse">
-                                                    {meta.unreadCount > 9 ? '9+' : meta.unreadCount}
+                                                {f.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">{formatTime(meta.lastTimestamp)}</span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center">
+                                            {isGameInvite ? (
+                                                <span className="text-sm font-bold text-game-primary flex items-center gap-1.5">
+                                                    <i className="fas fa-gamepad"></i> Game Invite
+                                                </span>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                                                    {isMe && (
+                                                        <span className="shrink-0 flex items-center justify-center">
+                                                            {renderStatusIcon(meta.lastMessageStatus)}
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-sm truncate ${meta.unreadCount > 0 ? 'text-slate-800 dark:text-white font-bold' : 'text-slate-500 dark:text-slate-400 font-medium'}`}>
+                                                        {meta.lastMessage || 'Start a conversation'}
+                                                    </span>
                                                 </div>
                                             )}
-                                       </div>
-                                   </div>
-                               </div>
-                           </div>
-                       );
-                   })
-               )}
-           </div>
-       )}
+                                            
+                                            {/* Unread Count Badge (Red Circle) */}
+                                            {meta.unreadCount > 0 && (
+                                                <span className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow-sm animate-pulse ml-auto">
+                                                    {meta.unreadCount}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
 
-       {/* EXPLORE TAB */}
-       {activeTab === 'explore' && (
-           <div className="space-y-4 animate__animated animate__fadeIn">
-               <Input 
-                  placeholder="Search students..." 
-                  icon="fa-search" 
-                  value={searchTerm} 
-                  onChange={(e) => setSearchTerm(e.target.value)} 
-               />
-               
-               <div className="space-y-3">
-                   {filteredExplore.map(u => {
-                       const hasSent = (u as any).friendRequests && (u as any).friendRequests[user?.uid || ''];
-                       
-                       return (
-                           <div key={u.uid} onClick={() => setSelectedUser(u)} className={`bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border ${u.isVerified ? 'border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10' : 'border-slate-100 dark:border-slate-700'} flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors`}>
-                                <div className="flex items-center gap-3">
-                                   <Avatar src={u.avatar} seed={u.uid} size="md" isVerified={u.isVerified} isOnline={u.isOnline} />
-                                   <div>
-                                       <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                                            {u.name} 
+            {/* EXPLORE TAB */}
+            <div className="min-w-full w-full snap-center overflow-y-auto p-4 custom-scrollbar pb-24" style={{ scrollSnapStop: 'always' }}>
+                <div className="max-w-2xl mx-auto space-y-4">
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <Input 
+                            placeholder="Search students..." 
+                            icon="fa-search"
+                            value={searchTerm} 
+                            onChange={e => setSearchTerm(e.target.value)} 
+                            className="!border-none !bg-transparent !mb-0 !py-2"
+                        />
+                    </div>
+                    
+                    {exploreList.slice(0, 50).map(u => {
+                        const hasRequested = (u as any).friendRequests?.[user?.uid || ''];
+                        return (
+                            <div key={u.uid} onClick={() => setSelectedUser(u)} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-50 dark:border-slate-700 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform">
+                                <div className="flex items-center gap-4">
+                                    <Avatar src={u.avatar} seed={u.uid} size="md" isVerified={u.isVerified} isSupport={u.isSupport} isOnline={u.isOnline} />
+                                    <div>
+                                        <div className="font-black text-slate-900 dark:text-white text-sm flex items-center gap-1">
+                                            {u.name}
                                             {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                            {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Support"></i>}
-                                       </div>
-                                       <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">@{u.username || 'unknown'}</div>
-                                   </div>
-                               </div>
-                               
-                               {hasSent ? (
-                                   <button 
-                                     disabled
-                                     className="px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold cursor-default flex items-center gap-1"
-                                   >
-                                       <i className="fas fa-check"></i> Sent
-                                   </button>
-                               ) : (
-                                   <button 
-                                     onClick={(e) => { e.stopPropagation(); sendRequest(u.uid); }}
-                                     className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-game-primary hover:text-white transition-colors"
-                                   >
-                                       <i className="fas fa-user-plus mr-1"></i> Add
-                                   </button>
-                               )}
-                           </div>
-                       );
-                   })}
-                   {filteredExplore.length === 0 && <div className="text-center text-slate-400 py-4">No users found.</div>}
-               </div>
-           </div>
-       )}
+                                            {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
+                                        </div>
+                                        <div className="text-[11px] text-slate-400 font-medium">@{u.username || 'unknown'}</div>
+                                    </div>
+                                </div>
+                                {hasRequested ? (
+                                    <span className="text-xs font-bold text-green-600 bg-green-100 px-3 py-1.5 rounded-xl flex items-center gap-1"><i className="fas fa-check"></i> Sent</span>
+                                ) : (
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); sendRequest(u.uid); }}
+                                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-game-primary hover:text-white transition-colors flex items-center gap-1"
+                                    >
+                                        <i className="fas fa-user-plus"></i> Add
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
 
-       {/* REQUESTS TAB */}
-       {activeTab === 'requests' && (
-           <div className="space-y-4 animate__animated animate__fadeIn">
-               {requests.length === 0 ? (
-                   <div className="text-center py-10 text-slate-400 font-bold">No pending requests.</div>
-               ) : (
-                   requests.map(r => (
-                       <div key={r.uid} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                               <Avatar src={r.user.avatar} seed={r.user.uid} size="md" isVerified={r.user.isVerified} />
-                               <div>
-                                   <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                                       {r.user.name}
-                                       {r.user.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                       {r.user.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Support"></i>}
-                                   </div>
-                                   <div className="text-xs text-slate-500 dark:text-slate-400">wants to be friends</div>
-                               </div>
-                           </div>
-                           <div className="flex gap-2 w-full sm:w-auto">
-                               <Button size="sm" fullWidth onClick={() => acceptRequest(r.uid)}><i className="fas fa-check mr-1"></i> Accept</Button>
-                               <button 
-                                    onClick={() => rejectRequest(r.uid)}
-                                    // SOLID RED BUTTON
-                                    className="px-4 py-2 rounded-2xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 flex items-center justify-center transition-all active:scale-95 flex-1 sm:flex-none border-b-4 border-red-700"
-                                >
-                                   <i className="fas fa-times"></i>
-                               </button>
-                           </div>
-                       </div>
-                   ))
-               )}
-           </div>
-       )}
+            {/* REQUESTS TAB */}
+            <div className="min-w-full w-full snap-center overflow-y-auto p-4 custom-scrollbar pb-24" style={{ scrollSnapStop: 'always' }}>
+                <div className="max-w-2xl mx-auto space-y-3">
+                    {requests.length === 0 ? (
+                        <div className="text-center py-20 opacity-50">
+                            <i className="fas fa-user-friends text-4xl mb-2 text-slate-300"></i>
+                            <p className="font-bold text-slate-400">No pending requests</p>
+                        </div>
+                    ) : (
+                        requests.map(r => (
+                            <div key={r.uid} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <Avatar src={r.user.avatar} size="md" isVerified={r.user.isVerified} isSupport={r.user.isSupport} />
+                                    <div>
+                                        <div className="font-black text-slate-900 dark:text-white text-sm flex items-center gap-1">
+                                            {r.user.name}
+                                            {r.user.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
+                                            {r.user.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
+                                        </div>
+                                        <div className="text-xs text-slate-400 font-bold">Wants to connect</div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <button 
+                                        onClick={async () => {
+                                            await update(ref(db), { 
+                                                [`users/${user?.uid}/friends/${r.uid}`]: true, 
+                                                [`users/${r.uid}/friends/${user?.uid}`]: true, 
+                                                [`users/${user?.uid}/friendRequests/${r.uid}`]: null 
+                                            });
+                                            showToast("Added!", "success");
+                                        }} 
+                                        className="flex-1 sm:flex-none bg-game-primary text-white px-6 py-2 rounded-xl text-xs font-bold shadow-md hover:bg-orange-600 transition-colors"
+                                    >
+                                        Accept
+                                    </button>
+                                    <button 
+                                        onClick={() => remove(ref(db, `users/${user?.uid}/friendRequests/${r.uid}`))} 
+                                        className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-6 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+                                    >
+                                        Ignore
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
 
-       {/* User Profile Modal */}
-       {selectedUser && (
-           <Modal isOpen={true} onClose={() => setSelectedUser(null)} title={selectedUser.name}>
-               <div className="flex flex-col items-center mb-6">
-                   <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" isVerified={selectedUser.isVerified} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
-                   <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
-                       {selectedUser.name}
-                       {selectedUser.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg"></i>}
-                       {selectedUser.isSupport && <i className="fas fa-check-circle text-game-primary text-lg" title="Support"></i>}
-                   </h2>
-                   <p className="text-slate-500 dark:text-slate-400 font-mono font-bold mb-4">@{selectedUser.username}</p>
-                   
-                   <div className="grid grid-cols-2 gap-4 w-full">
-                       <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
-                           <div className="text-xs text-slate-400 font-bold uppercase">Level</div>
-                           <div className="text-xl font-black text-slate-800 dark:text-white">{Math.floor((selectedUser.points || 0) / 10) + 1}</div>
-                       </div>
-                       <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
-                           <div className="text-xs text-slate-400 font-bold uppercase">Points</div>
-                           <div className="text-xl font-black text-game-primary dark:text-blue-400">{selectedUser.points || 0}</div>
-                       </div>
-                   </div>
-               </div>
-               
-               <div className="flex gap-3">
-                   {!friends.find(f => f.uid === selectedUser.uid) ? (
-                        (selectedUser as any).friendRequests?.[user?.uid || ''] ? (
-                            <Button fullWidth disabled className="bg-green-500 border-green-600 opacity-90"><i className="fas fa-check mr-2"></i> Request Sent</Button>
-                        ) : (
-                            <Button fullWidth onClick={() => { sendRequest(selectedUser.uid); setSelectedUser(null); }}>Send Friend Request</Button>
-                        )
-                   ) : (
-                        <Button fullWidth onClick={() => { startChat(selectedUser.uid); setSelectedUser(null); }}><i className="fas fa-comment mr-2"></i> Message</Button>
-                   )}
-               </div>
-           </Modal>
-       )}
+        {/* User Modal */}
+        {selectedUser && (
+            <Modal isOpen={true} onClose={() => setSelectedUser(null)} title={selectedUser.name}>
+                <div className="flex flex-col items-center mb-6">
+                    <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" isVerified={selectedUser.isVerified} isSupport={selectedUser.isSupport} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
+                        {selectedUser.name}
+                        {selectedUser.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg"></i>}
+                        {selectedUser.isSupport && <i className="fas fa-check-circle text-game-primary text-lg"></i>}
+                    </h2>
+                    <p className="text-slate-400 font-bold font-mono text-sm">@{selectedUser.username}</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 w-full mt-6">
+                        <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Level</div>
+                            <div className="text-xl font-black text-slate-800 dark:text-white">{Math.floor((selectedUser.points || 0) / 10) + 1}</div>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Points</div>
+                            <div className="text-xl font-black text-game-primary dark:text-blue-400">{selectedUser.points}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="flex gap-3">
+                    {friends.some(f => f.uid === selectedUser.uid) ? (
+                        <Button fullWidth onClick={() => { navigate(`/chat/${selectedUser.uid}`); setSelectedUser(null); }}>Message</Button>
+                    ) : (
+                        <Button fullWidth onClick={() => { sendRequest(selectedUser.uid); setSelectedUser(null); }}>Send Request</Button>
+                    )}
+                </div>
+            </Modal>
+        )}
     </div>
   );
 };

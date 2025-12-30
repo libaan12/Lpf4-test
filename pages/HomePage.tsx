@@ -62,14 +62,16 @@ const HomePage: React.FC = () => {
             <div className="flex items-center gap-4">
                 <div onClick={() => handleNav('/profile')} className="relative cursor-pointer group">
                     <div className="absolute inset-0 bg-white rounded-full blur opacity-50 group-hover:opacity-100 transition-opacity"></div>
-                    <Avatar src={profile?.avatar} seed={profile?.uid} size="md" className="border-4 border-white dark:border-slate-700 shadow-lg" />
+                    <Avatar src={profile?.avatar} seed={profile?.uid} size="md" className="border-4 border-white dark:border-slate-700 shadow-lg" isVerified={profile?.isVerified} isSupport={profile?.isSupport} />
                     <div className="absolute -bottom-1 -right-1 bg-game-primary text-white text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-white dark:border-slate-700">
                         LVL {level}
                     </div>
                 </div>
                 <div>
-                    <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white leading-none mb-1">
+                    <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white leading-none mb-1 flex items-center gap-2">
                         Hi, {profile?.name}
+                        {profile?.isVerified && <i className="fas fa-check-circle text-blue-500 text-sm"></i>}
+                        {profile?.isSupport && <i className="fas fa-check-circle text-game-primary text-sm"></i>}
                     </h1>
                     <div className="w-28 md:w-32 h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden border border-slate-300 dark:border-slate-600 relative">
                         <div className="h-full bg-game-success rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" style={{ width: `${progress}%` }}></div>
