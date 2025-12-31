@@ -83,64 +83,78 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 1. Setup Auth Listener (Runs Once)
   useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+          setProfile(null);
+          localStorage.removeItem('userProfile');
+          setLoading(false);
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  // 2. Setup User Profile & Presence Listener (Runs when User changes)
+  useEffect(() => {
+    if (!user) return;
+
+    // Load initial cache
     const cachedProfile = localStorage.getItem('userProfile');
     if (cachedProfile) {
         setProfile(JSON.parse(cachedProfile));
     }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        const userRef = ref(db, `users/${currentUser.uid}`);
-        
-        // Presence Logic
-        const presenceRef = ref(db, `users/${currentUser.uid}`);
-        update(presenceRef, { isOnline: true, lastSeen: serverTimestamp() });
-        onDisconnect(presenceRef).update({ isOnline: false, lastSeen: serverTimestamp() });
+    const userRef = ref(db, `users/${user.uid}`);
+    
+    // Presence Logic
+    const presenceRef = ref(db, `users/${user.uid}`);
+    update(presenceRef, { isOnline: true, lastSeen: serverTimestamp() });
+    const disconnectRef = onDisconnect(presenceRef);
+    disconnectRef.update({ isOnline: false, lastSeen: serverTimestamp() });
 
-        onValue(userRef, (snapshot) => {
-          const data = snapshot.val();
-          
-          // --- REAL-TIME BAN ENFORCEMENT ---
-          if (data && data.banned) {
-            signOut(auth).then(() => {
-               setUser(null);
-               setProfile(null);
-               localStorage.removeItem('userProfile'); // Clear Profile Cache
-               navigate('/auth');
-               showAlert('⛔ ACCESS DENIED', 'Your account has been permanently suspended by an administrator.', 'error');
-            });
-            return;
-          }
-          // ---------------------------------
-
-          if (data) {
-            const updatedProfile = { 
-                uid: currentUser.uid, 
-                ...data,
-                points: typeof data.points === 'number' ? data.points : 0 // Ensure points is number
-            };
-            setProfile(updatedProfile);
-            localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
-            
-            // Redirect players to active match, but allow Supports to roam (or they get stuck in spectate loops)
-            // Supports use the dashboard to spectate explicitly.
-            if (data.activeMatch && !location.pathname.includes('/game') && !data.isSupport) {
-              navigate(`/game/${data.activeMatch}`);
-            }
-          }
-          setLoading(false);
+    const unsubscribeUser = onValue(userRef, (snapshot) => {
+      const data = snapshot.val();
+      
+      // --- REAL-TIME BAN ENFORCEMENT ---
+      if (data && data.banned) {
+        signOut(auth).then(() => {
+           setUser(null);
+           setProfile(null);
+           localStorage.removeItem('userProfile'); // Clear Profile Cache
+           navigate('/auth');
+           showAlert('⛔ ACCESS DENIED', 'Your account has been permanently suspended by an administrator.', 'error');
         });
+        return;
+      }
+      
+      if (data) {
+        const updatedProfile = { 
+            uid: user.uid, 
+            ...data,
+            points: typeof data.points === 'number' ? data.points : 0 
+        };
+        setProfile(updatedProfile);
+        localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+        setLoading(false);
       } else {
-        setProfile(null);
-        localStorage.removeItem('userProfile');
         setLoading(false);
       }
     });
 
-    return () => unsubscribeAuth();
-  }, [navigate, location.pathname]);
+    return () => {
+        unsubscribeUser();
+        disconnectRef.cancel();
+    };
+  }, [user]);
+
+  // 3. Navigation Logic (Runs when profile or location changes)
+  useEffect(() => {
+      if (profile?.activeMatch && !location.pathname.includes('/game') && !profile.isSupport) {
+          navigate(`/game/${profile.activeMatch}`);
+      }
+  }, [profile?.activeMatch, profile?.isSupport, location.pathname, navigate]);
 
   // Handle Verification Celebration
   useEffect(() => {

@@ -246,6 +246,7 @@ export const SupportDashboard: React.FC = () => {
                         const pIds = Object.keys(m.players || {});
                         const p1 = m.players?.[pIds[0]];
                         const p2 = m.players?.[pIds[1]];
+                        const scores = m.scores || {}; // Safeguard
                         
                         return (
                             <div key={m.matchId} className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-lg border border-slate-200 dark:border-slate-700 relative overflow-hidden group hover:border-game-primary transition-colors">
@@ -260,13 +261,13 @@ export const SupportDashboard: React.FC = () => {
                                     <div className="text-center">
                                         <Avatar src={p1?.avatar} size="sm" className="mx-auto mb-2" />
                                         <div className="font-bold text-xs truncate w-20">{p1?.name}</div>
-                                        <div className="font-black text-lg text-game-primary">{m.scores[pIds[0]]}</div>
+                                        <div className="font-black text-lg text-game-primary">{scores[pIds[0]] ?? 0}</div>
                                     </div>
                                     <div className="text-xl font-black text-slate-300 italic">VS</div>
                                     <div className="text-center">
                                         <Avatar src={p2?.avatar} size="sm" className="mx-auto mb-2" />
                                         <div className="font-bold text-xs truncate w-20">{p2?.name}</div>
-                                        <div className="font-black text-lg text-red-500">{m.scores[pIds[1]]}</div>
+                                        <div className="font-black text-lg text-red-500">{scores[pIds[1]] ?? 0}</div>
                                     </div>
                                 </div>
                                 

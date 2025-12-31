@@ -64,7 +64,7 @@ const GamePage: React.FC = () => {
   const processingRef = useRef(false);
   const questionsLoadedRef = useRef(false);
 
-  // 1. Sync Match Data & Identify Role
+  // 1. Sync Match Data
   useEffect(() => {
     if (!matchId || !user) return;
     const matchRef = ref(db, `matches/${matchId}`);
@@ -85,20 +85,12 @@ const GamePage: React.FC = () => {
       const userIsPlayer = pIds.includes(user.uid);
       
       if (!userIsPlayer) {
-          // If not a player
           if (profile?.isSupport) {
               setIsSpectator(true);
           } else {
-              // Unauthorized access
               navigate('/');
               return;
           }
-      } else {
-          // If player, set presence
-          const myStatusRef = ref(db, `matches/${matchId}/players/${user.uid}`);
-          const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
-          update(myStatusRef, { status: 'online', lastSeen: serverTimestamp(), level: myLevel });
-          onDisconnect(myStatusRef).update({ status: 'offline', lastSeen: serverTimestamp() });
       }
 
       // Check Winner
@@ -114,9 +106,26 @@ const GamePage: React.FC = () => {
     return () => { 
         unsubscribe(); 
     };
-  }, [matchId, user, navigate, profile?.isSupport]); 
+  }, [matchId, user, navigate, profile?.isSupport, isSpectator]); 
 
-  // 2. Load Profiles
+  // 2. Presence Logic (Separated to avoid loop)
+  useEffect(() => {
+      if (!matchId || !user || isSpectator) return;
+      
+      // Update presence only on mount/unmount or matchId change, NOT on every match update
+      const myStatusRef = ref(db, `matches/${matchId}/players/${user.uid}`);
+      const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
+      
+      update(myStatusRef, { status: 'online', lastSeen: serverTimestamp(), level: myLevel });
+      const disconnectRef = onDisconnect(myStatusRef);
+      disconnectRef.update({ status: 'offline', lastSeen: serverTimestamp() });
+
+      return () => {
+          disconnectRef.cancel();
+      };
+  }, [matchId, user, isSpectator, profile?.points]);
+
+  // 3. Load Profiles
   useEffect(() => {
       if (!match || !user) return;
       
@@ -152,7 +161,7 @@ const GamePage: React.FC = () => {
       loadProfiles();
   }, [match?.matchId, user?.uid, isSpectator, profile]); // Re-run if matchId changes or role changes
 
-  // 3. Load Questions & Subject Name
+  // 4. Load Questions & Subject Name
   useEffect(() => {
       if (!match || !match.subject || questions.length > 0 || questionsLoadedRef.current) return;
       loadQuestions();
@@ -219,7 +228,7 @@ const GamePage: React.FC = () => {
       loadQuestions();
   };
 
-  // 4. Reset Selection on Question Change
+  // 5. Reset Selection on Question Change
   useEffect(() => {
       setSelectedOption(null);
       setShowFeedback(null);
@@ -254,6 +263,9 @@ const GamePage: React.FC = () => {
     if (isSpectator) return; // Spectators cannot click
     if (!match || !user || !isMyTurn || selectedOption !== null || processingRef.current || !currentQuestion) return;
     
+    // Safety check for scores object
+    const currentScores = match.scores || {};
+    
     setSelectedOption(index);
     playSound('click');
     processingRef.current = true;
@@ -263,9 +275,9 @@ const GamePage: React.FC = () => {
     setShowFeedback({ correct: isCorrect, answer: currentQuestion.answer });
 
     setTimeout(async () => {
-        const oppUid = Object.keys(match.scores).find(uid => uid !== user.uid) || '';
-        const newScores = { ...match.scores };
-        if (isCorrect) newScores[user.uid] += POINTS_PER_QUESTION;
+        const oppUid = Object.keys(currentScores).find(uid => uid !== user.uid) || '';
+        const newScores = { ...currentScores };
+        if (isCorrect) newScores[user.uid] = (newScores[user.uid] || 0) + POINTS_PER_QUESTION;
 
         const currentAnswers = match.answersCount || 0;
         let nextQ = match.currentQ;
@@ -275,13 +287,18 @@ const GamePage: React.FC = () => {
         if (currentAnswers >= 1) {
             if (match.currentQ >= questions.length - 1) {
                 let winner = 'draw';
-                if (newScores[user.uid] > newScores[oppUid]) winner = user.uid;
-                else if (newScores[oppUid] > newScores[user.uid]) winner = oppUid;
+                const myScore = newScores[user.uid] || 0;
+                const oppScore = newScores[oppUid] || 0;
+                
+                if (myScore > oppScore) winner = user.uid;
+                else if (oppScore > myScore) winner = oppUid;
 
                 const myPts = (await get(ref(db, `users/${user.uid}/points`))).val() || 0;
-                await update(ref(db, `users/${user.uid}`), { points: myPts + newScores[user.uid], activeMatch: null });
-                const oppPts = (await get(ref(db, `users/${oppUid}/points`))).val() || 0;
-                await update(ref(db, `users/${oppUid}`), { points: oppPts + newScores[oppUid], activeMatch: null });
+                await update(ref(db, `users/${user.uid}`), { points: myPts + myScore, activeMatch: null });
+                if (oppUid) {
+                    const oppPts = (await get(ref(db, `users/${oppUid}/points`))).val() || 0;
+                    await update(ref(db, `users/${oppUid}`), { points: oppPts + oppScore, activeMatch: null });
+                }
 
                 await update(ref(db, `matches/${matchId}`), { scores: newScores, status: 'completed', winner, answersCount: 2 });
                 
@@ -366,14 +383,15 @@ const GamePage: React.FC = () => {
   // UI Logic helpers
   const leftIsActive = match.turn === leftProfile.uid;
   const rightIsActive = match.turn === rightProfile.uid;
+  
+  // Safe scores
+  const safeScores = match.scores || {};
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans overflow-hidden transition-colors pt-24">
        
       {showIntro && !isSpectator && (
           <div className="fixed inset-0 z-[60] flex flex-col md:flex-row items-center justify-center bg-slate-900 overflow-hidden">
-              {/* Intro Animation Implementation (Same as before) */}
-              {/* ... (Keep original intro structure but use leftProfile and rightProfile) ... */}
               <div className="absolute inset-0 flex items-center justify-center text-white font-black text-6xl">VS</div>
           </div>
       )}
@@ -403,7 +421,7 @@ const GamePage: React.FC = () => {
           </div>
       )}
 
-      {/* HEADER SCOREBOARD (Generalized for Spectator/Player) */}
+      {/* HEADER SCOREBOARD */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-xl border-b border-slate-700 shadow-xl p-3">
          <div className="max-w-4xl mx-auto flex justify-between items-center">
             {/* Left Player */}
@@ -417,7 +435,7 @@ const GamePage: React.FC = () => {
                          <div className="text-[10px] font-black uppercase text-slate-400 truncate w-16">{leftProfile.name}</div>
                          {leftIsActive && !isGameOver && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>}
                      </div>
-                     <div className="text-2xl font-black text-game-primary leading-none">{match.scores[leftProfile.uid]}</div>
+                     <div className="text-2xl font-black text-game-primary leading-none">{safeScores[leftProfile.uid] ?? 0}</div>
                  </div>
             </div>
             
@@ -439,7 +457,7 @@ const GamePage: React.FC = () => {
                              {rightProfile.name}
                          </div>
                      </div>
-                     <div className="text-2xl font-black text-game-danger leading-none">{match.scores[rightProfile.uid]}</div>
+                     <div className="text-2xl font-black text-game-danger leading-none">{safeScores[rightProfile.uid] ?? 0}</div>
                  </div>
             </div>
          </div>
@@ -448,7 +466,6 @@ const GamePage: React.FC = () => {
       <div className="flex-1 flex flex-col items-center justify-center p-4 w-full max-w-3xl mx-auto z-10">
         {isGameOver ? (
            <Card className="text-center w-full animate__animated animate__zoomIn !p-8 md:!p-10 border-t-8 border-game-primary dark:border-game-primaryDark">
-               {/* Game Over UI - Simplified for both roles */}
                <div className="text-6xl mb-4">🏆</div>
                <h1 className="text-4xl font-black text-game-primary mb-8 uppercase italic">Match Over!</h1>
                
@@ -456,20 +473,20 @@ const GamePage: React.FC = () => {
                    <div className="text-center bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-100 dark:border-orange-800">
                        <Avatar src={leftProfile.avatar} size="lg" className="mx-auto mb-2 shadow-md" isVerified={leftProfile.isVerified} />
                        <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{leftProfile.name}</div>
-                       <div className="font-black text-2xl text-game-primary">{match.scores[leftProfile.uid]}</div>
+                       <div className="font-black text-2xl text-game-primary">{safeScores[leftProfile.uid] ?? 0}</div>
                    </div>
                    <div className="flex items-center text-slate-300 font-black text-2xl italic">VS</div>
                    <div className="text-center bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl border border-red-100 dark:border-red-800 opacity-90">
                        <Avatar src={rightProfile.avatar} size="lg" className="mx-auto mb-2 grayscale shadow-md" isVerified={rightProfile.isVerified} />
                        <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{rightProfile.name}</div>
-                       <div className="font-black text-2xl text-game-danger">{match.scores[rightProfile.uid]}</div>
+                       <div className="font-black text-2xl text-game-danger">{safeScores[rightProfile.uid] ?? 0}</div>
                    </div>
                </div>
                <Button onClick={handleLeave} size="lg" fullWidth>Exit Arena</Button>
            </Card>
         ) : (
             <>
-                {/* Question Card */}
+                 {/* Question Card */}
                  <div className="relative w-full bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.12)] mb-8 min-h-[200px] flex flex-col items-center justify-center text-center border border-slate-100 dark:border-slate-700 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
                      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 via-red-500 to-purple-600"></div>
                      <div className="relative z-10 mb-5">
@@ -487,7 +504,7 @@ const GamePage: React.FC = () => {
 
                  {/* Options Grid */}
                  <div className="relative w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                     {/* Turn Overlay - Adjusted for Spectator */}
+                     {/* Turn Overlay */}
                      {!isMyTurn && !isSpectator && (
                          <div className="absolute inset-0 z-20 bg-slate-100/50 dark:bg-slate-900/50 backdrop-blur-[2px] rounded-3xl flex items-center justify-center animate__animated animate__fadeIn">
                              <div className="bg-white dark:bg-slate-800 px-8 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 border-2 border-slate-200 dark:border-slate-600 transform scale-110">
@@ -508,7 +525,7 @@ const GamePage: React.FC = () => {
                         let letterClass = "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400";
                         
                         if (isSpectator) {
-                            bgClass += " opacity-90"; // Slight dim for spectators
+                            bgClass += " opacity-90";
                         } else {
                             bgClass += " hover:border-game-primary dark:hover:border-game-primary";
                         }
@@ -522,7 +539,6 @@ const GamePage: React.FC = () => {
                              bgClass += " border-b-[6px]";
                         }
 
-                        // Feedback logic
                         if (showFeedback) {
                             if (idx === showFeedback.answer) {
                                 bgClass = "bg-green-500 border-green-700 text-white translate-y-[4px] border-b-0 animate__animated animate__pulse";
@@ -564,7 +580,6 @@ const GamePage: React.FC = () => {
 
       {showOpponentModal && (
           <Modal isOpen={true} onClose={() => setShowOpponentModal(false)} title="Opponent Profile">
-               {/* Simplified Opponent Modal */}
                <div className="flex flex-col items-center mb-6">
                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" isVerified={rightProfile.isVerified} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
                    <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
