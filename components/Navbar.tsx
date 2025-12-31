@@ -1,5 +1,7 @@
-import React from 'react';
+
+import React, { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { UserContext } from '../contexts';
 
 interface NavbarProps {
     orientation?: 'horizontal' | 'vertical';
@@ -8,6 +10,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile } = useContext(UserContext);
 
   const navItems = [
     { path: '/', icon: 'fa-home', label: 'Home' },
@@ -16,6 +19,14 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
     { path: '/leaderboard', icon: 'fa-trophy', label: 'Rank' },
     { path: '/profile', icon: 'fa-user', label: 'Me' },
   ];
+
+  if (profile?.isSupport) {
+      // If support, add dashboard link (mostly relevant for vertical/desktop view, but safe to add)
+      // Actually for support, we might want to prioritize it or just add it
+      if (!navItems.find(i => i.path === '/support')) {
+          navItems.push({ path: '/support', icon: 'fa-headset', label: 'Support', isNew: false });
+      }
+  }
 
   if (orientation === 'vertical') {
       return (
@@ -77,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pointer-events-none flex justify-center pb-6">
         <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl px-2 py-2 flex items-center justify-between gap-1 w-full max-w-sm">
-            {navItems.map((item) => {
+            {navItems.slice(0, 5).map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                 <button 

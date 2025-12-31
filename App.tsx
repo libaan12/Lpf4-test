@@ -28,6 +28,7 @@ import SuperAdminPage from './pages/SuperAdminPage';
 import DownloadPage from './pages/DownloadPage'; 
 import SocialPage from './pages/SocialPage';
 import ChatPage from './pages/ChatPage';
+import { SupportDashboard } from './pages/SupportDashboard';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -123,7 +124,9 @@ const AppContent: React.FC = () => {
             setProfile(updatedProfile);
             localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
             
-            if (data.activeMatch && !location.pathname.includes('/game')) {
+            // Redirect players to active match, but allow Supports to roam (or they get stuck in spectate loops)
+            // Supports use the dashboard to spectate explicitly.
+            if (data.activeMatch && !location.pathname.includes('/game') && !data.isSupport) {
               navigate(`/game/${data.activeMatch}`);
             }
           }
@@ -178,7 +181,7 @@ const AppContent: React.FC = () => {
   }
 
   const showNavbar = ['/', '/lobby', '/leaderboard', '/profile', '/about', '/social'].includes(location.pathname);
-  const showAssistant = user && !location.pathname.includes('/game') && !location.pathname.includes('/chat');
+  const showAssistant = user && !location.pathname.includes('/game') && !location.pathname.includes('/chat') && !location.pathname.includes('/support');
 
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
@@ -223,6 +226,7 @@ const AppContent: React.FC = () => {
                       <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
                       <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
                       <Route path="/adminlp" element={<SuperAdminPage />} />
+                      <Route path="/support" element={<ProtectedRoute><SupportDashboard /></ProtectedRoute>} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>
