@@ -10,6 +10,9 @@ import { LPAssistant } from './components/LPAssistant';
 import { UsernamePrompt } from './components/UsernamePrompt';
 import { UserContext, ThemeContext } from './contexts';
 import { showAlert } from './services/alert';
+import confetti from 'canvas-confetti';
+import { playSound } from './services/audioService';
+import { Button, Modal } from './components/UI';
 
 // Pages
 import AuthPage from './pages/AuthPage';
@@ -50,6 +53,9 @@ const AppContent: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Verification Modal State
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   
   // Theme Logic - Defaults to Light
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
@@ -133,6 +139,27 @@ const AppContent: React.FC = () => {
     return () => unsubscribeAuth();
   }, [navigate, location.pathname]);
 
+  // Handle Verification Celebration
+  useEffect(() => {
+    if (profile?.isVerified && profile?.verificationNotificationPending) {
+       setShowVerificationModal(true);
+       playSound('win');
+       confetti({
+         particleCount: 150,
+         spread: 70,
+         origin: { y: 0.6 },
+         zIndex: 9999
+       });
+    }
+  }, [profile?.isVerified, profile?.verificationNotificationPending]);
+
+  const handleDismissVerification = () => {
+      if (user) {
+          update(ref(db, `users/${user.uid}`), { verificationNotificationPending: null });
+      }
+      setShowVerificationModal(false);
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-orange-50 dark:bg-slate-900 text-white transition-colors">
@@ -205,6 +232,22 @@ const AppContent: React.FC = () => {
                 
                 {/* Username Prompt for Guests */}
                 {user && <UsernamePrompt />}
+
+                {/* Verification Success Modal */}
+                <Modal isOpen={showVerificationModal} onClose={handleDismissVerification}>
+                    <div className="flex flex-col items-center text-center p-4">
+                        <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4 animate__animated animate__bounceIn">
+                            <i className="fas fa-check-circle text-5xl text-blue-500 drop-shadow-lg"></i>
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase italic tracking-tight">Congratulations!</h2>
+                        <p className="text-slate-600 dark:text-slate-300 font-bold mb-6">
+                            You have been officially verified! The blue badge is now visible on your profile.
+                        </p>
+                        <Button fullWidth onClick={handleDismissVerification} className="shadow-xl bg-blue-500 border-blue-700 hover:bg-blue-600">
+                            Awesome!
+                        </Button>
+                    </div>
+                </Modal>
 
                 {/* Mobile Bottom Navigation */}
                 {user && showNavbar && (

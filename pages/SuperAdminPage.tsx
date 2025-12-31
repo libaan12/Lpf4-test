@@ -203,8 +203,14 @@ const SuperAdminPage: React.FC = () => {
   
   const toggleVerification = async (uid: string, currentStatus?: boolean) => {
       const newStatus = !currentStatus;
+      // Set the pending flag only when turning verification ON
+      const updates: any = { isVerified: newStatus };
+      if (newStatus) {
+          updates.verificationNotificationPending = true;
+      }
+
       try {
-          await update(ref(db, `users/${uid}`), { isVerified: newStatus });
+          await update(ref(db, `users/${uid}`), updates);
           showToast(newStatus ? 'User Verified' : 'Verification Removed', 'success');
           if (selectedUser && selectedUser.uid === uid) {
               setSelectedUser({ ...selectedUser, isVerified: newStatus });
