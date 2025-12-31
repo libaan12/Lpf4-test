@@ -386,13 +386,42 @@ const GamePage: React.FC = () => {
   
   // Safe scores
   const safeScores = match.scores || {};
+  const winnerUid = match.winner;
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans overflow-hidden transition-colors pt-24">
        
+      {/* VS Screen Animation */}
       {showIntro && !isSpectator && (
           <div className="fixed inset-0 z-[60] flex flex-col md:flex-row items-center justify-center bg-slate-900 overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center text-white font-black text-6xl">VS</div>
+              {/* Left Side (Me) */}
+              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-orange-500 relative flex items-center justify-center animate__animated animate__slideInLeft">
+                  <div className="text-center z-10">
+                      <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={leftProfile.isVerified} />
+                      <h2 className="text-3xl font-black text-white uppercase drop-shadow-md">{leftProfile.name}</h2>
+                      <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {leftLevel}</div>
+                  </div>
+                  {/* Background Pattern */}
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+              </div>
+
+              {/* VS Badge */}
+              <div className="absolute z-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate__animated animate__zoomIn animate__delay-1s">
+                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-slate-900 shadow-[0_0_50px_rgba(255,255,255,0.5)]">
+                      <span className="font-black text-4xl italic text-slate-900">VS</span>
+                  </div>
+              </div>
+
+              {/* Right Side (Opponent) */}
+              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-blue-600 relative flex items-center justify-center animate__animated animate__slideInRight">
+                  <div className="text-center z-10">
+                      <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={rightProfile.isVerified} />
+                      <h2 className="text-3xl font-black text-white uppercase drop-shadow-md">{rightProfile.name}</h2>
+                      <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {rightLevel}</div>
+                  </div>
+                  {/* Background Pattern */}
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+              </div>
           </div>
       )}
 
@@ -465,24 +494,60 @@ const GamePage: React.FC = () => {
 
       <div className="flex-1 flex flex-col items-center justify-center p-4 w-full max-w-3xl mx-auto z-10">
         {isGameOver ? (
-           <Card className="text-center w-full animate__animated animate__zoomIn !p-8 md:!p-10 border-t-8 border-game-primary dark:border-game-primaryDark">
-               <div className="text-6xl mb-4">🏆</div>
-               <h1 className="text-4xl font-black text-game-primary mb-8 uppercase italic">Match Over!</h1>
-               
-               <div className="flex justify-center gap-4 md:gap-12 mb-10">
-                   <div className="text-center bg-orange-50 dark:bg-orange-900/20 p-4 rounded-2xl border border-orange-100 dark:border-orange-800">
-                       <Avatar src={leftProfile.avatar} size="lg" className="mx-auto mb-2 shadow-md" isVerified={leftProfile.isVerified} />
-                       <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{leftProfile.name}</div>
-                       <div className="font-black text-2xl text-game-primary">{safeScores[leftProfile.uid] ?? 0}</div>
-                   </div>
-                   <div className="flex items-center text-slate-300 font-black text-2xl italic">VS</div>
-                   <div className="text-center bg-red-50 dark:bg-red-900/20 p-4 rounded-2xl border border-red-100 dark:border-red-800 opacity-90">
-                       <Avatar src={rightProfile.avatar} size="lg" className="mx-auto mb-2 grayscale shadow-md" isVerified={rightProfile.isVerified} />
-                       <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{rightProfile.name}</div>
-                       <div className="font-black text-2xl text-game-danger">{safeScores[rightProfile.uid] ?? 0}</div>
-                   </div>
+           <Card className="text-center w-full animate__animated animate__zoomIn !p-0 overflow-hidden border-none shadow-2xl bg-white dark:bg-slate-800">
+               {/* Result Header */}
+               <div className={`py-12 relative ${winnerUid === user?.uid && !isSpectator ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : winnerUid === 'draw' ? 'bg-slate-500' : isSpectator ? 'bg-indigo-600' : 'bg-red-500'}`}>
+                   <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                   <h1 className="text-5xl md:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-lg relative z-10 animate__animated animate__bounceIn">
+                       {isSpectator ? 'Match Over!' : winnerUid === user?.uid ? 'Victory!' : winnerUid === 'draw' ? 'Draw' : 'Defeat'}
+                   </h1>
+                   <p className="text-white/80 font-bold uppercase tracking-widest mt-2 relative z-10">
+                       {isSpectator ? 'Result' : winnerUid === user?.uid ? '+20 Points' : winnerUid === 'draw' ? '+5 Points' : '+0 Points'}
+                   </p>
                </div>
-               <Button onClick={handleLeave} size="lg" fullWidth>Exit Arena</Button>
+               
+               <div className="p-8">
+                   <div className="flex justify-center items-center gap-8 mb-8">
+                       <div className="text-center">
+                           <div className="relative">
+                               <Avatar src={leftProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === leftProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/30' : 'border-slate-200 grayscale'}`} />
+                               {winnerUid === leftProfile.uid && <div className="absolute -top-6 -right-2 text-4xl animate-bounce">👑</div>}
+                           </div>
+                           <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{leftProfile.name}</div>
+                           <div className="font-black text-3xl text-slate-900 dark:text-white mt-1">{safeScores[leftProfile.uid] ?? 0}</div>
+                       </div>
+
+                       <div className="text-slate-300 font-black text-xl italic">VS</div>
+
+                       <div className="text-center">
+                           <div className="relative">
+                               <Avatar src={rightProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === rightProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/30' : 'border-slate-200 grayscale'}`} />
+                               {winnerUid === rightProfile.uid && <div className="absolute -top-6 -right-2 text-4xl animate-bounce">👑</div>}
+                           </div>
+                           <div className="font-bold text-slate-800 dark:text-white truncate max-w-[100px]">{rightProfile.name}</div>
+                           <div className="font-black text-3xl text-slate-900 dark:text-white mt-1">{safeScores[rightProfile.uid] ?? 0}</div>
+                       </div>
+                   </div>
+
+                   {!isSpectator && (
+                       <div className="grid grid-cols-2 gap-4 mb-6">
+                           <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl">
+                               <div className="text-xs text-slate-400 uppercase font-bold">Accuracy</div>
+                               <div className="font-black text-lg text-slate-800 dark:text-white">
+                                   {Math.round(((safeScores[leftProfile.uid] ?? 0) / (questions.length * POINTS_PER_QUESTION)) * 100)}%
+                               </div>
+                           </div>
+                           <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl">
+                               <div className="text-xs text-slate-400 uppercase font-bold">Total XP</div>
+                               <div className="font-black text-lg text-game-primary">{leftProfile.points}</div>
+                           </div>
+                       </div>
+                   )}
+
+                   <Button onClick={handleLeave} size="lg" fullWidth className="shadow-xl animate__animated animate__pulse animate__infinite">
+                       {isSpectator ? 'Leave Match' : 'Continue'} <i className="fas fa-arrow-right ml-2"></i>
+                   </Button>
+               </div>
            </Card>
         ) : (
             <>
