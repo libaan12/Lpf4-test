@@ -56,6 +56,7 @@ const GamePage: React.FC = () => {
   
   // Animation State
   const [showIntro, setShowIntro] = useState(false);
+  const [introShownOnce, setIntroShownOnce] = useState(false);
   const [showTurnAlert, setShowTurnAlert] = useState(false);
   const prevTurnRef = useRef<string | null>(null);
   
@@ -124,11 +125,10 @@ const GamePage: React.FC = () => {
     };
   }, [matchId, user, navigate, profile?.isSupport, isSpectator]); 
 
-  // 2. Presence Logic (Separated to avoid loop)
+  // 2. Presence Logic
   useEffect(() => {
       if (!matchId || !user || isSpectator) return;
       
-      // Update presence only on mount/unmount or matchId change, NOT on every match update
       const myStatusRef = ref(db, `matches/${matchId}/players/${user.uid}`);
       const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
       
@@ -149,7 +149,6 @@ const GamePage: React.FC = () => {
           const pIds = Object.keys(match.players || {});
           
           if (isSpectator) {
-              // Spectator View: Player 1 (Left), Player 2 (Right)
               if (pIds.length >= 2) {
                   const p1Snap = await get(ref(db, `users/${pIds[0]}`));
                   const p2Snap = await get(ref(db, `users/${pIds[1]}`));
@@ -157,27 +156,20 @@ const GamePage: React.FC = () => {
                   if (p2Snap.exists()) setRightProfile({ uid: pIds[1], ...p2Snap.val() });
               }
           } else {
-              // Player View: Me (Left), Opponent (Right)
               setLeftProfile(profile);
               const oppUid = pIds.find(uid => uid !== user.uid);
               if (oppUid) {
                   const oppSnap = await get(ref(db, `users/${oppUid}`));
                   if (oppSnap.exists()) {
                       setRightProfile({ uid: oppUid, ...oppSnap.val() });
-                      
-                      // Show Intro only if start of game
-                      if (match.currentQ === 0 && match.answersCount === 0 && !isSpectator) {
-                          setShowIntro(true);
-                          playSound('click'); 
-                      }
                   }
               }
           }
       };
       loadProfiles();
-  }, [match?.matchId, user?.uid, isSpectator, profile]); // Re-run if matchId changes or role changes
+  }, [match?.matchId, user?.uid, isSpectator, profile]);
 
-  // 4. Load Questions & Subject Name
+  // 4. Load Questions
   useEffect(() => {
       if (!match || !match.subject || questions.length > 0 || questionsLoadedRef.current) return;
       loadQuestions();
@@ -185,8 +177,7 @@ const GamePage: React.FC = () => {
 
   const loadQuestions = async () => {
       if (!match) return;
-      
-      questionsLoadedRef.current = true; // Lock
+      questionsLoadedRef.current = true;
       setIsLoadingError(false);
       let loadedQ: Question[] = [];
       const cacheKey = `questions_cache_${match.subject}`;
@@ -245,38 +236,24 @@ const GamePage: React.FC = () => {
       }
   };
 
-  const handleRetry = () => {
-      questionsLoadedRef.current = false;
-      setIsLoadingError(false);
-      loadQuestions();
-  };
-
-  // 5. Reset Selection on Question Change
+  // Trigger Intro sequence when game is ready
   useEffect(() => {
-      setSelectedOption(null);
-      setShowFeedback(null);
-      processingRef.current = false;
-  }, [match?.currentQ]);
-
-  // Handle Intro Timeout
-  useEffect(() => {
-      if (showIntro && match && rightProfile) {
-          const timer = setTimeout(() => setShowIntro(false), 3500); 
-          return () => clearTimeout(timer);
-      }
-  }, [showIntro, match, rightProfile]);
-
-  // Handle Turn Notifications
-  useEffect(() => {
-      if (!match || !user || isSpectator) return;
-      if (prevTurnRef.current && prevTurnRef.current !== match.turn && match.turn === user.uid) {
-          setShowTurnAlert(true);
+      if (!introShownOnce && questions.length > 0 && leftProfile && rightProfile && match && match.currentQ === 0 && match.answersCount === 0 && !isSpectator) {
+          setShowIntro(true);
+          setIntroShownOnce(true);
           playSound('click');
-          const timer = setTimeout(() => setShowTurnAlert(false), 1500); 
+      }
+  }, [questions.length, leftProfile, rightProfile, match?.matchId, introShownOnce, isSpectator]);
+
+  // Fix: Auto-dismiss VS screen after 3.5 seconds
+  useEffect(() => {
+      if (showIntro) {
+          const timer = setTimeout(() => {
+              setShowIntro(false);
+          }, 3500);
           return () => clearTimeout(timer);
       }
-      prevTurnRef.current = match.turn;
-  }, [match?.turn, user?.uid, isSpectator]);
+  }, [showIntro]);
 
   const triggerReactionAnimation = (reaction: MatchReaction) => {
     const id = ++reactionCounter.current;
@@ -300,17 +277,11 @@ const GamePage: React.FC = () => {
       });
   };
 
-  const currentQuestion = match && questions.length > 0 ? questions[match.currentQ] : null;
-  const isMyTurn = match?.turn === user?.uid;
-  const isGameOver = match?.status === 'completed';
-
   const handleOptionClick = async (index: number) => {
-    if (isSpectator) return; // Spectators cannot click
+    if (isSpectator) return;
     if (!match || !user || !isMyTurn || selectedOption !== null || processingRef.current || !currentQuestion) return;
     
-    // Safety check for scores object
     const currentScores = match.scores || {};
-    
     setSelectedOption(index);
     playSound('click');
     processingRef.current = true;
@@ -346,8 +317,6 @@ const GamePage: React.FC = () => {
                 }
 
                 await update(ref(db, `matches/${matchId}`), { scores: newScores, status: 'completed', winner, answersCount: 2 });
-                
-                setSelectedOption(null); setShowFeedback(null); processingRef.current = false;
                 return;
             }
             nextQ = match.currentQ + 1;
@@ -365,7 +334,6 @@ const GamePage: React.FC = () => {
   const handleReport = async () => {
       if (!currentQuestion || !user) return;
       playSound('click');
-      
       const { value: reason } = await Swal.fire({
           title: 'Report Question',
           input: 'select',
@@ -406,20 +374,14 @@ const GamePage: React.FC = () => {
 
   const handleLeave = async () => {
       if(!user || !matchId) return;
-      if (isSpectator) {
-          navigate('/support');
-          return;
-      }
+      if (isSpectator) { navigate('/support'); return; }
       if (match?.status === 'completed') try { await remove(ref(db, `matches/${matchId}`)); } catch(e) {}
       await set(ref(db, `users/${user.uid}/activeMatch`), null);
       navigate('/');
   };
 
   const handleSurrender = async () => {
-      if (isSpectator) {
-          handleLeave();
-          return;
-      }
+      if (isSpectator) { handleLeave(); return; }
       if (!match || !user || !rightProfile) return;
       const confirmed = await showConfirm("Exit Match?", "If you exit now, you will lose the match and forfeit points.", "Exit", "Stay", "warning");
       if (!confirmed) return;
@@ -429,92 +391,58 @@ const GamePage: React.FC = () => {
       await update(ref(db, `matches/${matchId}`), { status: 'completed', winner: rightProfile.uid });
       await set(ref(db, `users/${user.uid}/activeMatch`), null);
       navigate('/');
-      showToast("Match Forfeited", "info");
   };
 
-  const addFriend = async () => {
-      if(!user || !rightProfile) return;
-      await update(ref(db, `users/${rightProfile.uid}/friendRequests/${user.uid}`), { status: 'pending' });
-      showToast("Friend Request Sent!", "success");
-      setShowOpponentModal(false);
+  const handleRetry = () => {
+      questionsLoadedRef.current = false;
+      setIsLoadingError(false);
+      loadQuestions();
   };
 
-  // LOADING SCREEN
-  if (!match || !leftProfile || !rightProfile || (!currentQuestion && !isGameOver && !showIntro && !isSpectator)) {
+  const currentQuestion = match && questions.length > 0 ? questions[match.currentQ] : null;
+  const isMyTurn = match?.turn === user?.uid;
+  const isGameOver = match?.status === 'completed';
+
+  if (!match || !leftProfile || !rightProfile || isLoadingError || (!currentQuestion && !isGameOver && !showIntro && !isSpectator)) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
-            {isLoadingError ? (
-                <div className="animate__animated animate__fadeIn">
-                     <i className="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
-                     <h2 className="font-bold text-xl mb-2">Connection Issue</h2>
-                     <div className="flex gap-3 justify-center">
-                        <Button onClick={handleLeave} variant="secondary">Return</Button>
-                        <Button onClick={handleRetry} variant="primary">Retry</Button>
-                     </div>
-                </div>
-            ) : (
-                <div className="animate__animated animate__fadeIn">
-                     <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                        <i className="fas fa-gamepad text-game-accent"></i>
-                     </div>
-                     <h2 className="font-bold text-xl">{isSpectator ? 'Loading Match...' : 'Waiting for opponent...'}</h2>
-                </div>
-            )}
+             <div className="animate__animated animate__fadeIn">
+                  {isLoadingError ? (
+                      <div className="flex flex-col items-center gap-4">
+                          <i className="fas fa-exclamation-circle text-5xl text-red-500 mb-2"></i>
+                          <h2 className="font-bold text-xl">Connection Problem</h2>
+                          <p className="text-slate-400 text-sm mb-4">Could not load match questions.</p>
+                          <div className="flex gap-3">
+                              <Button onClick={handleLeave} variant="secondary">Exit</Button>
+                              <Button onClick={handleRetry}>Retry</Button>
+                          </div>
+                      </div>
+                  ) : (
+                      <>
+                        <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                           <i className="fas fa-gamepad text-game-accent"></i>
+                        </div>
+                        <h2 className="font-bold text-xl">{isSpectator ? 'Loading Match...' : 'Waiting for opponent...'}</h2>
+                      </>
+                  )}
+             </div>
         </div>
     );
   }
 
   const leftLevel = Math.floor((leftProfile.points || 0) / 10) + 1;
   const rightLevel = Math.floor((rightProfile.points || 0) / 10) + 1;
-  
-  // UI Logic helpers
   const leftIsActive = match.turn === leftProfile.uid;
   const rightIsActive = match.turn === rightProfile.uid;
-  
-  // Safe scores
   const safeScores = match.scores || {};
   const winnerUid = match.winner;
-
-  // Helper to render verified/support badges
-  const renderBadges = (user: UserProfile) => (
-      <>
-          {user.isVerified && <i className="fas fa-check-circle text-blue-500 ml-1" title="Verified"></i>}
-          {user.isSupport && <i className="fas fa-check-circle text-game-primary ml-1" title="Support"></i>}
-      </>
-  );
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans overflow-hidden transition-colors pt-24">
        
-      {/* Reaction Animation Overlay */}
-      {activeReactions.map(r => {
-          const isLeft = r.senderId === leftProfile.uid;
-          return (
-              <div 
-                  key={r.id} 
-                  className={`fixed z-[100] flex flex-col items-center animate__animated animate__bounceInUp animate__faster pointer-events-none`}
-                  style={{ 
-                      top: '25%', 
-                      [isLeft ? 'left' : 'right']: '15%',
-                  }}
-              >
-                  <div className={`bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-2xl border-2 border-game-primary flex items-center justify-center transition-all animate__animated animate__pulse animate__infinite`}>
-                      {r.value.length > 2 ? (
-                          <span className="font-black text-xs md:text-sm text-game-primary uppercase px-3 py-1">{r.value}</span>
-                      ) : (
-                          <span className="text-4xl md:text-6xl drop-shadow-lg">{r.value}</span>
-                      )}
-                  </div>
-                  {/* Floating pointer */}
-                  <div className={`w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-game-primary`}></div>
-              </div>
-          );
-      })}
-
       {/* VS Screen Animation */}
       {showIntro && !isSpectator && (
           <div className="fixed inset-0 z-[60] flex flex-col md:flex-row items-center justify-center bg-slate-900 overflow-hidden">
-              {/* Left Side (Me) */}
               <div className="w-full md:w-1/2 h-1/2 md:h-full bg-orange-500 relative flex items-center justify-center animate__animated animate__slideInLeft">
                   <div className="text-center z-10">
                       <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={leftProfile.isVerified} isSupport={leftProfile.isSupport} />
@@ -525,18 +453,12 @@ const GamePage: React.FC = () => {
                       </h2>
                       <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {leftLevel}</div>
                   </div>
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
               </div>
-
-              {/* VS Badge */}
               <div className="absolute z-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate__animated animate__zoomIn animate__delay-1s">
-                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-slate-900 shadow-[0_0_50px_rgba(255,255,255,0.5)]">
+                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-slate-900 shadow-2xl">
                       <span className="font-black text-4xl italic text-slate-900">VS</span>
                   </div>
               </div>
-
-              {/* Right Side (Opponent) */}
               <div className="w-full md:w-1/2 h-1/2 md:h-full bg-blue-600 relative flex items-center justify-center animate__animated animate__slideInRight">
                   <div className="text-center z-10">
                       <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} />
@@ -547,113 +469,75 @@ const GamePage: React.FC = () => {
                       </h2>
                       <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {rightLevel}</div>
                   </div>
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
               </div>
           </div>
       )}
 
-      {showTurnAlert && !isGameOver && !isSpectator && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-             <div className="bg-game-primary/90 text-white px-8 py-4 rounded-3xl shadow-2xl animate__animated animate__zoomInDown flex flex-col items-center">
-                <i className="fas fa-bolt text-5xl mb-2 animate-bounce"></i>
-                <h2 className="text-4xl font-black italic uppercase tracking-widest">Your Turn!</h2>
-             </div>
-          </div>
-      )}
-
+      {/* Exit Button Pill - Moved to Bottom-Left to avoid blocking reactions */}
       {!isGameOver && (
-          <div className="fixed top-20 left-4 z-[60] md:top-24 flex gap-2">
-              <button onClick={handleSurrender} className="bg-red-500/80 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg border-2 border-white/20 transition-all flex items-center gap-2 backdrop-blur-md">
-                  <i className="fas fa-sign-out-alt"></i> Exit
+          <div className="fixed bottom-24 left-4 z-[60]">
+              <button onClick={handleSurrender} className="bg-[#e74c3c] hover:bg-red-600 text-white px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-tighter shadow-2xl border-2 border-white/30 transition-all flex items-center gap-2 active:scale-95">
+                  <i className="fas fa-sign-out-alt rotate-180"></i> EXIT
               </button>
-          </div>
-      )}
-      
-      {isSpectator && !isGameOver && (
-          <div className="fixed top-20 right-4 z-[60] md:top-24">
-              <div className="bg-blue-600/90 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg border-2 border-white/20 flex items-center gap-2 backdrop-blur-md animate-pulse">
-                  <i className="fas fa-eye"></i> Spectating
-              </div>
-          </div>
-      )}
-
-      {/* Reaction Toggle Button */}
-      {!isGameOver && !isSpectator && (
-          <div className="fixed bottom-24 right-4 z-[60]">
-               <button 
-                onClick={() => setShowReactionMenu(!showReactionMenu)}
-                className={`w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-2xl border-4 border-game-primary text-2xl flex items-center justify-center transition-all ${showReactionMenu ? 'rotate-90 scale-110' : 'hover:scale-105 active:scale-95'}`}
-               >
-                   <i className={`fas ${showReactionMenu ? 'fa-times text-red-500' : 'fa-smile text-game-primary'}`}></i>
-               </button>
-               
-               {showReactionMenu && (
-                   <div className="absolute bottom-16 right-0 w-64 p-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-3xl shadow-2xl border-2 border-slate-100 dark:border-slate-700 animate__animated animate__bounceIn">
-                       <div className="grid grid-cols-4 gap-3 mb-4">
-                           {REACTION_EMOJIS.map(emoji => (
-                               <button 
-                                key={emoji} 
-                                onClick={() => sendReaction(emoji)}
-                                className="text-3xl hover:scale-125 transition-transform p-1"
-                               >
-                                   {emoji}
-                               </button>
-                           ))}
-                       </div>
-                       <div className="space-y-2 border-t border-slate-100 dark:border-slate-700 pt-3">
-                           {REACTION_MESSAGES.map(msg => (
-                               <button 
-                                key={msg} 
-                                onClick={() => sendReaction(msg)}
-                                className="w-full text-left px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide hover:bg-game-primary hover:text-white transition-colors"
-                               >
-                                   {msg}
-                               </button>
-                           ))}
-                       </div>
-                   </div>
-               )}
           </div>
       )}
 
       {/* HEADER SCOREBOARD */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-xl border-b border-slate-700 shadow-xl p-3">
-         <div className="max-w-4xl mx-auto flex justify-between items-center">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-[#2c3e50] border-b border-slate-700 shadow-xl p-3">
+         <div className="max-w-4xl mx-auto flex justify-between items-center px-4">
             {/* Left Player */}
-            <div className={`flex items-center gap-3 transition-all duration-300 ${leftIsActive && !isGameOver ? 'scale-105 opacity-100' : 'scale-95 opacity-60'}`}>
+            <div className={`flex items-center gap-3 transition-all ${leftIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
                  <div className="relative">
-                     <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="sm" border={leftIsActive ? '3px solid #f97316' : '3px solid transparent'} className={leftIsActive ? 'shadow-lg shadow-orange-500/50' : ''} isVerified={leftProfile.isVerified} isSupport={leftProfile.isSupport} />
-                     <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {leftLevel}</div>
+                     <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md" />
+                     <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase">LVL {leftLevel}</div>
+                     
+                     {/* REACTIONS FOR LEFT */}
+                     {activeReactions.filter(r => r.senderId === leftProfile.uid).map(r => (
+                         <div key={r.id} className="absolute -bottom-14 left-0 z-50 animate__animated animate__bounceIn animate__faster">
+                             <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
+                                <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
+                                <div className="absolute -top-1.5 left-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
+                             </div>
+                         </div>
+                     ))}
                  </div>
                  <div>
-                     <div className="flex items-center gap-1 max-w-[120px]">
-                         <div className="text-[10px] font-black uppercase text-slate-400 truncate">{leftProfile.name}</div>
-                         {renderBadges(leftProfile)}
-                         {leftIsActive && !isGameOver && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse ml-1"></span>}
+                     <div className="flex items-center gap-1.5">
+                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">{leftProfile.name}</div>
+                         {leftProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
                      </div>
-                     <div className="text-2xl font-black text-game-primary leading-none">{safeScores[leftProfile.uid] ?? 0}</div>
+                     <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[leftProfile.uid] ?? 0}</div>
                  </div>
             </div>
             
-            <div className="flex flex-col items-center">
-                 <div className="text-xl font-black text-slate-300 dark:text-gray-600 italic">VS</div>
-                 <div className="text-xs font-bold text-slate-400">Q {match.currentQ + 1}/{questions.length}</div>
+            <div className="text-center">
+                 <div className="text-lg font-black text-slate-100 italic tracking-tighter">VS</div>
+                 <div className="text-[9px] font-bold text-slate-400 uppercase">Q {match.currentQ + 1}/{questions.length}</div>
             </div>
             
             {/* Right Player */}
-            <div className={`flex items-center gap-3 flex-row-reverse text-right transition-all duration-300 ${rightIsActive && !isGameOver ? 'scale-105 opacity-100' : 'scale-95 opacity-60'} ${!isSpectator ? 'cursor-pointer' : ''}`} onClick={() => !isSpectator && setShowOpponentModal(true)}>
+            <div className={`flex items-center gap-3 flex-row-reverse text-right transition-all ${rightIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
                  <div className="relative">
-                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="sm" border={rightIsActive ? '3px solid #ef4444' : '3px solid transparent'} className={rightIsActive ? 'shadow-lg shadow-red-500/50' : ''} isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} />
-                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[8px] px-1 rounded font-bold border border-white">LVL {rightLevel}</div>
+                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md" />
+                    <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase">LVL {rightLevel}</div>
+
+                    {/* REACTIONS FOR RIGHT */}
+                    {activeReactions.filter(r => r.senderId === rightProfile.uid).map(r => (
+                         <div key={r.id} className="absolute -bottom-14 right-0 z-50 animate__animated animate__bounceIn animate__faster">
+                             <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
+                                <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
+                                <div className="absolute -top-1.5 right-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
+                             </div>
+                         </div>
+                     ))}
                  </div>
                  <div>
-                     <div className="flex items-center gap-1 justify-end max-w-[120px] ml-auto">
-                         {rightIsActive && !isGameOver && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-1"></span>}
-                         <div className="text-[10px] font-black uppercase text-slate-400 truncate">{rightProfile.name}</div>
-                         {renderBadges(rightProfile)}
+                     <div className="flex items-center gap-1.5 flex-row-reverse">
+                         {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-1"></span>}
+                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">MR LP</div>
+                         {rightProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
                      </div>
-                     <div className="text-2xl font-black text-game-danger leading-none">{safeScores[rightProfile.uid] ?? 0}</div>
+                     <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[rightProfile.uid] ?? 0}</div>
                  </div>
             </div>
          </div>
@@ -661,159 +545,80 @@ const GamePage: React.FC = () => {
 
       <div className="flex-1 flex flex-col items-center justify-center p-4 w-full max-w-3xl mx-auto z-10">
         {isGameOver ? (
-           <Card className="text-center w-full animate__animated animate__zoomIn !p-0 overflow-hidden border-none shadow-2xl bg-white dark:bg-slate-800">
-               {/* Result Header */}
-               <div className={`py-12 relative ${winnerUid === user?.uid && !isSpectator ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : winnerUid === 'draw' ? 'bg-slate-500' : isSpectator ? 'bg-indigo-600' : 'bg-red-500'}`}>
-                   <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                   <h1 className="text-5xl md:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-lg relative z-10 animate__animated animate__bounceIn">
-                       {isSpectator ? 'Match Over!' : winnerUid === user?.uid ? 'Victory!' : winnerUid === 'draw' ? 'Draw' : 'Defeat'}
+           <Card className="text-center w-full animate__animated animate__zoomIn !p-0 overflow-hidden border-none shadow-2xl bg-white">
+               <div className={`py-12 relative ${winnerUid === user?.uid ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-red-500'}`}>
+                   <h1 className="text-5xl font-black text-white uppercase italic tracking-tighter drop-shadow-lg relative z-10">
+                       {winnerUid === user?.uid ? 'Victory!' : 'Defeat'}
                    </h1>
-                   <p className="text-white/80 font-bold uppercase tracking-widest mt-2 relative z-10">
-                       {isSpectator ? 'Result' : winnerUid === user?.uid ? '+20 Points' : winnerUid === 'draw' ? '+5 Points' : '+0 Points'}
-                   </p>
                </div>
-               
                <div className="p-8">
                    <div className="flex justify-center items-center gap-8 mb-8">
                        <div className="text-center">
-                           <div className="relative">
-                               <Avatar src={leftProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === leftProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/30' : 'border-slate-200 grayscale'}`} isVerified={leftProfile.isVerified} isSupport={leftProfile.isSupport} />
-                               {winnerUid === leftProfile.uid && <div className="absolute -top-6 -right-2 text-4xl animate-bounce">👑</div>}
-                           </div>
-                           <div className="font-bold text-slate-800 dark:text-white truncate max-w-[120px] flex items-center justify-center gap-1">
-                               {leftProfile.name}
-                               {renderBadges(leftProfile)}
-                           </div>
-                           <div className="font-black text-3xl text-slate-900 dark:text-white mt-1">{safeScores[leftProfile.uid] ?? 0}</div>
+                           <Avatar src={leftProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === leftProfile.uid ? 'border-yellow-400' : 'border-slate-200 grayscale'}`} />
+                           <div className="font-black text-3xl text-slate-900 mt-1">{safeScores[leftProfile.uid] ?? 0}</div>
                        </div>
-
                        <div className="text-slate-300 font-black text-xl italic">VS</div>
-
                        <div className="text-center">
-                           <div className="relative">
-                               <Avatar src={rightProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === rightProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/30' : 'border-slate-200 grayscale'}`} isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} />
-                               {winnerUid === rightProfile.uid && <div className="absolute -top-6 -right-2 text-4xl animate-bounce">👑</div>}
-                           </div>
-                           <div className="font-bold text-slate-800 dark:text-white truncate max-w-[120px] flex items-center justify-center gap-1">
-                               {rightProfile.name}
-                               {renderBadges(rightProfile)}
-                           </div>
-                           <div className="font-black text-3xl text-slate-900 dark:text-white mt-1">{safeScores[rightProfile.uid] ?? 0}</div>
+                           <Avatar src={rightProfile.avatar} size="lg" className={`mx-auto mb-3 shadow-xl border-4 ${winnerUid === rightProfile.uid ? 'border-yellow-400' : 'border-slate-200 grayscale'}`} />
+                           <div className="font-black text-3xl text-slate-900 mt-1">{safeScores[rightProfile.uid] ?? 0}</div>
                        </div>
                    </div>
-
-                   {!isSpectator && (
-                       <div className="grid grid-cols-2 gap-4 mb-6">
-                           <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl">
-                               <div className="text-xs text-slate-400 uppercase font-bold">Accuracy</div>
-                               <div className="font-black text-lg text-slate-800 dark:text-white">
-                                   {Math.round(((safeScores[leftProfile.uid] ?? 0) / (questions.length * POINTS_PER_QUESTION)) * 100)}%
-                               </div>
-                           </div>
-                           <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-xl">
-                               <div className="text-xs text-slate-400 uppercase font-bold">Total XP</div>
-                               <div className="font-black text-lg text-game-primary">{leftProfile.points}</div>
-                           </div>
-                       </div>
-                   )}
-
-                   <Button onClick={handleLeave} size="lg" fullWidth className="shadow-xl animate__animated animate__pulse animate__infinite">
-                       {isSpectator ? 'Leave Match' : 'Continue'} <i className="fas fa-arrow-right ml-2"></i>
-                   </Button>
+                   <Button onClick={handleLeave} size="lg" fullWidth className="shadow-xl">Continue <i className="fas fa-arrow-right ml-2"></i></Button>
                </div>
            </Card>
         ) : (
             <>
                  {/* Question Card */}
-                 <div className="relative w-full bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.12)] mb-8 min-h-[200px] flex flex-col items-center justify-center text-center border border-slate-100 dark:border-slate-700 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
-                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 via-red-500 to-purple-600"></div>
-                     
-                     {/* Report Icon */}
+                 <div className="relative w-full bg-slate-100 rounded-[1.5rem] p-6 shadow-xl mb-6 min-h-[180px] flex flex-col items-center justify-center text-center border-t-4 border-orange-500">
                      <button onClick={handleReport} className="absolute top-4 right-6 text-slate-300 hover:text-red-500 transition-colors z-30" title="Report Question">
-                         <i className="fas fa-flag text-lg"></i>
+                         <i className="fas fa-flag text-lg opacity-50 hover:opacity-100"></i>
                      </button>
 
-                     <div className="relative z-10 mb-5">
-                         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 shadow-sm backdrop-blur-md">
-                             <i className="fas fa-layer-group text-game-primary text-xs"></i>
-                             <span className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest">
-                                 {subjectName || "Battle Arena"}
-                             </span>
+                     <div className="mb-4">
+                         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-200 text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                             <i className="fas fa-layer-group text-game-primary"></i> {subjectName}
                          </span>
                      </div>
-                     <h2 className="relative z-10 text-xl md:text-3xl font-black text-slate-800 dark:text-white leading-snug drop-shadow-sm animate__animated animate__fadeIn">
+                     <h2 className="relative z-10 text-xl md:text-2xl font-black text-[#2c3e50] leading-snug drop-shadow-sm">
                         {currentQuestion && currentQuestion.question}
                      </h2>
                  </div>
 
                  {/* Options Grid */}
-                 <div className="relative w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                     {/* Turn Overlay */}
+                 <div className="relative w-full grid grid-cols-1 gap-3">
                      {!isMyTurn && !isSpectator && (
-                         <div className="absolute inset-0 z-20 bg-slate-100/50 dark:bg-slate-900/50 backdrop-blur-[2px] rounded-3xl flex items-center justify-center animate__animated animate__fadeIn">
-                             <div className="bg-white dark:bg-slate-800 px-8 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 border-2 border-slate-200 dark:border-slate-600 transform scale-110">
-                                 <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                                     <i className="fas fa-hourglass-half text-indigo-500 animate-spin-slow"></i>
+                         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                             <div className="bg-white px-10 py-6 rounded-[2rem] shadow-[0_15px_50px_rgba(0,0,0,0.15)] flex flex-col items-center gap-3 animate__animated animate__fadeIn transform scale-110 border border-slate-50">
+                                 <div className="w-12 h-12 rounded-full bg-[#f1f1ff] flex items-center justify-center">
+                                     <i className="fas fa-hourglass-half text-[#6366f1] animate-pulse"></i>
                                  </div>
                                  <div className="text-center">
-                                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Waiting for</div>
-                                     <div className="text-base font-black text-slate-800 dark:text-white">{rightProfile.name}</div>
+                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Waiting for</div>
+                                     <div className="text-lg font-black text-[#2c3e50] tracking-tight">{rightProfile.name}</div>
                                  </div>
                              </div>
                          </div>
                      )}
 
                      {currentQuestion && currentQuestion.options.map((opt, idx) => {
-                        let isActive = selectedOption === idx;
-                        let bgClass = "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200";
-                        let letterClass = "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400";
-                        
-                        if (isSpectator) {
-                            bgClass += " opacity-90";
-                        } else {
-                            bgClass += " hover:border-game-primary dark:hover:border-game-primary";
-                        }
-
-                        if (isActive) {
-                             bgClass = "bg-game-primary border-game-primaryDark text-white translate-y-[4px] border-b-0";
-                             letterClass = "bg-white/20 text-white";
-                        } else if (!isSpectator) {
-                             bgClass += " border-b-[6px] active:border-b-0 active:translate-y-[6px]";
-                        } else {
-                             bgClass += " border-b-[6px]";
-                        }
-
+                        let bgClass = "bg-white border-slate-100 text-slate-700";
                         if (showFeedback) {
-                            if (idx === showFeedback.answer) {
-                                bgClass = "bg-green-500 border-green-700 text-white translate-y-[4px] border-b-0 animate__animated animate__pulse";
-                                letterClass = "bg-white/20 text-white";
-                            } else if (isActive) {
-                                bgClass = "bg-red-500 border-red-700 text-white translate-y-[4px] border-b-0 animate__animated animate__shakeX";
-                                letterClass = "bg-white/20 text-white";
-                            } else if (!isSpectator) {
-                                bgClass = "bg-slate-100 dark:bg-slate-900 border-transparent opacity-50 grayscale";
-                            }
+                            if (idx === showFeedback.answer) bgClass = "bg-green-500 text-white";
+                            else if (selectedOption === idx) bgClass = "bg-red-500 text-white";
+                            else bgClass = "opacity-50";
                         }
 
                         return (
                             <button 
-                                key={`${currentQuestion.id}_${idx}`} 
-                                disabled={!isMyTurn || selectedOption !== null || isSpectator} 
+                                key={idx} 
+                                disabled={!isMyTurn || selectedOption !== null} 
                                 onClick={() => handleOptionClick(idx)} 
-                                className={`group relative w-full p-5 rounded-2xl text-left transition-all duration-100 flex items-center gap-4 ${bgClass} ${(!isMyTurn || isSpectator) ? 'cursor-default' : ''}`}
+                                className={`w-full p-4 rounded-2xl text-left transition-all duration-100 flex items-center gap-4 border-2 shadow-sm ${bgClass}`}
                             >
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-transform ${!isSpectator && 'group-hover:scale-110'} ${letterClass}`}>
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm shrink-0 bg-slate-50 text-slate-400 ${showFeedback ? 'bg-white/20 text-white' : ''}`}>
                                     {String.fromCharCode(65 + idx)}
                                 </div>
-                                <span className="font-bold text-lg leading-tight flex-1">{opt}</span>
-                                
-                                {isActive && !showFeedback && <i className="fas fa-spinner fa-spin ml-2"></i>}
-                                {selectedOption !== null && idx === currentQuestion.answer && showFeedback && (
-                                    <i className="fas fa-check-circle text-white text-2xl animate__animated animate__zoomIn"></i>
-                                )}
-                                 {selectedOption !== null && idx === selectedOption && idx !== currentQuestion.answer && showFeedback && (
-                                    <i className="fas fa-times-circle text-white text-2xl animate__animated animate__zoomIn"></i>
-                                )}
+                                <span className="font-bold text-base leading-tight flex-1">{opt}</span>
                             </button>
                         );
                     })}
@@ -822,18 +627,40 @@ const GamePage: React.FC = () => {
         )}
       </div>
 
+      {/* Reaction Toggle Button */}
+      {!isGameOver && !isSpectator && (
+          <div className="fixed bottom-24 right-4 z-[60]">
+               <button 
+                onClick={() => setShowReactionMenu(!showReactionMenu)}
+                className="w-16 h-16 rounded-full bg-white shadow-2xl border-4 border-[#f97316] text-3xl flex items-center justify-center transition-all active:scale-95"
+               >
+                   <i className={`fas ${showReactionMenu ? 'fa-times text-red-500' : 'fa-smile text-[#f97316]'}`}></i>
+               </button>
+               
+               {showReactionMenu && (
+                   <div className="absolute bottom-20 right-0 w-64 p-4 bg-white/95 rounded-3xl shadow-2xl border-2 border-slate-100 animate__animated animate__bounceIn">
+                       <div className="grid grid-cols-4 gap-3 mb-4">
+                           {REACTION_EMOJIS.map(emoji => (
+                               <button key={emoji} onClick={() => sendReaction(emoji)} className="text-3xl hover:scale-125 transition-transform p-1">{emoji}</button>
+                           ))}
+                       </div>
+                       <div className="space-y-2 border-t border-slate-100 pt-3">
+                           {REACTION_MESSAGES.map(msg => (
+                               <button key={msg} onClick={() => sendReaction(msg)} className="w-full text-left px-4 py-2 rounded-xl bg-slate-50 text-[11px] font-black text-slate-600 uppercase tracking-wide hover:bg-game-primary hover:text-white transition-colors">{msg}</button>
+                           ))}
+                       </div>
+                   </div>
+               )}
+          </div>
+      )}
+
       {showOpponentModal && (
           <Modal isOpen={true} onClose={() => setShowOpponentModal(false)} title="Opponent Profile">
                <div className="flex flex-col items-center mb-6">
-                   <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
-                   <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center justify-center gap-2">
-                       {rightProfile.name} 
-                       {rightProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg" title="Verified"></i>}
-                       {rightProfile.isSupport && <i className="fas fa-check-circle text-game-primary text-lg" title="Support"></i>}
-                   </h2>
-                   <div className="grid grid-cols-2 gap-4 w-full mt-4"><div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center"><div className="text-xs text-slate-400 font-bold uppercase">Level</div><div className="text-xl font-black text-slate-800 dark:text-white">{rightLevel}</div></div><div className="bg-slate-50 dark:bg-slate-700 p-3 rounded-xl text-center"><div className="text-xs text-slate-400 font-bold uppercase">Points</div><div className="text-xl font-black text-game-primary dark:text-blue-400">{rightProfile.points}</div></div></div>
+                   <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" isVerified={rightProfile.isVerified} className="mb-4 shadow-xl border-4 border-white" />
+                   <h2 className="text-2xl font-black text-slate-900 text-center">{rightProfile.name}</h2>
                </div>
-               <Button fullWidth onClick={addFriend}><i className="fas fa-user-plus mr-2"></i> Add Friend</Button>
+               <Button fullWidth onClick={() => setShowOpponentModal(false)}>Close</Button>
           </Modal>
       )}
     </div>
