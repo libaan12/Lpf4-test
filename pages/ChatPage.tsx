@@ -241,7 +241,7 @@ const ChatPage: React.FC = () => {
       setTimeout(() => {
           setYearStep(2); // The Swap
           playSound('correct'); 
-      }, 1500);
+      }, 1200); // Trigger swap slightly faster
 
       setTimeout(() => {
           setShowYearAnim(false);
@@ -599,25 +599,42 @@ const ChatPage: React.FC = () => {
 
         {/* 2026 Celebration Overlay */}
         {showYearAnim && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none animate__animated animate__fadeIn">
-                <div className="relative font-black text-8xl md:text-9xl text-white drop-shadow-[0_0_25px_rgba(255,215,0,0.8)] flex items-center">
-                    <span className="text-yellow-400">202</span>
-                    <div className="relative w-[0.6em] h-[1em]">
-                        {/* Number 5 */}
-                        <span className={`absolute inset-0 text-yellow-400 transition-all duration-700 transform ${yearStep === 2 ? 'translate-y-32 opacity-0 rotate-45' : 'translate-y-0 opacity-100'}`}>
-                            5
-                        </span>
-                        {/* Number 6 */}
-                        <span className={`absolute inset-0 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-orange-500 transition-all duration-700 transform ${yearStep === 2 ? 'translate-y-0 opacity-100 scale-110' : '-translate-y-32 opacity-0'}`}>
-                            6
-                        </span>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+                {/* Backdrop with slight blur but transparent enough to see chat */}
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate__animated animate__fadeIn"></div>
+                
+                <div className="relative z-10 flex flex-col items-center">
+                    <div className="font-black text-9xl text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] flex items-center" style={{ fontFamily: 'Impact, sans-serif' }}>
+                        {/* 202 */}
+                        <span className="text-yellow-400 tracking-tighter">202</span>
+                        
+                        <div className="relative w-[0.6em] h-[1em]">
+                            {/* Number 5 - Exits */}
+                            <span 
+                                className={`absolute inset-0 text-yellow-400 flex justify-center transition-all duration-700 ease-in
+                                    ${yearStep >= 2 ? 'translate-y-[200%] rotate-[120deg] opacity-0' : 'translate-y-0 rotate-0 opacity-100'}
+                                `}
+                            >
+                                5
+                            </span>
+                            
+                            {/* Number 6 - Enters */}
+                            <span 
+                                className={`absolute inset-0 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-orange-500 flex justify-center transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
+                                    ${yearStep >= 2 ? 'translate-y-0 scale-100 opacity-100' : '-translate-y-[150%] scale-50 opacity-0'}
+                                `}
+                            >
+                                6
+                            </span>
+                        </div>
                     </div>
+                    
+                    {yearStep >= 2 && (
+                        <div className="mt-8 text-4xl font-black text-white uppercase tracking-widest animate__animated animate__jackInTheBox drop-shadow-lg text-center bg-game-primary px-6 py-2 rounded-full transform -rotate-2">
+                            Happy New Year!
+                        </div>
+                    )}
                 </div>
-                {yearStep === 2 && (
-                    <div className="absolute top-2/3 mt-12 text-2xl md:text-4xl font-black text-white uppercase tracking-widest animate__animated animate__zoomIn drop-shadow-lg text-center px-4">
-                        Happy New Year!
-                    </div>
-                )}
             </div>
         )}
     </div>

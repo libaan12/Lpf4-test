@@ -194,13 +194,17 @@ const SocialPage: React.FC = () => {
           const matchesSearch = (u.name||'').toLowerCase().includes(searchTerm.toLowerCase());
           return !isFriend && matchesSearch;
       }).sort((a, b) => {
-          // 0. Support First
-          if (a.isSupport !== b.isSupport) return a.isSupport ? -1 : 1;
-          // 1. Verified First
-          if (a.isVerified !== b.isVerified) return a.isVerified ? -1 : 1;
-          // 2. Online First
-          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
-          // 3. Name fallback
+          // 1. Verified Tier (Verified OR Support)
+          const aVerified = a.isVerified || a.isSupport;
+          const bVerified = b.isVerified || b.isSupport;
+          if (aVerified !== bVerified) return aVerified ? -1 : 1;
+          
+          // 2. Online Tier
+          const aOnline = !!a.isOnline;
+          const bOnline = !!b.isOnline;
+          if (aOnline !== bOnline) return aOnline ? -1 : 1;
+          
+          // 3. Alphabetical
           return (a.name || '').localeCompare(b.name || '');
       });
   }, [allUsers, friends, searchTerm]);
