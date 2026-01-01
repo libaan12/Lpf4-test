@@ -57,8 +57,6 @@ const GamePage: React.FC = () => {
   // Animation State
   const [showIntro, setShowIntro] = useState(false);
   const [introShownOnce, setIntroShownOnce] = useState(false);
-  const [showTurnAlert, setShowTurnAlert] = useState(false);
-  const prevTurnRef = useRef<string | null>(null);
   
   // Opponent Details Modal
   const [showOpponentModal, setShowOpponentModal] = useState(false);
@@ -245,7 +243,7 @@ const GamePage: React.FC = () => {
       }
   }, [questions.length, leftProfile, rightProfile, match?.matchId, introShownOnce, isSpectator]);
 
-  // Fix: Auto-dismiss VS screen after 3.5 seconds
+  // Auto-dismiss VS screen
   useEffect(() => {
       if (showIntro) {
           const timer = setTimeout(() => {
@@ -257,7 +255,11 @@ const GamePage: React.FC = () => {
 
   const triggerReactionAnimation = (reaction: MatchReaction) => {
     const id = ++reactionCounter.current;
-    setActiveReactions(prev => [...prev, { id, senderId: reaction.senderId, value: reaction.value }]);
+    setActiveReactions(prev => {
+        // Fix: Automatically disappear the first/previous reaction when a new one is sent by the same user
+        const filtered = prev.filter(r => r.senderId !== reaction.senderId);
+        return [...filtered, { id, senderId: reaction.senderId, value: reaction.value }];
+    });
     playSound('reaction');
     setTimeout(() => {
         setActiveReactions(prev => prev.filter(r => r.id !== id));
@@ -473,7 +475,7 @@ const GamePage: React.FC = () => {
           </div>
       )}
 
-      {/* Exit Button Pill - Moved to Top Center (below VS) as indicated in screenshot */}
+      {/* Exit Button Pill */}
       {!isGameOver && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60]">
               <button onClick={handleSurrender} className="bg-[#e74c3c] hover:bg-red-600 text-white px-5 py-2 rounded-full font-black text-xs uppercase tracking-tighter shadow-2xl border-2 border-white/30 transition-all flex items-center gap-2 active:scale-95">
@@ -496,7 +498,6 @@ const GamePage: React.FC = () => {
                          <div key={r.id} className="absolute -bottom-14 left-0 z-50 animate__animated animate__bounceIn animate__faster">
                              <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
                                 <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
-                                {/* Speech Bubble Arrow pointing to Avatar */}
                                 <div className="absolute -top-1.5 left-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
                              </div>
                          </div>
@@ -527,16 +528,16 @@ const GamePage: React.FC = () => {
                          <div key={r.id} className="absolute -bottom-14 right-0 z-50 animate__animated animate__bounceIn animate__faster">
                              <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
                                 <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
-                                {/* Speech Bubble Arrow pointing to Avatar */}
                                 <div className="absolute -top-1.5 right-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
                              </div>
                          </div>
                      ))}
                  </div>
                  <div>
-                     <div className="flex items-center gap-1.5 flex-row-reverse">
-                         {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-1"></span>}
-                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">MR LP</div>
+                     {/* Fix: Display Verified badge after the name as requested */}
+                     <div className="flex items-center gap-1.5 justify-end">
+                         {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>}
+                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">{rightProfile.name}</div>
                          {rightProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
                      </div>
                      <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[rightProfile.uid] ?? 0}</div>
