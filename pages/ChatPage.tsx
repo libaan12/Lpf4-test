@@ -54,7 +54,7 @@ const ChatPage: React.FC = () => {
       }
   }, []);
 
-  // Initialize Chat
+  // Initialize Chat & Profile Listener
   useEffect(() => {
       if (!user || !uid) return;
       
@@ -65,9 +65,12 @@ const ChatPage: React.FC = () => {
       setMessages([]);
       setLoadingHistory(true);
       
-      // Fetch Target User Info
-      get(ref(db, `users/${uid}`)).then(snap => {
-          if (snap.exists()) setTargetUser({ uid, ...snap.val() });
+      // REAL-TIME Target User Profile Listener (Fixes Online Indicator)
+      const targetUserRef = ref(db, `users/${uid}`);
+      const unsubProfile = onValue(targetUserRef, snap => {
+          if (snap.exists()) {
+              setTargetUser({ uid, ...snap.val() });
+          }
       });
 
       // Construct Chat ID
@@ -91,7 +94,7 @@ const ChatPage: React.FC = () => {
       // --- 2. SYNC NEW MESSAGES ---
       const msgsQuery = query(ref(db, `chats/${derivedChatId}/messages`), limitToLast(50));
 
-      const unsub = onChildAdded(msgsQuery, (snapshot) => {
+      const unsubMsgs = onChildAdded(msgsQuery, (snapshot) => {
           const data = snapshot.val();
           if (!data) return;
           
@@ -106,7 +109,7 @@ const ChatPage: React.FC = () => {
               }
           }
 
-          // Real-time update for invitation status if message exists in state
+          // Real-time update for messages
           setMessages(prev => {
               const existingIndex = prev.findIndex(m => m.id === newMsg.id);
               if (existingIndex !== -1) {
@@ -143,17 +146,6 @@ const ChatPage: React.FC = () => {
           }
       });
       
-      // Also listen for changes to existing messages (specifically for Invite Status updates)
-      const msgsRef = ref(db, `chats/${derivedChatId}/messages`);
-      const changeUnsub = onValue(msgsRef, (snap) => {
-          if(!snap.exists()) return;
-          const data = snap.val();
-          setMessages(prev => prev.map(m => {
-              if (data[m.id]) return { ...m, ...data[m.id] };
-              return m;
-          }));
-      });
-
       const metaRef = ref(db, `chats/${derivedChatId}/lastMessageStatus`);
       const metaUnsub = onValue(metaRef, (snap) => {
           if (snap.exists() && snap.val() === 'read') {
@@ -162,10 +154,9 @@ const ChatPage: React.FC = () => {
       });
 
       return () => {
-          unsub();
-          changeUnsub();
+          unsubProfile();
+          unsubMsgs();
           off(metaRef);
-          off(msgsRef);
       };
   }, [user, uid]);
 
@@ -183,7 +174,7 @@ const ChatPage: React.FC = () => {
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
       setShowScrollButton(!isNearBottom);
 
-      // Pagination (Load older messages)
+      // Pagination
       if (container.scrollTop === 0 && chatId && messages.length > 0 && !loadingHistory) {
           const oldestTs = messages[0].timestamp;
           const olderMsgs = await chatCache.getMessages(chatId, 20, oldestTs - 1);
@@ -197,7 +188,6 @@ const ChatPage: React.FC = () => {
                    return unique.sort((a,b) => a.timestamp - b.timestamp);
               });
               
-              // Maintain scroll position after loading history
               requestAnimationFrame(() => {
                   const newHeight = container.scrollHeight;
                   container.scrollTop = newHeight - oldHeight;
@@ -237,11 +227,10 @@ const ChatPage: React.FC = () => {
           });
       }, 250);
 
-      // Swap sequence
       setTimeout(() => {
           setYearStep(2); // The Swap
           playSound('correct'); 
-      }, 1200); // Trigger swap slightly faster
+      }, 1200);
 
       setTimeout(() => {
           setShowYearAnim(false);
@@ -305,7 +294,6 @@ const ChatPage: React.FC = () => {
       if (type === 'text') setInputText('');
 
       setMessages(prev => [...prev, msgData]);
-      // Force scroll after adding message
       setTimeout(scrollToBottom, 50);
       
       chatCache.saveMessage(msgData);
@@ -376,7 +364,6 @@ const ChatPage: React.FC = () => {
               linkedChatPath: `chats/${chatId}/messages/${msgId}` 
           });
           
-          // Send message directly to avoid tempId mismatch for linked path
           const timestamp = Date.now();
           const msgData: ChatMessage = {
               id: msgId!,
@@ -444,13 +431,6 @@ const ChatPage: React.FC = () => {
   return (
     <div className="fixed inset-0 flex flex-col z-50 bg-slate-100 dark:bg-slate-900 transition-colors">
         
-        {/* Dynamic Background Pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none z-0" 
-             style={{ 
-                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` 
-             }}
-        ></div>
-
         {/* Header */}
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 p-4 shadow-sm flex items-center justify-between relative z-20">
             <div className="flex items-center gap-3">
@@ -465,7 +445,7 @@ const ChatPage: React.FC = () => {
                         {targetUser.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        {isOffline ? <span className="text-red-500"><i className="fas fa-wifi"></i> Offline</span> : `@${targetUser.username}`}
+                        {targetUser.isOnline ? <span className="text-green-500 font-black"><i className="fas fa-circle text-[6px] align-middle mr-1 animate-pulse"></i> Online</span> : `@${targetUser.username}`}
                     </div>
                 </div>
             </div>
@@ -506,7 +486,6 @@ const ChatPage: React.FC = () => {
                                          <div className="text-2xl font-mono font-black tracking-widest">{msg.inviteCode}</div>
                                      </div>
                                      
-                                     {/* Invite Status Indicators */}
                                      {status === 'played' ? (
                                          <div className="bg-green-500/20 text-green-300 dark:text-green-400 font-bold px-4 py-2 rounded-xl text-xs border border-green-500/30 flex items-center justify-center gap-2"><i className="fas fa-check-circle"></i> Played</div>
                                      ) : status === 'canceled' ? (
@@ -543,7 +522,6 @@ const ChatPage: React.FC = () => {
         {showScrollButton && (
             <button onClick={scrollToBottom} className="fixed bottom-24 right-4 z-50 w-10 h-10 bg-slate-900/50 dark:bg-slate-700/50 text-white rounded-full shadow-lg backdrop-blur-md flex items-center justify-center animate__animated animate__fadeInUp hover:bg-slate-900 transition-colors">
                 <i className="fas fa-arrow-down"></i>
-                {messages.length > 0 && messages[messages.length - 1].sender !== user?.uid && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
             </button>
         )}
 
@@ -600,16 +578,12 @@ const ChatPage: React.FC = () => {
         {/* 2026 Celebration Overlay */}
         {showYearAnim && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-                {/* Backdrop with slight blur but transparent enough to see chat */}
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate__animated animate__fadeIn"></div>
                 
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="font-black text-9xl text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] flex items-center" style={{ fontFamily: 'Impact, sans-serif' }}>
-                        {/* 202 */}
                         <span className="text-yellow-400 tracking-tighter">202</span>
-                        
                         <div className="relative w-[0.6em] h-[1em]">
-                            {/* Number 5 - Exits */}
                             <span 
                                 className={`absolute inset-0 text-yellow-400 flex justify-center transition-all duration-700 ease-in
                                     ${yearStep >= 2 ? 'translate-y-[200%] rotate-[120deg] opacity-0' : 'translate-y-0 rotate-0 opacity-100'}
@@ -617,8 +591,6 @@ const ChatPage: React.FC = () => {
                             >
                                 5
                             </span>
-                            
-                            {/* Number 6 - Enters */}
                             <span 
                                 className={`absolute inset-0 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-orange-500 flex justify-center transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
                                     ${yearStep >= 2 ? 'translate-y-0 scale-100 opacity-100' : '-translate-y-[150%] scale-50 opacity-0'}

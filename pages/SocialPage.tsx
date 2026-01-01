@@ -27,50 +27,14 @@ const SocialPage: React.FC = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
 
-  // --- DATA STATES WITH LOCAL STORAGE INIT ---
-
-  const [friends, setFriends] = useState<UserProfile[]>(() => {
-      try {
-          const cached = localStorage.getItem(`lp_social_friends_${user?.uid}`);
-          return cached ? JSON.parse(cached) : [];
-      } catch { return []; }
-  });
-
-  const [requests, setRequests] = useState<{uid: string, user: UserProfile}[]>(() => {
-      try {
-          const cached = localStorage.getItem(`lp_social_requests_${user?.uid}`);
-          return cached ? JSON.parse(cached) : [];
-      } catch { return []; }
-  });
-
-  const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
-      try {
-          const cached = localStorage.getItem(`lp_social_all_users`);
-          return cached ? JSON.parse(cached) : [];
-      } catch { return []; }
-  });
-
-  const [chatMetadata, setChatMetadata] = useState<Record<string, ChatMeta>>(() => {
-      try {
-          const cached = localStorage.getItem(`lp_chat_meta_${user?.uid}`);
-          return cached ? JSON.parse(cached) : {};
-      } catch { return {}; }
-  });
-
+  // --- DATA STATES ---
+  const [friends, setFriends] = useState<UserProfile[]>([]);
+  const [requests, setRequests] = useState<{uid: string, user: UserProfile}[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [chatMetadata, setChatMetadata] = useState<Record<string, ChatMeta>>({});
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
-  // --- PERSISTENCE EFFECT ---
-  useEffect(() => {
-      if(user) {
-          localStorage.setItem(`lp_social_friends_${user.uid}`, JSON.stringify(friends));
-          localStorage.setItem(`lp_social_requests_${user.uid}`, JSON.stringify(requests));
-          localStorage.setItem(`lp_social_all_users`, JSON.stringify(allUsers));
-          localStorage.setItem(`lp_chat_meta_${user.uid}`, JSON.stringify(chatMetadata));
-      }
-  }, [friends, requests, allUsers, chatMetadata, user]);
-
   // --- FIREBASE LISTENERS ---
-
   useEffect(() => {
       if (!user) return;
       const usersRef = ref(db, 'users');
@@ -136,7 +100,6 @@ const SocialPage: React.FC = () => {
   }, [user, friends]);
 
   // --- ACTIONS ---
-
   const sendRequest = async (targetUid: string) => {
       if(!user) return;
       await update(ref(db, `users/${targetUid}/friendRequests`), { [user.uid]: true });
@@ -164,7 +127,6 @@ const SocialPage: React.FC = () => {
   };
 
   // --- SWIPE LOGIC ---
-  
   const handleScroll = () => {
       if (scrollContainerRef.current) {
           const x = scrollContainerRef.current.scrollLeft;
@@ -187,22 +149,22 @@ const SocialPage: React.FC = () => {
       }
   };
 
-  // Filter & Sort
+  // Filter & Sort Logic (Strict: Verified -> Online -> Alpha)
   const exploreList = useMemo(() => {
       return allUsers.filter(u => {
           const isFriend = friends.some(f => f.uid === u.uid);
           const matchesSearch = (u.name||'').toLowerCase().includes(searchTerm.toLowerCase());
           return !isFriend && matchesSearch;
       }).sort((a, b) => {
-          // 1. Verified Tier (Verified OR Support)
-          const aVerified = a.isVerified || a.isSupport;
-          const bVerified = b.isVerified || b.isSupport;
-          if (aVerified !== bVerified) return aVerified ? -1 : 1;
+          // 1. Verified Tier
+          const aVerifiedScore = (a.isVerified || a.isSupport) ? 1 : 0;
+          const bVerifiedScore = (b.isVerified || b.isSupport) ? 1 : 0;
+          if (aVerifiedScore !== bVerifiedScore) return bVerifiedScore - aVerifiedScore;
           
           // 2. Online Tier
-          const aOnline = !!a.isOnline;
-          const bOnline = !!b.isOnline;
-          if (aOnline !== bOnline) return aOnline ? -1 : 1;
+          const aOnlineScore = a.isOnline ? 1 : 0;
+          const bOnlineScore = b.isOnline ? 1 : 0;
+          if (aOnlineScore !== bOnlineScore) return bOnlineScore - aOnlineScore;
           
           // 3. Alphabetical
           return (a.name || '').localeCompare(b.name || '');
@@ -243,7 +205,6 @@ const SocialPage: React.FC = () => {
             className="flex-1 flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-            
             {/* CHATS TAB */}
             <div className="min-w-full w-full snap-center overflow-y-auto p-4 custom-scrollbar pb-24" style={{ scrollSnapStop: 'always' }}>
                 <div className="max-w-2xl mx-auto space-y-3">
@@ -265,7 +226,6 @@ const SocialPage: React.FC = () => {
                                     onClick={() => navigate(`/chat/${f.uid}`)} 
                                     className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-50 dark:border-slate-700/50 flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-all relative"
                                 >
-                                    {/* Online Indicator on Card (Optional visual cue) - we use Avatar's dot mostly */}
                                     <div className="relative">
                                         <Avatar src={f.avatar} seed={f.uid} size="md" isVerified={f.isVerified} isSupport={f.isSupport} isOnline={f.isOnline} />
                                     </div>
@@ -298,7 +258,6 @@ const SocialPage: React.FC = () => {
                                                 </div>
                                             )}
                                             
-                                            {/* Unread Count Badge (Red Circle) */}
                                             {meta.unreadCount > 0 && (
                                                 <span className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow-sm animate-pulse ml-auto">
                                                     {meta.unreadCount}
@@ -338,7 +297,9 @@ const SocialPage: React.FC = () => {
                                             {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
                                             {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                                         </div>
-                                        <div className="text-[11px] text-slate-400 font-medium">@{u.username || 'unknown'}</div>
+                                        <div className="text-[11px] text-slate-400 font-medium">
+                                            {u.isOnline ? <span className="text-green-500 font-bold"><i className="fas fa-circle text-[6px] mr-1 align-middle"></i> Online</span> : `@${u.username || 'unknown'}`}
+                                        </div>
                                     </div>
                                 </div>
                                 {hasRequested ? (
@@ -411,7 +372,7 @@ const SocialPage: React.FC = () => {
         {selectedUser && (
             <Modal isOpen={true} onClose={() => setSelectedUser(null)} title={selectedUser.name}>
                 <div className="flex flex-col items-center mb-6">
-                    <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" isVerified={selectedUser.isVerified} isSupport={selectedUser.isSupport} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
+                    <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" isVerified={selectedUser.isVerified} isSupport={selectedUser.isSupport} isOnline={selectedUser.isOnline} className="mb-4 shadow-xl border-4 border-white dark:border-slate-700" />
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white text-center flex items-center gap-2">
                         {selectedUser.name}
                         {selectedUser.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg"></i>}
@@ -419,6 +380,12 @@ const SocialPage: React.FC = () => {
                     </h2>
                     <p className="text-slate-400 font-bold font-mono text-sm">@{selectedUser.username}</p>
                     
+                    {selectedUser.isOnline && (
+                        <div className="mt-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest animate-pulse">
+                            <i className="fas fa-circle text-[8px] mr-1"></i> Currently Online
+                        </div>
+                    )}
+
                     {selectedUser.isSupport ? (
                         <div className="mt-6">
                             <span className="inline-flex items-center gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest">
