@@ -296,11 +296,11 @@ const SuperAdminPage: React.FC = () => {
     }
   };
 
-  // --- APP UPDATE ACTION ---
+  // --- APP UPDATE ACTION (Unlimited manual refresh) ---
   const handleUpdateApp = async () => {
     const confirmed = await showConfirm(
         "Update Application?", 
-        "This will force ALL users to refresh their app instantly to apply the latest Vercel updates. This might interrupt ongoing games.",
+        "This will force ALL users to refresh their app instantly. This is unlimited and will trigger every time you click.",
         "Push Update",
         "Cancel",
         "warning"
@@ -309,8 +309,8 @@ const SuperAdminPage: React.FC = () => {
 
     try {
         setLoading(true);
-        // Set lastAppUpdate to current server time
-        await set(ref(db, 'settings/lastAppUpdate'), serverTimestamp());
+        // Push a random unique value to ensure the listener always sees a "change"
+        await set(ref(db, 'settings/lastAppUpdate'), `${Date.now()}_${Math.random()}`);
         showToast("App Update Pushed!", "success");
     } catch (e) {
         console.error(e);

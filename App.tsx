@@ -30,9 +30,6 @@ import SocialPage from './pages/SocialPage';
 import ChatPage from './pages/ChatPage';
 import { SupportDashboard } from './pages/SupportDashboard';
 
-// Store the time the app was loaded to compare with update signals
-const APP_LOAD_TIME = Date.now();
-
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
   const { user, loading } = React.useContext(UserContext);
@@ -61,6 +58,9 @@ const AppContent: React.FC = () => {
   // Verification Modal State
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   
+  // App Update Signal tracking
+  const initialUpdateSignal = useRef<any>(null);
+
   // Theme Logic - Defaults to Light
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
@@ -86,16 +86,22 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 1. App Update Listener - Force Refresh for all users
+  // 1. App Update Listener - "Unlimited" Refresh Trigger
   useEffect(() => {
     const updateRef = ref(db, 'settings/lastAppUpdate');
     const unsubscribe = onValue(updateRef, (snapshot) => {
       if (snapshot.exists()) {
-        const updateTime = snapshot.val();
-        // If there's an update time in DB that is newer than when this app session started
-        if (updateTime > APP_LOAD_TIME) {
-          console.log("App update detected, reloading...");
-          // We could show a toast here, but user asked for automatic refresh
+        const currentSignal = snapshot.val();
+        
+        // If this is the first time we're reading the signal since page load
+        if (initialUpdateSignal.current === null) {
+          initialUpdateSignal.current = currentSignal;
+          return;
+        }
+        
+        // If the signal has changed since we started the app, it means the admin clicked "Update"
+        if (currentSignal !== initialUpdateSignal.current) {
+          console.log("App update signal received, refreshing...");
           window.location.reload();
         }
       }
