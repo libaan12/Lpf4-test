@@ -1,15 +1,15 @@
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { ref, onValue, update, serverTimestamp, onDisconnect, get } from 'firebase/database';
+import { ref, onValue, update, serverTimestamp, onDisconnect } from 'firebase/database';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
 import { LPAssistant } from './components/LPAssistant';
 import { UsernamePrompt } from './components/UsernamePrompt';
 import { UserContext, ThemeContext } from './contexts';
-import { showAlert, showToast } from './services/alert';
+import { showAlert } from './services/alert';
 import confetti from 'canvas-confetti';
 import { playSound } from './services/audioService';
 import { Button, Modal } from './components/UI';
@@ -58,9 +58,6 @@ const AppContent: React.FC = () => {
   // Verification Modal State
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   
-  // App Update Signal tracking
-  const initialUpdateSignal = useRef<any>(null);
-
   // Theme Logic - Defaults to Light
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
@@ -86,30 +83,7 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 1. App Update Listener - "Unlimited" Refresh Trigger
-  useEffect(() => {
-    const updateRef = ref(db, 'settings/lastAppUpdate');
-    const unsubscribe = onValue(updateRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const currentSignal = snapshot.val();
-        
-        // If this is the first time we're reading the signal since page load
-        if (initialUpdateSignal.current === null) {
-          initialUpdateSignal.current = currentSignal;
-          return;
-        }
-        
-        // If the signal has changed since we started the app, it means the admin clicked "Update"
-        if (currentSignal !== initialUpdateSignal.current) {
-          console.log("App update signal received, refreshing...");
-          window.location.reload();
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 2. Setup Auth Listener (Runs Once)
+  // 1. Setup Auth Listener (Runs Once)
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -122,7 +96,7 @@ const AppContent: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // 3. Setup User Profile & Presence Listener (Runs when User changes)
+  // 2. Setup User Profile & Presence Listener (Runs when User changes)
   useEffect(() => {
     if (!user) return;
 
@@ -175,7 +149,7 @@ const AppContent: React.FC = () => {
     };
   }, [user]);
 
-  // 4. Navigation Logic (Runs when profile or location changes)
+  // 3. Navigation Logic (Runs when profile or location changes)
   useEffect(() => {
       if (profile?.activeMatch && !location.pathname.includes('/game') && !profile.isSupport) {
           navigate(`/game/${profile.activeMatch}`);

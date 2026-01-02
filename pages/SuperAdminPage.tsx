@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ref, update, onValue, off, set, remove, get, serverTimestamp } from 'firebase/database';
+import { ref, update, onValue, off, set, remove, get } from 'firebase/database';
 import { db } from '../firebase';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport } from '../types';
 import { Button, Card, Input, Modal, Avatar } from '../components/UI';
@@ -296,30 +296,6 @@ const SuperAdminPage: React.FC = () => {
     }
   };
 
-  // --- APP UPDATE ACTION (Unlimited manual refresh) ---
-  const handleUpdateApp = async () => {
-    const confirmed = await showConfirm(
-        "Update Application?", 
-        "This will force ALL users to refresh their app instantly. This is unlimited and will trigger every time you click.",
-        "Push Update",
-        "Cancel",
-        "warning"
-    );
-    if (!confirmed) return;
-
-    try {
-        setLoading(true);
-        // Push a random unique value to ensure the listener always sees a "change"
-        await set(ref(db, 'settings/lastAppUpdate'), `${Date.now()}_${Math.random()}`);
-        showToast("App Update Pushed!", "success");
-    } catch (e) {
-        console.error(e);
-        showAlert("Error", "Failed to push update signal.", "error");
-    } finally {
-        setLoading(false);
-    }
-  };
-
   // --- QUIZ ACTIONS ---
 
   const handleDeleteQuestion = async (qId: string | number) => {
@@ -463,16 +439,7 @@ const SuperAdminPage: React.FC = () => {
                     <h1 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white uppercase tracking-tight">Super Admin</h1>
                     <p className="text-gray-500 dark:text-gray-400 font-bold text-xs">System Control Center</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={handleUpdateApp} 
-                        title="Force App Update (Refreshes all user devices)"
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter shadow-lg transition-transform active:scale-95 flex items-center gap-1.5"
-                    >
-                        <i className="fas fa-sync-alt"></i> Update App
-                    </button>
-                    <button onClick={() => navigate('/')} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><i className="fas fa-times text-xl"></i></button>
-                </div>
+                <button onClick={() => navigate('/')} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><i className="fas fa-times text-xl"></i></button>
             </div>
             <div className="flex bg-slate-100 dark:bg-gray-800 rounded-xl p-1 gap-1 overflow-x-auto">
                 <button onClick={() => setActiveTab('users')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'users' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>Users</button>
