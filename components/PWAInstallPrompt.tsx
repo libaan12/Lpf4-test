@@ -54,13 +54,8 @@ export const PWAInstallPrompt: React.FC = () => {
     <div className="fixed top-4 left-0 right-0 z-[100] px-4 flex justify-center pointer-events-none">
         <div className="pointer-events-auto bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 shadow-2xl rounded-[1.5rem] p-3 w-full max-w-sm flex items-center gap-3 animate__animated animate__slideInDown">
             
-            <div className="relative w-12 h-12 bg-gradient-to-br from-game-primary to-orange-600 rounded-2xl shadow-lg flex items-center justify-center shrink-0">
-                {/* Logo Placeholder: User will upload logo.png to root */}
-                <img src="logo.png" alt="App Logo" className="w-8 h-8 object-contain drop-shadow-md filter brightness-200" onError={(e) => {
-                    // Fallback if image load fails
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<i class="fas fa-bolt text-white text-xl"></i>';
-                }} />
+            <div className="relative w-12 h-12 bg-gradient-to-br from-game-primary to-orange-600 rounded-2xl shadow-lg flex items-center justify-center shrink-0 overflow-hidden">
+                <img src="https://files.catbox.moe/qn40s6.png" alt="App Logo" className="w-10 h-10 object-contain drop-shadow-md filter brightness-100" />
             </div>
 
             <div className="flex-1 min-w-0">

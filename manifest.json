@@ -4,7 +4,7 @@
   "name": "LP-F4",
   "icons": [
     {
-      "src": "logo.png",
+      "src": "https://files.catbox.moe/qn40s6.png",
       "sizes": "192x192 512x512",
       "type": "image/png"
     }
@@ -15,5 +15,5 @@
   "background_color": "#0f172a",
   "orientation": "portrait",
   "scope": "/",
-  "description": "The ultimate multiplayer quiz Game for class F4"
+  "description": "The ultimate multiplayer quiz Game for class F4 students."
 }
