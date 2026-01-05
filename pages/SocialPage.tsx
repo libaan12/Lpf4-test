@@ -221,7 +221,7 @@ const SocialPage: React.FC = () => {
     <div className="absolute inset-0 flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
         
         {/* Top Header */}
-        <div className="z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 pt-10 pb-3 px-4 shadow-sm md:pt-4 transition-all shrink-0">
+        <div className="z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 pt-4 pb-3 px-4 shadow-sm transition-all shrink-0">
             <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
                 <h1 className="text-2xl font-black italic text-slate-800 dark:text-white uppercase tracking-tighter transform scale-y-110">STUDENTS</h1>
                 
