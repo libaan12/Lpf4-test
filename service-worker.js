@@ -1,11 +1,7 @@
-/// <reference lib="webworker" />
 
 /* eslint-disable no-restricted-globals */
 
-// Export empty type to treat this file as a module and prevent global scope collisions
-export type {};
-
-const CACHE_NAME = 'lp-f4-cache-v2';
+const CACHE_NAME = 'lp-f4-cache-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -17,7 +13,7 @@ const urlsToCache = [
 ];
 
 // Install a service worker
-self.addEventListener('install', (event: any) => {
+self.addEventListener('install', (event) => {
   // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -26,14 +22,11 @@ self.addEventListener('install', (event: any) => {
         return cache.addAll(urlsToCache);
       })
   );
-  (self as any).skipWaiting();
+  self.skipWaiting();
 });
 
 // Cache and return requests
-self.addEventListener('fetch', (event: any) => {
-  // Skip cross-origin requests like Firebase or Google Analytics from strict caching if needed
-  // But for CDN assets we want to try cache first
-  
+self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -54,7 +47,6 @@ self.addEventListener('fetch', (event: any) => {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 // Only cache if it matches our allowed list or is same origin
-                // This is a simple strategy, can be refined
                 if (event.request.url.startsWith(self.location.origin)) {
                     cache.put(event.request, responseToCache);
                 }
@@ -68,7 +60,7 @@ self.addEventListener('fetch', (event: any) => {
 });
 
 // Update a service worker
-self.addEventListener('activate', (event: any) => {
+self.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -82,5 +74,5 @@ self.addEventListener('activate', (event: any) => {
       );
     })
   );
-  (self as any).clients.claim();
+  self.clients.claim();
 });
