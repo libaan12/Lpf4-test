@@ -124,19 +124,31 @@ const GamePage: React.FC = () => {
     };
   }, [matchId, user, navigate, profile?.isSupport, isSpectator]); 
 
-  // 2. Presence Logic
+  // 2. Presence Logic (Enhanced)
   useEffect(() => {
       if (!matchId || !user || isSpectator) return;
       
-      const myStatusRef = ref(db, `matches/${matchId}/players/${user.uid}`);
-      const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
-      
-      update(myStatusRef, { status: 'online', lastSeen: serverTimestamp(), level: myLevel });
-      const disconnectRef = onDisconnect(myStatusRef);
-      disconnectRef.update({ status: 'offline', lastSeen: serverTimestamp() });
+      const connectedRef = ref(db, ".info/connected");
+      const unsubscribeConnected = onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+              const myStatusRef = ref(db, `matches/${matchId}/players/${user.uid}`);
+              const myLevel = Math.floor((profile?.points || 0) / 10) + 1;
+              
+              onDisconnect(myStatusRef).update({
+                  status: 'offline',
+                  lastSeen: serverTimestamp()
+              }).then(() => {
+                  update(myStatusRef, { 
+                      status: 'online', 
+                      lastSeen: serverTimestamp(),
+                      level: myLevel 
+                  });
+              });
+          }
+      });
 
       return () => {
-          disconnectRef.cancel();
+          unsubscribeConnected();
       };
   }, [matchId, user, isSpectator, profile?.points]);
 
@@ -248,6 +260,7 @@ const GamePage: React.FC = () => {
   useEffect(() => {
       if (match?.turn === user?.uid && !match.winner && !isSpectator && !showIntro) {
           setShowTurnAlert(true);
+          playSound('turn'); // Play notification sound
           const timer = setTimeout(() => setShowTurnAlert(false), 2000);
           return () => clearTimeout(timer);
       } else {
@@ -358,6 +371,10 @@ const GamePage: React.FC = () => {
           inputPlaceholder: 'Dooro sababta...',
           showCancelButton: true,
           confirmButtonText: 'Dir (Send)',
+          // Validation: Disable send until valid selection
+          inputValidator: (value) => {
+              return !value && 'Fadlan dooro sababta (Please select a reason)';
+          },
           customClass: {
               popup: 'glass-swal-popup',
               title: 'glass-swal-title',
@@ -657,7 +674,7 @@ const GamePage: React.FC = () => {
         ) : (
             <>
                  {/* Question Card */}
-                 <div className="relative w-full bg-slate-100 dark:bg-slate-800 rounded-[1.5rem] p-6 shadow-xl mb-6 min-h-[180px] flex flex-col items-center justify-center text-center border-t-4 border-orange-500">
+                 <div className={`relative w-full bg-slate-100 dark:bg-slate-800 rounded-[1.5rem] p-6 shadow-xl mb-6 min-h-[180px] flex flex-col items-center justify-center text-center border-t-4 transition-colors duration-300 ${isMyTurn ? 'border-orange-500 shadow-orange-500/10' : 'border-slate-300 dark:border-slate-600'}`}>
                      <button onClick={handleReport} className="absolute top-4 right-6 text-slate-300 hover:text-red-500 transition-colors z-30" title="Report Question">
                          <i className="fas fa-flag text-lg opacity-50 hover:opacity-100"></i>
                      </button>
@@ -676,12 +693,12 @@ const GamePage: React.FC = () => {
                  <div className="relative w-full grid grid-cols-1 gap-3">
                      {!isMyTurn && !isSpectator && (
                          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                             <div className="bg-white dark:bg-slate-800 px-10 py-6 rounded-[2rem] shadow-[0_15px_50px_rgba(0,0,0,0.15)] flex flex-col items-center gap-3 animate__animated animate__fadeIn transform scale-110 border border-slate-50 dark:border-slate-700">
+                             <div className="backdrop-blur-xl bg-white/30 dark:bg-slate-900/40 border border-white/50 px-10 py-6 rounded-[2rem] shadow-[0_15px_50px_rgba(0,0,0,0.15)] flex flex-col items-center gap-3 animate__animated animate__fadeIn transform scale-110">
                                  <div className="w-12 h-12 rounded-full bg-[#f1f1ff] dark:bg-indigo-900/30 flex items-center justify-center">
-                                     <i className="fas fa-hourglass-half text-[#6366f1] animate-pulse"></i>
+                                     <i className="fas fa-hourglass-half text-[#6366f1] animate-bounce"></i>
                                  </div>
                                  <div className="text-center">
-                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Waiting for</div>
+                                     <div className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-1">Waiting for</div>
                                      <div className="text-lg font-black text-[#2c3e50] dark:text-white tracking-tight">{rightProfile.name}</div>
                                  </div>
                              </div>
@@ -692,6 +709,11 @@ const GamePage: React.FC = () => {
                         let bgClass = "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200";
                         let animateClass = "";
                         
+                        // Default blocked style for opponent's turn
+                        if (!isMyTurn && !isSpectator) {
+                            bgClass = "bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-400 blur-[2px] opacity-60 grayscale";
+                        }
+
                         if (showFeedback) {
                             if (idx === showFeedback.answer) {
                                 bgClass = "bg-green-500 text-white border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)] z-10 scale-[1.02]";

@@ -108,11 +108,27 @@ const AppContent: React.FC = () => {
 
     const userRef = ref(db, `users/${user.uid}`);
     
-    // Presence Logic
-    const presenceRef = ref(db, `users/${user.uid}`);
-    update(presenceRef, { isOnline: true, lastSeen: serverTimestamp() });
-    const disconnectRef = onDisconnect(presenceRef);
-    disconnectRef.update({ isOnline: false, lastSeen: serverTimestamp() });
+    // --- REAL-TIME PRESENCE SYSTEM ---
+    // Use .info/connected to handle connection state changes robustly
+    const connectedRef = ref(db, ".info/connected");
+    
+    const unsubscribeConnected = onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+            const presenceRef = ref(db, `users/${user.uid}`);
+            
+            // When we disconnect, update the last_changed timestamp and isOnline status
+            onDisconnect(presenceRef).update({
+                isOnline: false,
+                lastSeen: serverTimestamp()
+            }).then(() => {
+                // When we connect, set online to true
+                update(presenceRef, {
+                    isOnline: true,
+                    lastSeen: serverTimestamp()
+                });
+            });
+        }
+    });
 
     const unsubscribeUser = onValue(userRef, (snapshot) => {
       const data = snapshot.val();
@@ -145,7 +161,12 @@ const AppContent: React.FC = () => {
 
     return () => {
         unsubscribeUser();
-        disconnectRef.cancel();
+        unsubscribeConnected();
+        // Cancel disconnect op on unmount if possible, though usually handled by connection drop
+        if (user) {
+            const presenceRef = ref(db, `users/${user.uid}`);
+            update(presenceRef, { isOnline: false, lastSeen: serverTimestamp() });
+        }
     };
   }, [user]);
 
@@ -203,7 +224,7 @@ const AppContent: React.FC = () => {
         {/* GLOBAL GAMING BACKGROUND */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
             {/* Base Layer */}
-            <div className="absolute inset-0 bg-slate-50 dark:bg-slate-950 transition-colors duration-500" />
+            <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 transition-colors duration-500" />
             
             {/* Primary Gradient Mesh (Orange) - Top Left */}
             <div className="absolute top-0 left-0 w-[120vw] h-[120vw] sm:w-[80vw] sm:h-[80vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-200/50 via-transparent to-transparent dark:from-orange-900/30 dark:via-transparent dark:to-transparent blur-3xl transform -translate-x-1/3 -translate-y-1/3" />
