@@ -35,7 +35,10 @@ export const SupportDashboard: React.FC = () => {
           if (snapshot.exists()) {
               const data = snapshot.val();
               const list: UserProfile[] = Object.keys(data).map(k => ({ uid: k, ...data[k] }));
-              setUsers(list.reverse()); // Newest first
+              // Sort by createdAt descending (Newest first)
+              // If createdAt is missing, treat as 0 (oldest)
+              list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+              setUsers(list); 
           } else {
               setUsers([]);
           }
@@ -129,6 +132,18 @@ export const SupportDashboard: React.FC = () => {
       u.username?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const formatRegDate = (ts?: number) => {
+      if (!ts) return 'Unknown';
+      const date = new Date(ts);
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const formatRegTime = (ts?: number) => {
+      if (!ts) return '';
+      const date = new Date(ts);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans transition-colors pt-20">
         {/* Header */}
@@ -189,6 +204,29 @@ export const SupportDashboard: React.FC = () => {
             {/* USERS TAB */}
             {activeTab === 'users' && (
                 <div className="animate__animated animate__fadeIn">
+                    
+                    {/* Top 10 Newest Users */}
+                    <div className="mb-8">
+                        <div className="flex items-center gap-2 mb-3 ml-1">
+                            <i className="fas fa-clock text-game-primary"></i>
+                            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">New Arrivals (Last 10)</h2>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 overflow-x-auto flex gap-4 custom-scrollbar pb-4 snap-x">
+                            {users.slice(0, 10).map((u, i) => (
+                                <div key={'recent-'+u.uid} className="min-w-[140px] snap-start flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700/50 relative">
+                                    <div className="absolute top-2 left-2 bg-green-500 text-white text-[9px] px-1.5 rounded font-black">#{i+1}</div>
+                                    <Avatar src={u.avatar} seed={u.uid} size="md" isVerified={u.isVerified} className="mb-2 shadow-sm" />
+                                    <div className="font-bold text-xs text-slate-800 dark:text-white truncate w-full text-center mb-1">{u.name}</div>
+                                    <div className="bg-white dark:bg-slate-800 px-2 py-1 rounded text-[10px] font-mono text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-700 text-center w-full">
+                                        <div className="font-bold">{formatRegDate(u.createdAt)}</div>
+                                        <div className="text-[9px] opacity-70">{formatRegTime(u.createdAt)}</div>
+                                    </div>
+                                </div>
+                            ))}
+                            {users.length === 0 && <div className="text-slate-400 text-sm p-4">No users found.</div>}
+                        </div>
+                    </div>
+
                     <div className="mb-6 relative max-w-md">
                         <Input 
                             placeholder="Search by name or username..." 
@@ -209,7 +247,11 @@ export const SupportDashboard: React.FC = () => {
                                             {u.banned && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded uppercase">Banned</span>}
                                         </div>
                                         <div className="text-xs text-slate-500 font-mono">@{u.username || 'guest'}</div>
-                                        <div className="text-xs text-game-primary font-black mt-1">{u.points} PTS <span className="text-slate-300">|</span> LVL {Math.floor(u.points/10)+1}</div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs text-game-primary font-black">{u.points} PTS</span>
+                                            <span className="text-slate-300">|</span>
+                                            <span className="text-[10px] text-slate-400">Reg: {formatRegDate(u.createdAt)}</span>
+                                        </div>
                                     </div>
                                 </div>
                                 

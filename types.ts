@@ -19,6 +19,7 @@ export interface UserProfile {
   isGuest?: boolean;
   isOnline?: boolean;
   lastSeen?: number;
+  createdAt?: number; // Registration timestamp
   friends?: { [uid: string]: boolean };
 }
 
