@@ -13,7 +13,7 @@ import confetti from 'canvas-confetti';
 
 const ChatPage: React.FC = () => {
   const { uid } = useParams(); // Target user ID
-  const { user } = useContext(UserContext);
+  const { user, profile } = useContext(UserContext);
   const navigate = useNavigate();
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -78,6 +78,10 @@ const ChatPage: React.FC = () => {
       const derivedChatId = `${participants[0]}_${participants[1]}`;
       setChatId(derivedChatId);
 
+      // --- 0. CLEAR UNREAD COUNT ON ENTRY ---
+      // This ensures notifications on other screens are cleared immediately when opening the chat
+      update(ref(db, `chats/${derivedChatId}/unread/${user.uid}`), { count: 0 });
+
       // --- 1. LOAD CACHE ---
       chatCache.getMessages(derivedChatId, 50).then(cachedMsgs => {
           setMessages(prev => {
@@ -139,8 +143,10 @@ const ChatPage: React.FC = () => {
           
           chatCache.saveMessage(newMsg);
 
+          // Mark as read immediately if it's incoming
           if (newMsg.sender !== user.uid && newMsg.msgStatus !== 'read') {
               update(ref(db, `chats/${derivedChatId}/messages/${newMsg.id}`), { msgStatus: 'read' });
+              // Also ensure count is kept at 0 while inside chat
               update(ref(db, `chats/${derivedChatId}/unread/${user.uid}`), { count: 0 });
               update(ref(db, `chats/${derivedChatId}`), { lastMessageStatus: 'read' });
           }
@@ -267,7 +273,8 @@ const ChatPage: React.FC = () => {
       e?.preventDefault();
       if ((!inputText.trim() && type === 'text') || !user || !chatId) return;
 
-      playSound('message');
+      // Play SENT sound
+      playSound('sent');
 
       // Check for keywords in outgoing message
       if (type === 'text' && (inputText.includes('2025') || inputText.includes('2026'))) {
@@ -392,7 +399,7 @@ const ChatPage: React.FC = () => {
           runTransaction(recipientUnreadRef, (c) => (c || 0) + 1);
 
           setShowGameSetup(false);
-          playSound('correct');
+          playSound('sent');
           showToast('Invite sent!', 'success');
           
           navigate('/lobby', { state: { hostedCode: code } });
@@ -428,6 +435,9 @@ const ChatPage: React.FC = () => {
 
   if (!targetUser) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 text-slate-500 dark:text-white font-bold">Loading...</div>;
 
+  // HIDE PLAY BUTTON IF EITHER USER IS SUPPORT
+  const isSupportConversation = profile?.isSupport || targetUser?.isSupport;
+
   return (
     <div className="fixed inset-0 flex flex-col z-50 bg-slate-100 dark:bg-slate-900 transition-colors">
         
@@ -449,9 +459,13 @@ const ChatPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-            <button onClick={openMatchSetup} disabled={isOffline} className="bg-game-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform hover:bg-indigo-600 disabled:opacity-50">
-                <i className="fas fa-gamepad mr-2"></i> Play
-            </button>
+            
+            {/* HIDE PLAY BUTTON FOR SUPPORT CHATS */}
+            {!isSupportConversation && (
+                <button onClick={openMatchSetup} disabled={isOffline} className="bg-game-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shadow-lg shadow-indigo-500/30 active:scale-95 transition-transform hover:bg-indigo-600 disabled:opacity-50">
+                    <i className="fas fa-gamepad mr-2"></i> Play
+                </button>
+            )}
         </div>
 
         {/* Messages */}
