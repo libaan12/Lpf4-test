@@ -13,6 +13,7 @@ import { showAlert } from './services/alert';
 import confetti from 'canvas-confetti';
 import { playSound } from './services/audioService';
 import { Button, Modal } from './components/UI';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 
 // Pages
 import AuthPage from './pages/AuthPage';
@@ -25,7 +26,6 @@ import ProfilePage from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
 import AboutPage from './pages/AboutPage';
 import SuperAdminPage from './pages/SuperAdminPage';
-import DownloadPage from './pages/DownloadPage'; 
 import SocialPage from './pages/SocialPage';
 import ChatPage from './pages/ChatPage';
 import { SupportDashboard } from './pages/SupportDashboard';
@@ -228,7 +228,6 @@ const AppContent: React.FC = () => {
                 <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth relative custom-scrollbar">
                   <Routes>
                       <Route path="/auth" element={!user ? <AuthPage /> : <Navigate to="/" />} />
-                      <Route path="/download" element={<DownloadPage />} />
                       <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
                       <Route path="/lobby" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
                       <Route path="/social" element={<ProtectedRoute><SocialPage /></ProtectedRoute>} />
@@ -250,6 +249,9 @@ const AppContent: React.FC = () => {
                 
                 {/* Username Prompt for Guests */}
                 {user && <UsernamePrompt />}
+                
+                {/* PWA Install Banner */}
+                <PWAInstallPrompt />
 
                 {/* Verification Success Modal */}
                 <Modal isOpen={showVerificationModal} onClose={handleDismissVerification}>

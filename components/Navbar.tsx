@@ -21,8 +21,6 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
   ];
 
   if (profile?.isSupport) {
-      // If support, add dashboard link (mostly relevant for vertical/desktop view, but safe to add)
-      // Actually for support, we might want to prioritize it or just add it
       if (!navItems.find(i => i.path === '/support')) {
           navItems.push({ path: '/support', icon: 'fa-headset', label: 'Support', isNew: false });
       }
@@ -66,19 +64,6 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
                         );
                     })}
                 </div>
-            </div>
-            
-            <div className="px-2">
-                <button 
-                    onClick={() => navigate('/download')}
-                    className="w-full flex items-center gap-3 px-4 py-4 bg-slate-900 dark:bg-black text-white rounded-3xl shadow-xl transition-transform hover:-translate-y-1"
-                >
-                    <i className="fab fa-android text-2xl text-green-400"></i>
-                    <div className="text-left hidden lg:block">
-                        <div className="text-[10px] uppercase font-bold opacity-60">Download</div>
-                        <div className="text-sm font-bold">App v2.5</div>
-                    </div>
-                </button>
             </div>
         </div>
       );

@@ -1,21 +1,17 @@
+
 /// <reference lib="webworker" />
 
 /* eslint-disable no-restricted-globals */
 
-// This service worker can be customized!
-// See https://developers.google.com/web/tools/workbox/modules
-// for the list of available Workbox modules, or add any other
-// code you'd like.
-// You can also remove this file if you'd prefer not to use a
-// service worker, and the Workbox build step will be skipped.
-
-const CACHE_NAME = 'lp-f4-cache-v1';
+const CACHE_NAME = 'lp-f4-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/logo.png',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css'
+  'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css',
+  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap'
 ];
 
 // Install a service worker
@@ -33,6 +29,9 @@ self.addEventListener('install', (event: any) => {
 
 // Cache and return requests
 self.addEventListener('fetch', (event: any) => {
+  // Skip cross-origin requests like Firebase or Google Analytics from strict caching if needed
+  // But for CDN assets we want to try cache first
+  
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -40,9 +39,29 @@ self.addEventListener('fetch', (event: any) => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
-      }
-    )
+        return fetch(event.request).then(
+          (response) => {
+            // Check if we received a valid response
+            if(!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+
+            // Clone the response
+            const responseToCache = response.clone();
+
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                // Only cache if it matches our allowed list or is same origin
+                // This is a simple strategy, can be refined
+                if (event.request.url.startsWith(self.location.origin)) {
+                    cache.put(event.request, responseToCache);
+                }
+              });
+
+            return response;
+          }
+        );
+      })
   );
 });
 

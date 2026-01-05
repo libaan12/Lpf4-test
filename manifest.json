@@ -1,9 +1,10 @@
+
 {
   "short_name": "LP-F4",
   "name": "LP-F4 Battle Arena",
   "icons": [
     {
-      "src": "https://files.catbox.moe/qn40s6.png",
+      "src": "logo.png",
       "sizes": "192x192 512x512",
       "type": "image/png"
     }
