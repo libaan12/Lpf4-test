@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ref, onValue, update, onDisconnect, get, set, remove, serverTimestamp, push } from 'firebase/database';
+import { ref, onValue, update, onDisconnect, get, set, remove, serverTimestamp, push, onChildAdded } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { POINTS_PER_QUESTION } from '../constants';
@@ -35,6 +35,14 @@ const shuffleArraySeeded = <T,>(array: T[], rng: () => number): T[] => {
         [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
     }
     return newArr;
+};
+
+// --- WebRTC Configuration ---
+const iceServers = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
 };
 
 const GamePage: React.FC = () => {
@@ -74,6 +82,14 @@ const GamePage: React.FC = () => {
 
   // Loading State
   const [isLoadingError, setIsLoadingError] = useState(false);
+  
+  // --- WebRTC & Audio State ---
+  const [isTalking, setIsTalking] = useState(false);
+  const [hasMicPermission, setHasMicPermission] = useState(false);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   
   const processingRef = useRef(false);
   const questionsLoadedRef = useRef(false);
@@ -153,7 +169,8 @@ const GamePage: React.FC = () => {
               
               onDisconnect(myStatusRef).update({
                   status: 'offline',
-                  lastSeen: serverTimestamp()
+                  lastSeen: serverTimestamp(),
+                  isSpeaking: false // Ensure we stop speaking if we disconnect
               }).then(() => {
                   update(myStatusRef, { 
                       status: 'online', 
@@ -263,6 +280,155 @@ const GamePage: React.FC = () => {
           questionsLoadedRef.current = false;
       }
   };
+
+  // --- VOICE CHAT IMPLEMENTATION ---
+  
+  // A. Initialize Audio & Permissions
+  useEffect(() => {
+      if (isSpectator || !user || !matchId) return;
+
+      const initAudio = async () => {
+          try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              localStreamRef.current = stream;
+              // Mute initially for PTT
+              stream.getAudioTracks().forEach(track => track.enabled = false);
+              setHasMicPermission(true);
+          } catch (e) {
+              console.warn("Microphone permission denied or not available", e);
+              setHasMicPermission(false);
+          }
+      };
+
+      initAudio();
+
+      return () => {
+          if (localStreamRef.current) {
+              localStreamRef.current.getTracks().forEach(track => track.stop());
+          }
+      };
+  }, [isSpectator, user, matchId]);
+
+  // B. WebRTC Signaling Logic
+  useEffect(() => {
+      if (isSpectator || !user || !rightProfile || !matchId || !hasMicPermission) return;
+
+      // Ensure PeerConnection is created
+      if (!peerConnectionRef.current) {
+          const pc = new RTCPeerConnection(iceServers);
+          peerConnectionRef.current = pc;
+
+          // Add Local Stream
+          if (localStreamRef.current) {
+              localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+          }
+
+          // Handle Remote Stream
+          pc.ontrack = (event) => {
+              if (remoteAudioRef.current) {
+                  remoteAudioRef.current.srcObject = event.streams[0];
+                  remoteStreamRef.current = event.streams[0];
+              }
+          };
+
+          // Handle ICE Candidates
+          pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                  push(ref(db, `matches/${matchId}/webrtc/candidates/${user.uid}`), event.candidate.toJSON());
+              }
+          };
+      }
+
+      const pc = peerConnectionRef.current;
+      const signalingRef = ref(db, `matches/${matchId}/webrtc`);
+
+      // 1. Negotiation Logic: User with Lower UID is the Offerer (Caller)
+      const isOfferer = user.uid < rightProfile.uid;
+
+      const createOffer = async () => {
+          if (!pc) return;
+          try {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              await set(ref(db, `matches/${matchId}/webrtc/offer`), {
+                  type: 'offer',
+                  sdp: offer.sdp,
+                  sender: user.uid
+              });
+          } catch (e) { console.error("Error creating offer", e); }
+      };
+
+      if (isOfferer) {
+          // Trigger offer if not already done (check presence of remote peer logic could be added for robustness)
+          // For simplicity, we trigger shortly after both present
+          createOffer();
+      }
+
+      // 2. Listen for Signaling Messages
+      const handleSignaling = (snapshot: any) => {
+          if (!snapshot.exists()) return;
+          const data = snapshot.val();
+
+          // Handle Offer (Callee side)
+          if (data.offer && data.offer.sender !== user.uid && !pc.currentRemoteDescription) {
+              pc.setRemoteDescription(new RTCSessionDescription(data.offer)).then(async () => {
+                  const answer = await pc.createAnswer();
+                  await pc.setLocalDescription(answer);
+                  await set(ref(db, `matches/${matchId}/webrtc/answer`), {
+                      type: 'answer',
+                      sdp: answer.sdp,
+                      sender: user.uid
+                  });
+              });
+          }
+
+          // Handle Answer (Caller side)
+          if (data.answer && data.answer.sender !== user.uid && !pc.currentRemoteDescription) {
+              pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          }
+      };
+
+      const unsubSignaling = onValue(signalingRef, handleSignaling);
+
+      // 3. Listen for ICE Candidates
+      const candidatesRef = ref(db, `matches/${matchId}/webrtc/candidates/${rightProfile.uid}`);
+      const unsubCandidates = onChildAdded(candidatesRef, (snapshot) => {
+          if (snapshot.exists() && pc.remoteDescription) {
+              try {
+                  pc.addIceCandidate(new RTCIceCandidate(snapshot.val()));
+              } catch (e) { console.error("Error adding candidate", e); }
+          }
+      });
+
+      return () => {
+          unsubSignaling();
+          unsubCandidates();
+          if (peerConnectionRef.current) {
+              peerConnectionRef.current.close();
+              peerConnectionRef.current = null;
+          }
+      };
+  }, [user, rightProfile, matchId, hasMicPermission, isSpectator]);
+
+  // C. Push-To-Talk Handlers
+  const startTalking = () => {
+      if (localStreamRef.current) {
+          localStreamRef.current.getAudioTracks()[0].enabled = true;
+          setIsTalking(true);
+          update(ref(db, `matches/${matchId}/players/${user?.uid}`), { isSpeaking: true });
+          playSound('click'); // Subtle feedback
+      }
+  };
+
+  const stopTalking = () => {
+      if (localStreamRef.current) {
+          localStreamRef.current.getAudioTracks()[0].enabled = false;
+          setIsTalking(false);
+          update(ref(db, `matches/${matchId}/players/${user?.uid}`), { isSpeaking: false });
+      }
+  };
+
+  // --- End Voice Chat Implementation ---
 
   // Trigger Intro sequence when game is ready
   useEffect(() => {
@@ -421,6 +587,12 @@ const GamePage: React.FC = () => {
 
   const handleLeave = async () => {
       if(!user || !matchId) return;
+      
+      // Stop WebRTC audio if active
+      if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      
       if (isSpectator) { navigate('/support'); return; }
       if (match?.status === 'completed') try { await remove(ref(db, `matches/${matchId}`)); } catch(e) {}
       await set(ref(db, `users/${user.uid}/activeMatch`), null);
@@ -483,6 +655,10 @@ const GamePage: React.FC = () => {
   const rightIsActive = match.turn === rightProfile.uid;
   const safeScores = match.scores || {};
   const winnerUid = match.winner;
+  
+  // Real-time Speaking Status from DB
+  const isLeftSpeaking = match.players?.[leftProfile.uid]?.isSpeaking || false;
+  const isRightSpeaking = match.players?.[rightProfile.uid]?.isSpeaking || false;
 
   return (
     <div className="min-h-screen relative flex flex-col font-sans overflow-hidden transition-colors pt-24">
@@ -497,7 +673,18 @@ const GamePage: React.FC = () => {
         .animate-turn-alert {
             animation: turnAlert 2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
+        @keyframes ripple {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .speaking-ripple {
+            animation: ripple 1.5s infinite;
+        }
       `}</style>
+      
+      {/* Hidden Audio Element for Remote Stream */}
+      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
        
       {/* VS Screen Animation */}
       {showIntro && !isSpectator && (
@@ -554,11 +741,14 @@ const GamePage: React.FC = () => {
       {/* HEADER SCOREBOARD */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-[#2c3e50] border-b border-slate-700 shadow-xl p-3">
          <div className="max-w-4xl mx-auto flex justify-between items-center px-4">
-            {/* Left Player */}
+            {/* Left Player (Me) */}
             <div className={`flex items-center gap-3 transition-all ${leftIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
                  <div className="relative">
-                     <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md" />
-                     <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase">LVL {leftLevel}</div>
+                     {/* Speaking Indicator Ring */}
+                     <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isLeftSpeaking ? 'bg-green-500 speaking-ripple' : 'bg-transparent'}`}></div>
+                     
+                     <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md relative z-10" />
+                     <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase z-20">LVL {leftLevel}</div>
                      
                      {/* REACTIONS FOR LEFT */}
                      {activeReactions.filter(r => r.senderId === leftProfile.uid).map(r => (
@@ -574,6 +764,7 @@ const GamePage: React.FC = () => {
                      <div className="flex items-center gap-1.5">
                          <div className="text-[10px] font-black uppercase text-slate-300 truncate">{leftProfile.name}</div>
                          {leftProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
+                         {isLeftSpeaking && <i className="fas fa-microphone text-green-400 text-[10px] animate-pulse"></i>}
                      </div>
                      <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[leftProfile.uid] ?? 0}</div>
                  </div>
@@ -584,11 +775,14 @@ const GamePage: React.FC = () => {
                  <div className="text-[9px] font-bold text-slate-400 uppercase">Q {match.currentQ + 1}/{questions.length}</div>
             </div>
             
-            {/* Right Player */}
+            {/* Right Player (Opponent) */}
             <div className={`flex items-center gap-3 flex-row-reverse text-right transition-all ${rightIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
                  <div className="relative">
-                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md" />
-                    <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase">LVL {rightLevel}</div>
+                    {/* Speaking Indicator Ring */}
+                    <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isRightSpeaking ? 'bg-green-500 speaking-ripple' : 'bg-transparent'}`}></div>
+
+                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md relative z-10" />
+                    <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase z-20">LVL {rightLevel}</div>
 
                     {/* REACTIONS FOR RIGHT */}
                     {activeReactions.filter(r => r.senderId === rightProfile.uid).map(r => (
@@ -602,6 +796,7 @@ const GamePage: React.FC = () => {
                  </div>
                  <div>
                      <div className="flex items-center gap-1.5 justify-end">
+                         {isRightSpeaking && <i className="fas fa-microphone text-green-400 text-[10px] animate-pulse"></i>}
                          {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>}
                          <div className="text-[10px] font-black uppercase text-slate-300 truncate">{rightProfile.name}</div>
                          {rightProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
@@ -763,6 +958,31 @@ const GamePage: React.FC = () => {
             </>
         )}
       </div>
+
+      {/* Push-to-Talk Button */}
+      {!isGameOver && !isSpectator && hasMicPermission && (
+          <div className="fixed bottom-24 left-4 z-[60]">
+              <button
+                  onMouseDown={startTalking}
+                  onMouseUp={stopTalking}
+                  onMouseLeave={stopTalking}
+                  onTouchStart={startTalking}
+                  onTouchEnd={stopTalking}
+                  className={`w-16 h-16 rounded-full shadow-2xl border-4 transition-all duration-200 flex items-center justify-center transform active:scale-95 ${
+                      isTalking 
+                      ? 'bg-green-500 border-green-400 scale-110 shadow-[0_0_30px_rgba(34,197,94,0.6)]' 
+                      : 'bg-white border-slate-200 hover:bg-slate-50'
+                  }`}
+              >
+                  <i className={`fas fa-microphone text-2xl ${isTalking ? 'text-white animate-pulse' : 'text-slate-400'}`}></i>
+                  {isTalking && (
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm whitespace-nowrap">
+                          Speaking
+                      </span>
+                  )}
+              </button>
+          </div>
+      )}
 
       {/* Reaction Toggle Button */}
       {!isGameOver && !isSpectator && (

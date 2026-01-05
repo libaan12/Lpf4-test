@@ -1,5 +1,7 @@
 {
   "name": "LP-F4 Quiz Battle",
   "description": "A production-ready, multiplayer battle quiz web app for Somali students featuring real-time PvP, solo training, and leaderboards.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

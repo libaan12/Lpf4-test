@@ -75,6 +75,7 @@ export interface MatchState {
       level?: number;
       status?: 'online' | 'offline';
       lastSeen?: number;
+      isSpeaking?: boolean; // New field for PTT visualization
     }
   };
   winner?: string | null; // 'draw', 'disconnect', or uid
