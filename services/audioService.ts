@@ -7,9 +7,9 @@ const sounds = {
   click: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'] }), // Click
   win: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'] }), // Cheering
   message: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'] }), // Bubble Pop
-  // Updated Reaction Sound (Distinct Pop)
-  reaction: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'] }), 
-  // Updated Turn/Alert Sound (Clear Notification)
+  // New "Blop" sound for reactions
+  reaction: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'], volume: 0.6 }), 
+  // New distinct "Your Turn" notification
   turn: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3'] }),
   bgm: new Howl({ 
     src: ['https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3'], // Placeholder background beat

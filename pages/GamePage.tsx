@@ -124,7 +124,7 @@ const GamePage: React.FC = () => {
     };
   }, [matchId, user, navigate, profile?.isSupport, isSpectator]); 
 
-  // 2. Presence Logic (Enhanced)
+  // 2. Presence Logic (Game specific)
   useEffect(() => {
       if (!matchId || !user || isSpectator) return;
       
@@ -711,7 +711,7 @@ const GamePage: React.FC = () => {
                         
                         // Default blocked style for opponent's turn
                         if (!isMyTurn && !isSpectator) {
-                            bgClass = "bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-400 blur-[2px] opacity-60 grayscale";
+                            bgClass = "bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-400 blur-[2px] opacity-60 grayscale pointer-events-none";
                         }
 
                         if (showFeedback) {
@@ -752,7 +752,7 @@ const GamePage: React.FC = () => {
           <div className="fixed bottom-24 right-4 z-[60]">
                <button 
                 onClick={() => setShowReactionMenu(!showReactionMenu)}
-                className="w-16 h-16 rounded-full bg-white shadow-2xl border-4 border-[#f97316] text-3xl flex items-center justify-center transition-all active:scale-95"
+                className="w-16 h-16 rounded-full bg-white shadow-2xl border-4 border-[#f97316] text-3xl flex items-center justify-center transition-all active:scale-95 hover:bg-orange-50"
                >
                    <i className={`fas ${showReactionMenu ? 'fa-times text-red-500' : 'fa-smile text-[#f97316]'}`}></i>
                </button>

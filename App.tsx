@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { ref, onValue, update, serverTimestamp, onDisconnect } from 'firebase/database';
+import { ref, onValue, update, serverTimestamp, onDisconnect, get } from 'firebase/database';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
@@ -96,7 +96,38 @@ const AppContent: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. Setup User Profile & Presence Listener (Runs when User changes)
+  // 2. Setup Presence Listener (Separated to prevent loops)
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const connectedRef = ref(db, ".info/connected");
+    const presenceRef = ref(db, `users/${user.uid}`);
+
+    const unsubscribeConnected = onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+            // Use onDisconnect to handle closing tab/app
+            onDisconnect(presenceRef).update({
+                isOnline: false,
+                lastSeen: serverTimestamp()
+            }).then(() => {
+                // Set online status
+                update(presenceRef, {
+                    isOnline: true,
+                    lastSeen: serverTimestamp()
+                });
+            });
+        }
+    });
+
+    return () => {
+        unsubscribeConnected();
+        // NOTE: We do NOT manually set isOnline: false here.
+        // Doing so causes "offline" flickers during navigation or component re-renders.
+        // We rely solely on onDisconnect() for actual disconnections.
+    };
+  }, [user?.uid]);
+
+  // 3. Setup User Profile Listener & Duplicate Check
   useEffect(() => {
     if (!user) return;
 
@@ -108,29 +139,7 @@ const AppContent: React.FC = () => {
 
     const userRef = ref(db, `users/${user.uid}`);
     
-    // --- REAL-TIME PRESENCE SYSTEM ---
-    // Use .info/connected to handle connection state changes robustly
-    const connectedRef = ref(db, ".info/connected");
-    
-    const unsubscribeConnected = onValue(connectedRef, (snap) => {
-        if (snap.val() === true) {
-            const presenceRef = ref(db, `users/${user.uid}`);
-            
-            // When we disconnect, update the last_changed timestamp and isOnline status
-            onDisconnect(presenceRef).update({
-                isOnline: false,
-                lastSeen: serverTimestamp()
-            }).then(() => {
-                // When we connect, set online to true
-                update(presenceRef, {
-                    isOnline: true,
-                    lastSeen: serverTimestamp()
-                });
-            });
-        }
-    });
-
-    const unsubscribeUser = onValue(userRef, (snapshot) => {
+    const unsubscribeUser = onValue(userRef, async (snapshot) => {
       const data = snapshot.val();
       
       // --- REAL-TIME BAN ENFORCEMENT ---
@@ -161,16 +170,10 @@ const AppContent: React.FC = () => {
 
     return () => {
         unsubscribeUser();
-        unsubscribeConnected();
-        // Cancel disconnect op on unmount if possible, though usually handled by connection drop
-        if (user) {
-            const presenceRef = ref(db, `users/${user.uid}`);
-            update(presenceRef, { isOnline: false, lastSeen: serverTimestamp() });
-        }
     };
   }, [user]);
 
-  // 3. Navigation Logic (Runs when profile or location changes)
+  // 4. Navigation Logic (Runs when profile or location changes)
   useEffect(() => {
       if (profile?.activeMatch && !location.pathname.includes('/game') && !profile.isSupport) {
           navigate(`/game/${profile.activeMatch}`);
