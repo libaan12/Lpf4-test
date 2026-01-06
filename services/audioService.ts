@@ -12,6 +12,10 @@ const sounds = {
   reaction: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'], volume: 0.6 }), 
   // New distinct "Your Turn" notification
   turn: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3'] }),
+  // Countdown Tick
+  tick: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'], rate: 1.5 }), 
+  // Game Start
+  fight: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'] }),
   bgm: new Howl({ 
     src: ['https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3'], // Placeholder background beat
     loop: true,

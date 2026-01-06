@@ -64,6 +64,8 @@ const GamePage: React.FC = () => {
   
   // Animation State
   const [showIntro, setShowIntro] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(3);
   const [introShownOnce, setIntroShownOnce] = useState(false);
   const [showTurnAlert, setShowTurnAlert] = useState(false);
   
@@ -445,13 +447,38 @@ const GamePage: React.FC = () => {
       if (!introShownOnce && questions.length > 0 && leftProfile && rightProfile && match && match.currentQ === 0 && match.answersCount === 0 && !isSpectator) {
           setShowIntro(true);
           setIntroShownOnce(true);
-          playSound('click');
+          
+          const timer = setTimeout(() => {
+              setShowIntro(false);
+              startCountdown();
+          }, 3500); // 3.5s for VS screen
+          
+          return () => clearTimeout(timer);
       }
   }, [questions.length, leftProfile, rightProfile, match?.matchId, introShownOnce, isSpectator]);
 
+  const startCountdown = () => {
+      setShowCountdown(true);
+      setCountdownValue(3);
+      playSound('tick'); 
+      
+      const interval = setInterval(() => {
+          setCountdownValue(prev => {
+              if (prev === 1) {
+                  clearInterval(interval);
+                  playSound('fight'); // GO!
+                  setTimeout(() => setShowCountdown(false), 1000);
+                  return 0; // "GO" state
+              }
+              playSound('tick');
+              return prev - 1;
+          });
+      }, 1000);
+  };
+
   // Turn Notification Logic
   useEffect(() => {
-      if (match?.turn === user?.uid && !match.winner && !isSpectator && !showIntro) {
+      if (match?.turn === user?.uid && !match.winner && !isSpectator && !showIntro && !showCountdown) {
           setShowTurnAlert(true);
           playSound('turn'); // Play notification sound
           const timer = setTimeout(() => setShowTurnAlert(false), 2000);
@@ -459,13 +486,13 @@ const GamePage: React.FC = () => {
       } else {
           setShowTurnAlert(false);
       }
-  }, [match?.turn, user?.uid, match?.winner, isSpectator, showIntro]);
+  }, [match?.turn, user?.uid, match?.winner, isSpectator, showIntro, showCountdown]);
 
   // Auto-dismiss VS screen
   useEffect(() => {
       if (showIntro) {
           const timer = setTimeout(() => {
-              setShowIntro(false);
+              // setShowIntro(false); // Handled in startCountdown sequence now
           }, 3500);
           return () => clearTimeout(timer);
       }
@@ -632,7 +659,7 @@ const GamePage: React.FC = () => {
   const isMyTurn = match?.turn === user?.uid;
   const isGameOver = match?.status === 'completed';
 
-  if (!match || !leftProfile || !rightProfile || isLoadingError || (!currentQuestion && !isGameOver && !showIntro && !isSpectator)) {
+  if (!match || !leftProfile || !rightProfile || isLoadingError || (!currentQuestion && !isGameOver && !showIntro && !showCountdown && !isSpectator)) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
              <div className="animate__animated animate__fadeIn">
@@ -670,6 +697,8 @@ const GamePage: React.FC = () => {
   const isLeftSpeaking = match.players?.[leftProfile.uid]?.isSpeaking || false;
   const isRightSpeaking = match.players?.[rightProfile.uid]?.isSpeaking || false;
 
+  const showGameControls = !isGameOver && !isSpectator && !showIntro && !showCountdown;
+
   return (
     <div className="min-h-screen relative flex flex-col font-sans overflow-y-auto transition-colors pt-24">
        
@@ -696,35 +725,58 @@ const GamePage: React.FC = () => {
       {/* Hidden Audio Element for Remote Stream */}
       <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
        
-      {/* VS Screen Animation */}
+      {/* IMPROVED VS Screen Animation */}
       {showIntro && !isSpectator && (
           <div className="fixed inset-0 z-[60] flex flex-col md:flex-row items-center justify-center bg-slate-900 overflow-hidden">
-              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-orange-500 relative flex items-center justify-center animate__animated animate__slideInLeft">
-                  <div className="text-center z-10">
-                      <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={leftProfile.isVerified} isSupport={leftProfile.isSupport} />
-                      <h2 className="text-3xl font-black text-white uppercase drop-shadow-md flex items-center justify-center gap-2">
+              {/* Background Particle Effects */}
+              <div className="absolute inset-0 z-0">
+                  <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-orange-600/20 to-transparent"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-blue-600/20 to-transparent"></div>
+              </div>
+
+              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-orange-500 relative flex items-center justify-center animate__animated animate__slideInLeft shadow-[10px_0_50px_rgba(0,0,0,0.5)] z-10">
+                  <div className="text-center z-20 transform scale-110">
+                      <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="xl" className="border-[6px] border-white shadow-2xl mb-6 mx-auto" isVerified={leftProfile.isVerified} isSupport={leftProfile.isSupport} />
+                      <h2 className="text-4xl font-black text-white uppercase drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2 tracking-tighter">
                           {leftProfile.name}
-                          {leftProfile.isVerified && <i className="fas fa-check-circle text-white text-2xl"></i>}
-                          {leftProfile.isSupport && <i className="fas fa-check-circle text-yellow-300 text-2xl"></i>}
                       </h2>
-                      <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {leftLevel}</div>
+                      <div className="inline-block bg-black/40 px-4 py-1.5 rounded-full text-white font-black mt-2 text-sm backdrop-blur-sm border border-white/20 shadow-lg">LVL {leftLevel}</div>
+                  </div>
+                  {/* Decorative */}
+                  <i className="fas fa-bolt text-9xl absolute -left-10 bottom-0 text-white/10 rotate-12"></i>
+              </div>
+              
+              {/* VS Badge */}
+              <div className="absolute z-30 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate__animated animate__zoomIn animate__delay-1s">
+                  <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center border-8 border-slate-900 shadow-[0_0_50px_rgba(255,255,255,0.5)]">
+                      <span className="font-black text-5xl italic text-slate-900 transform -skew-x-12">VS</span>
                   </div>
               </div>
-              <div className="absolute z-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate__animated animate__zoomIn animate__delay-1s">
-                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-slate-900 shadow-2xl">
-                      <span className="font-black text-4xl italic text-slate-900">VS</span>
-                  </div>
-              </div>
-              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-blue-600 relative flex items-center justify-center animate__animated animate__slideInRight">
-                  <div className="text-center z-10">
-                      <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" className="border-4 border-white shadow-2xl mb-4 mx-auto" isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} />
-                      <h2 className="text-3xl font-black text-white uppercase drop-shadow-md flex items-center justify-center gap-2">
+
+              <div className="w-full md:w-1/2 h-1/2 md:h-full bg-blue-600 relative flex items-center justify-center animate__animated animate__slideInRight shadow-[-10px_0_50px_rgba(0,0,0,0.5)] z-10">
+                  <div className="text-center z-20 transform scale-110">
+                      <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="xl" className="border-[6px] border-white shadow-2xl mb-6 mx-auto" isVerified={rightProfile.isVerified} isSupport={rightProfile.isSupport} />
+                      <h2 className="text-4xl font-black text-white uppercase drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2 tracking-tighter">
                           {rightProfile.name}
-                          {rightProfile.isVerified && <i className="fas fa-check-circle text-white text-2xl"></i>}
-                          {rightProfile.isSupport && <i className="fas fa-check-circle text-yellow-300 text-2xl"></i>}
                       </h2>
-                      <div className="inline-block bg-black/30 px-3 py-1 rounded-full text-white font-bold mt-2">LVL {rightLevel}</div>
+                      <div className="inline-block bg-black/40 px-4 py-1.5 rounded-full text-white font-black mt-2 text-sm backdrop-blur-sm border border-white/20 shadow-lg">LVL {rightLevel}</div>
                   </div>
+                  {/* Decorative */}
+                  <i className="fas fa-gamepad text-9xl absolute -right-10 top-0 text-white/10 -rotate-12"></i>
+              </div>
+          </div>
+      )}
+
+      {/* COUNTDOWN OVERLAY */}
+      {showCountdown && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm animate__animated animate__fadeIn">
+              <div className="text-center">
+                  <div className="text-[150px] md:text-[200px] font-black text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.8)] animate__animated animate__zoomIn animate__faster key={countdownValue}">
+                      {countdownValue === 0 ? 'GO!' : countdownValue}
+                  </div>
+                  {countdownValue > 0 && (
+                      <div className="text-2xl font-bold text-white/80 uppercase tracking-[0.5em] animate-pulse">Get Ready</div>
+                  )}
               </div>
           </div>
       )}
@@ -970,7 +1022,7 @@ const GamePage: React.FC = () => {
       </div>
 
       {/* Push-to-Talk Button */}
-      {!isGameOver && !isSpectator && (
+      {showGameControls && (
           <div className="fixed bottom-8 left-4 z-[60]">
               <button
                   onMouseDown={handlePTTStart}
@@ -997,7 +1049,7 @@ const GamePage: React.FC = () => {
       )}
 
       {/* Reaction Toggle Button */}
-      {!isGameOver && !isSpectator && (
+      {showGameControls && (
           <div className="fixed bottom-8 right-4 z-[60]">
                <button 
                 onClick={() => setShowReactionMenu(!showReactionMenu)}
