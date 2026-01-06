@@ -444,18 +444,37 @@ const GamePage: React.FC = () => {
 
   // Trigger Intro sequence when game is ready
   useEffect(() => {
-      if (!introShownOnce && questions.length > 0 && leftProfile && rightProfile && match && match.currentQ === 0 && match.answersCount === 0 && !isSpectator) {
+      // Check all conditions for match readiness
+      if (
+          !introShownOnce && 
+          questions.length > 0 && 
+          leftProfile && 
+          rightProfile && 
+          match && 
+          match.currentQ === 0 && 
+          match.answersCount === 0 && 
+          !isSpectator
+      ) {
+          // Only trigger the intro state. The timeout logic is handled in a separate effect
+          // to prevent cleanup issues if dependencies change during the timeout.
           setShowIntro(true);
           setIntroShownOnce(true);
-          
+          playSound('click');
+      }
+  }, [questions.length, leftProfile, rightProfile, match?.matchId, introShownOnce, isSpectator]);
+
+  // Handle Intro Timeout & Transition
+  useEffect(() => {
+      if (showIntro) {
+          // Set timeout to dismiss VS screen and start countdown
           const timer = setTimeout(() => {
               setShowIntro(false);
               startCountdown();
-          }, 3500); // 3.5s for VS screen
+          }, 3500); // 3.5s for VS screen duration
           
           return () => clearTimeout(timer);
       }
-  }, [questions.length, leftProfile, rightProfile, match?.matchId, introShownOnce, isSpectator]);
+  }, [showIntro]);
 
   const startCountdown = () => {
       setShowCountdown(true);
