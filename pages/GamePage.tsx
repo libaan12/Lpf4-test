@@ -847,13 +847,13 @@ const GamePage: React.FC = () => {
                         LVL {leftLevel}
                      </div>
                      
-                     {/* REACTIONS FOR LEFT - WHITE PILL STYLE */}
+                     {/* REACTIONS FOR LEFT - WHITE PILL STYLE (ADJUSTED POSITION) */}
                      {activeReactions.filter(r => r.senderId === leftProfile.uid).map(r => (
-                         <div key={r.id} className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] animate__animated animate__bounceIn">
-                             <div className="relative bg-white px-4 py-2 rounded-full border-2 border-orange-500 shadow-[0_4px_15px_rgba(249,115,22,0.3)] min-w-[60px] text-center whitespace-nowrap">
+                         <div key={r.id} className="absolute top-[78px] left-0 z-[100] animate__animated animate__bounceIn">
+                             <div className="relative bg-white px-3 py-1.5 rounded-full border-2 border-orange-500 shadow-[0_4px_15px_rgba(249,115,22,0.3)] min-w-[50px] text-center whitespace-nowrap flex items-center justify-center">
                                 {/* Tail */}
-                                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-t-2 border-l-2 border-orange-500 transform rotate-45"></div>
-                                <span className="text-orange-600 font-black text-[10px] md:text-xs uppercase tracking-wider">{r.value}</span>
+                                <div className="absolute -top-2 left-8 -translate-x-1/2 w-3 h-3 bg-white border-t-2 border-l-2 border-orange-500 transform rotate-45"></div>
+                                <span className={`text-orange-600 font-black uppercase tracking-wider ${r.value.length > 2 ? 'text-[10px] md:text-xs' : 'text-2xl md:text-3xl leading-none'}`}>{r.value}</span>
                              </div>
                          </div>
                      ))}
@@ -903,13 +903,13 @@ const GamePage: React.FC = () => {
                         LVL {rightLevel}
                     </div>
 
-                    {/* REACTIONS FOR RIGHT - BLUE PILL STYLE */}
+                    {/* REACTIONS FOR RIGHT - BLUE PILL STYLE (ADJUSTED POSITION) */}
                     {activeReactions.filter(r => r.senderId === rightProfile.uid).map(r => (
-                         <div key={r.id} className="absolute top-16 right-1/2 translate-x-1/2 z-[100] animate__animated animate__bounceIn">
-                             <div className="relative bg-white px-4 py-2 rounded-full border-2 border-blue-500 shadow-[0_4px_15px_rgba(59,130,246,0.3)] min-w-[60px] text-center whitespace-nowrap">
+                         <div key={r.id} className="absolute top-[78px] right-0 z-[100] animate__animated animate__bounceIn">
+                             <div className="relative bg-white px-3 py-1.5 rounded-full border-2 border-blue-500 shadow-[0_4px_15px_rgba(59,130,246,0.3)] min-w-[50px] text-center whitespace-nowrap flex items-center justify-center">
                                 {/* Tail */}
-                                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-t-2 border-l-2 border-blue-500 transform rotate-45"></div>
-                                <span className="text-blue-600 font-black text-[10px] md:text-xs uppercase tracking-wider">{r.value}</span>
+                                <div className="absolute -top-2 right-8 translate-x-1/2 w-3 h-3 bg-white border-t-2 border-l-2 border-blue-500 transform rotate-45"></div>
+                                <span className={`text-blue-600 font-black uppercase tracking-wider ${r.value.length > 2 ? 'text-[10px] md:text-xs' : 'text-2xl md:text-3xl leading-none'}`}>{r.value}</span>
                              </div>
                          </div>
                      ))}
