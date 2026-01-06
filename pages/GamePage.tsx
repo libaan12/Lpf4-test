@@ -812,77 +812,103 @@ const GamePage: React.FC = () => {
 
       {/* Exit Button Pill - Fixed Top Center */}
       {!isGameOver && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60]">
-              <button onClick={handleSurrender} className="bg-[#e74c3c] hover:bg-red-600 text-white px-5 py-2 rounded-full font-black text-xs uppercase tracking-tighter shadow-2xl border-2 border-white/30 transition-all flex items-center gap-2 active:scale-95">
+          <div className="fixed top-28 left-1/2 -translate-x-1/2 z-[40]">
+              <button onClick={handleSurrender} className="bg-[#e74c3c]/90 hover:bg-red-600 text-white px-3 py-1 rounded-full font-black text-[10px] uppercase tracking-tighter shadow-sm border border-white/20 transition-all flex items-center gap-1 active:scale-95 backdrop-blur-sm">
                   <i className="fas fa-sign-out-alt rotate-180"></i> EXIT
               </button>
           </div>
       )}
 
-      {/* HEADER SCOREBOARD */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-[#2c3e50] border-b border-slate-700 shadow-xl p-3">
-         <div className="max-w-4xl mx-auto flex justify-between items-center px-4">
+      {/* REDESIGNED HEADER SCOREBOARD */}
+      <div className="fixed top-0 left-0 right-0 z-50 p-3 pointer-events-none">
+         <div className="max-w-4xl mx-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/40 dark:border-slate-700/50 p-2 md:p-3 flex items-center justify-between pointer-events-auto transition-all duration-300 relative overflow-visible">
+            
             {/* Left Player (Me) */}
-            <div className={`flex items-center gap-3 transition-all ${leftIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
+            <div className={`flex items-center gap-3 transition-all duration-500 ${leftIsActive && !isGameOver ? 'scale-100 opacity-100' : 'scale-95 opacity-80 grayscale-[0.3]'}`}>
                  <div className="relative">
                      {/* Speaking Indicator Ring */}
-                     <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isLeftSpeaking ? 'bg-green-500 speaking-ripple' : 'bg-transparent'}`}></div>
+                     <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isLeftSpeaking ? 'bg-green-500/50 speaking-ripple' : 'bg-transparent'}`}></div>
                      
-                     <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md relative z-10" />
-                     <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase z-20">LVL {leftLevel}</div>
+                     {/* Active Turn Ring */}
+                     <div className={`p-[2px] rounded-full transition-all duration-300 ${leftIsActive ? 'bg-gradient-to-r from-orange-500 to-yellow-500 shadow-[0_0_15px_rgba(249,115,22,0.6)]' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                        <Avatar src={leftProfile.avatar} seed={leftProfile.uid} size="md" className="border-2 border-white dark:border-slate-800 relative z-10" />
+                     </div>
+
+                     <div className="absolute -bottom-1 -right-1 bg-slate-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white dark:border-slate-800 z-20 shadow-sm">
+                        L{leftLevel}
+                     </div>
                      
                      {/* REACTIONS FOR LEFT */}
                      {activeReactions.filter(r => r.senderId === leftProfile.uid).map(r => (
-                         <div key={r.id} className="absolute -bottom-14 left-0 z-50 animate__animated animate__bounceIn animate__faster">
-                             <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
-                                <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
-                                <div className="absolute -top-1.5 left-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
+                         <div key={r.id} className="absolute -bottom-12 left-0 z-[60] animate__animated animate__bounceIn animate__faster origin-top-left">
+                             <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-2xl rounded-tl-none shadow-xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
+                                <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-2xl"}>{r.value}</span>
                              </div>
                          </div>
                      ))}
                  </div>
-                 <div>
+                 
+                 <div className="flex flex-col">
                      <div className="flex items-center gap-1.5">
-                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">{leftProfile.name}</div>
+                         <span className="text-[10px] font-black uppercase text-slate-400 leading-none tracking-wider">You</span>
                          {leftProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
-                         {isLeftSpeaking && <i className="fas fa-microphone text-green-400 text-[10px] animate-pulse"></i>}
                      </div>
-                     <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[leftProfile.uid] ?? 0}</div>
+                     <div className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate max-w-[80px] md:max-w-[120px]">
+                        {leftProfile.name}
+                     </div>
+                     <div className="flex items-center gap-1 mt-0.5">
+                        <i className="fas fa-bolt text-orange-500 text-[10px]"></i>
+                        <span className="text-xl font-black text-slate-900 dark:text-white leading-none">{safeScores[leftProfile.uid] ?? 0}</span>
+                     </div>
                  </div>
             </div>
             
-            <div className="text-center">
-                 <div className="text-lg font-black text-slate-100 italic tracking-tighter">VS</div>
-                 <div className="text-[9px] font-bold text-slate-400 uppercase">Q {match.currentQ + 1}/{questions.length}</div>
+            {/* Center Status */}
+            <div className="flex flex-col items-center justify-center shrink-0 mx-2">
+                 <div className="text-2xl font-black text-slate-200 dark:text-slate-700 italic tracking-tighter leading-none mb-1">VS</div>
+                 <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shadow-inner whitespace-nowrap">
+                     Q {match.currentQ + 1} <span className="text-slate-300 dark:text-slate-600">/</span> {questions.length}
+                 </div>
             </div>
             
             {/* Right Player (Opponent) */}
-            <div className={`flex items-center gap-3 flex-row-reverse text-right transition-all ${rightIsActive && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
+            <div className={`flex flex-row-reverse items-center gap-3 transition-all duration-500 ${rightIsActive && !isGameOver ? 'scale-100 opacity-100' : 'scale-95 opacity-80 grayscale-[0.3]'}`}>
                  <div className="relative">
                     {/* Speaking Indicator Ring */}
-                    <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isRightSpeaking ? 'bg-green-500 speaking-ripple' : 'bg-transparent'}`}></div>
+                    <div className={`absolute -inset-1 rounded-full transition-all duration-300 ${isRightSpeaking ? 'bg-green-500/50 speaking-ripple' : 'bg-transparent'}`}></div>
 
-                    <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="sm" className="border-2 border-slate-500 shadow-md relative z-10" />
-                    <div className="absolute -bottom-1 -right-1 bg-[#1a252f] text-white text-[7px] px-1 rounded-sm font-black border border-white uppercase z-20">LVL {rightLevel}</div>
+                    {/* Active Turn Ring */}
+                    <div className={`p-[2px] rounded-full transition-all duration-300 ${rightIsActive ? 'bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                        <Avatar src={rightProfile.avatar} seed={rightProfile.uid} size="md" className="border-2 border-white dark:border-slate-800 relative z-10" />
+                    </div>
+
+                    <div className="absolute -bottom-1 -left-1 bg-slate-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white dark:border-slate-800 z-20 shadow-sm">
+                        L{rightLevel}
+                    </div>
 
                     {/* REACTIONS FOR RIGHT */}
                     {activeReactions.filter(r => r.senderId === rightProfile.uid).map(r => (
-                         <div key={r.id} className="absolute -bottom-14 right-0 z-50 animate__animated animate__bounceIn animate__faster">
-                             <div className="bg-white px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-game-primary whitespace-nowrap flex flex-col items-center relative">
-                                <span className={r.value.length > 2 ? "text-[10px] font-black text-game-primary uppercase" : "text-3xl"}>{r.value}</span>
-                                <div className="absolute -top-1.5 right-4 w-3 h-3 bg-white border-t-2 border-l-2 border-game-primary rotate-45"></div>
+                         <div key={r.id} className="absolute -bottom-12 right-0 z-[60] animate__animated animate__bounceIn animate__faster origin-top-right">
+                             <div className="bg-white dark:bg-slate-800 px-3 py-2 rounded-2xl rounded-tr-none shadow-xl border-2 border-blue-500 whitespace-nowrap flex flex-col items-center relative">
+                                <span className={r.value.length > 2 ? "text-[10px] font-black text-blue-500 uppercase" : "text-2xl"}>{r.value}</span>
                              </div>
                          </div>
                      ))}
                  </div>
-                 <div>
-                     <div className="flex items-center gap-1.5 justify-end">
-                         {isRightSpeaking && <i className="fas fa-microphone text-green-400 text-[10px] animate-pulse"></i>}
-                         {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>}
-                         <div className="text-[10px] font-black uppercase text-slate-300 truncate">{rightProfile.name}</div>
+                 
+                 <div className="flex flex-col items-end">
+                     <div className="flex items-center gap-1.5">
+                         {rightProfile.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
                          {rightProfile.isVerified && <i className="fas fa-check-circle text-blue-500 text-[10px]"></i>}
+                         <span className="text-[10px] font-black uppercase text-slate-400 leading-none tracking-wider">Opponent</span>
                      </div>
-                     <div className="text-2xl font-black text-orange-400 leading-none">{safeScores[rightProfile.uid] ?? 0}</div>
+                     <div className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate max-w-[80px] md:max-w-[120px] text-right">
+                        {rightProfile.name}
+                     </div>
+                     <div className="flex items-center gap-1 mt-0.5 justify-end">
+                        <span className="text-xl font-black text-slate-900 dark:text-white leading-none">{safeScores[rightProfile.uid] ?? 0}</span>
+                        <i className="fas fa-bolt text-blue-500 text-[10px]"></i>
+                     </div>
                  </div>
             </div>
          </div>
