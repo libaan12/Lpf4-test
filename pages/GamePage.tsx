@@ -93,6 +93,9 @@ const GamePage: React.FC = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   
+  // Ref to track if user is holding the PTT button (handling async permission delay)
+  const isHoldingButtonRef = useRef(false);
+  
   const processingRef = useRef(false);
   const questionsLoadedRef = useRef(false);
 
@@ -303,16 +306,8 @@ const GamePage: React.FC = () => {
       }
   };
 
-  // Auto-init on load
-  useEffect(() => {
-      if (isSpectator || !user || !matchId) return;
-      initAudio();
-      return () => {
-          if (localStreamRef.current) {
-              localStreamRef.current.getTracks().forEach(track => track.stop());
-          }
-      };
-  }, [isSpectator, user, matchId]);
+  // Removed Auto-init on load to prevent VS screen blocking
+  // Permission will be requested when user presses the button
 
   // B. WebRTC Signaling Logic
   useEffect(() => {
@@ -417,10 +412,13 @@ const GamePage: React.FC = () => {
   // C. Push-To-Talk Handlers
   const handlePTTStart = async (e: React.SyntheticEvent) => {
       e.preventDefault();
+      isHoldingButtonRef.current = true; // Mark as holding
+
       // Auto-request permission if not present
       if (!hasMicPermission) {
           const granted = await initAudio();
-          if (!granted) return;
+          // If permission denied or user stopped holding button during prompt
+          if (!granted || !isHoldingButtonRef.current) return;
       }
 
       if (localStreamRef.current) {
@@ -433,6 +431,8 @@ const GamePage: React.FC = () => {
 
   const stopTalking = (e?: React.SyntheticEvent) => {
       if(e) e.preventDefault();
+      isHoldingButtonRef.current = false; // Mark as released
+
       if (localStreamRef.current && isTalking) {
           localStreamRef.current.getAudioTracks()[0].enabled = false;
           setIsTalking(false);
