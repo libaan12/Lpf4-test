@@ -1,8 +1,8 @@
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { ref, onValue, update, serverTimestamp, onDisconnect, get } from 'firebase/database';
+import { ref, onValue, update, serverTimestamp, onDisconnect, get, off } from 'firebase/database';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
@@ -82,6 +82,12 @@ const AppContent: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const locationRef = useRef(location);
+
+  // Update location ref for listeners
+  useEffect(() => {
+      locationRef.current = location;
+  }, [location]);
 
   // 1. Setup Auth Listener (Runs Once)
   useEffect(() => {
@@ -179,6 +185,46 @@ const AppContent: React.FC = () => {
           navigate(`/game/${profile.activeMatch}`);
       }
   }, [profile?.activeMatch, profile?.isSupport, location.pathname, navigate]);
+
+  // 5. GLOBAL CHAT NOTIFICATION LISTENER
+  useEffect(() => {
+      if (!user || !profile?.friends) return;
+
+      const friendIds = Object.keys(profile.friends);
+      const listeners: Array<() => void> = [];
+      const prevCounts: Record<string, number> = {};
+
+      friendIds.forEach(fid => {
+          const participants = [user.uid, fid].sort();
+          const chatId = `${participants[0]}_${participants[1]}`;
+          const unreadRef = ref(db, `chats/${chatId}/unread/${user.uid}/count`);
+          
+          let isInitial = true;
+
+          const handleCount = (snapshot: any) => {
+              const count = snapshot.val() || 0;
+              const prev = prevCounts[chatId] || 0;
+
+              // If count increased (new message) AND not initial load
+              if (!isInitial && count > prev) {
+                  // Check if user is currently inside this chat
+                  const currentPath = locationRef.current.pathname;
+                  // If NOT in the chat screen for this friend, play sound
+                  if (!currentPath.includes(`/chat/${fid}`)) {
+                      playSound('message');
+                  }
+              }
+
+              prevCounts[chatId] = count;
+              isInitial = false;
+          };
+
+          onValue(unreadRef, handleCount);
+          listeners.push(() => off(unreadRef, handleCount));
+      });
+
+      return () => listeners.forEach(unsub => unsub());
+  }, [user, profile?.friends]); // Only re-run if friends list changes
 
   // Handle Verification Celebration
   useEffect(() => {
