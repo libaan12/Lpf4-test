@@ -68,6 +68,7 @@ const GamePage: React.FC = () => {
   const [countdownValue, setCountdownValue] = useState(3);
   const [introShownOnce, setIntroShownOnce] = useState(false);
   const [showTurnAlert, setShowTurnAlert] = useState(false);
+  const winnerAnimationPlayed = useRef(false);
   
   // Opponent Details Modal
   const [showOpponentModal, setShowOpponentModal] = useState(false);
@@ -122,6 +123,10 @@ const GamePage: React.FC = () => {
   // 1. Sync Match Data
   useEffect(() => {
     if (!matchId || !user) return;
+    
+    // Reset winner animation flag on new match load
+    winnerAnimationPlayed.current = false;
+
     const matchRef = ref(db, `matches/${matchId}`);
 
     const unsubscribe = onValue(matchRef, async (snapshot) => {
@@ -148,8 +153,9 @@ const GamePage: React.FC = () => {
           }
       }
 
-      // Check Winner
-      if (data.status === 'completed' && data.winner) {
+      // Check Winner (Once only)
+      if (data.status === 'completed' && data.winner && !winnerAnimationPlayed.current) {
+          winnerAnimationPlayed.current = true;
           if (data.winner === user.uid) { 
               playSound('win'); 
               confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
