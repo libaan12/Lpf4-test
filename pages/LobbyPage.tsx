@@ -7,7 +7,7 @@ import { UserContext } from '../contexts';
 import { Button, Input, Avatar, Card } from '../components/UI';
 import { playSound } from '../services/audioService';
 import { showToast, showAlert } from '../services/alert';
-import { MATCH_TIMEOUT_MS } from '../constants';
+import { MATCH_TIMEOUT_MS, PRIVATE_ROOM_TIMEOUT_MS } from '../constants';
 import { Subject, Chapter, Room } from '../types';
 
 const LobbyPage: React.FC = () => {
@@ -85,7 +85,7 @@ const LobbyPage: React.FC = () => {
       if (hostedCode) {
          const roomRef = ref(db, `rooms/${hostedCode}`);
          
-         // Only set timeout for 1v1 private rooms, 4P rooms don't expire as fast or have different logic
+         // Only set timeout for 1v1 private rooms
          if (viewMode === 'custom' && customSubMode === 'create') {
              hostTimerRef.current = setTimeout(() => {
                  if (linkedChatPathRef.current) {
@@ -95,8 +95,8 @@ const LobbyPage: React.FC = () => {
                  remove(ref(db, `rooms/${hostedCode}`));
                  setHostedCode(null);
                  window.history.replaceState({}, document.title);
-                 showAlert("Room Expired", "No opponent joined in time (15s).", "info");
-             }, 15000); 
+                 showAlert("Room Expired", "No opponent joined in time (2m).", "info");
+             }, PRIVATE_ROOM_TIMEOUT_MS); 
          }
 
          const unsub = onValue(roomRef, (snap) => {
