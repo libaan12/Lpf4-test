@@ -464,14 +464,17 @@ const LobbyPage: React.FC = () => {
                  <i className="fas fa-user-friends text-8xl absolute -right-4 -bottom-6 text-slate-100 dark:text-slate-700 rotate-12 group-hover:scale-110 transition-transform"></i>
              </div>
 
-             {/* NEW 4P MODE */}
-             <div onClick={() => { playSound('click'); setViewMode('4p'); setCustomSubMode('menu'); }} className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-3xl p-6 text-white relative overflow-hidden cursor-pointer shadow-xl shadow-purple-500/30 group hover:scale-[1.02] transition-transform">
-                 <div className="relative z-10">
-                     <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-black uppercase mb-3 inline-block">4 Players</span>
-                     <h2 className="text-3xl font-black italic">SQUAD BATTLE</h2>
-                     <p className="opacity-90 font-bold max-w-xs mt-2 text-xs">4-Player Free For All. Fastest wins.</p>
+             {/* NEW 4P MODE - COMING SOON */}
+             <div onClick={() => { playSound('click'); showToast("Coming Soon!", "info"); }} className="bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-3xl p-6 relative overflow-hidden cursor-not-allowed opacity-80">
+                 <div className="relative z-10 opacity-50 grayscale">
+                     <span className="bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1 rounded-full text-xs font-black uppercase mb-3 inline-block">4 Players</span>
+                     <h2 className="text-3xl font-black italic text-slate-400 dark:text-slate-500">SQUAD BATTLE</h2>
+                     <p className="text-slate-400 dark:text-slate-500 font-bold max-w-xs mt-2 text-xs">4-Player Free For All. Fastest wins.</p>
                  </div>
-                 <i className="fas fa-users text-8xl absolute -right-4 -bottom-6 opacity-20 rotate-12 group-hover:scale-110 transition-transform"></i>
+                 <div className="absolute inset-0 flex items-center justify-center z-20">
+                     <span className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black uppercase tracking-widest text-sm shadow-lg transform -rotate-6">Coming Soon</span>
+                 </div>
+                 <i className="fas fa-users text-8xl absolute -right-4 -bottom-6 opacity-10 rotate-12 grayscale"></i>
              </div>
         </div>
       )}
