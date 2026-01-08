@@ -7,13 +7,15 @@ const sounds = {
   click: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'] }), // Click
   win: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'] }), // Cheering
   
-  // FIX: Switched back to active_storage URLs which are reliable and CORS-friendly
+  // FIX: Updated to user requested specific sounds
+  // Received: Message Pop Alert (Mixkit 2354)
   message: new Howl({ 
-    src: ['https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'], // Smartphone Notification Ping
+    src: ['https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'], 
     volume: 0.8 
   }), 
+  // Sent: Modern Technology Select (Mixkit 3124)
   sent: new Howl({ 
-    src: ['https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'], // Bubble Pop
+    src: ['https://assets.mixkit.co/active_storage/sfx/3124/3124-preview.mp3'], 
     volume: 0.6 
   }), 
   
