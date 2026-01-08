@@ -46,11 +46,21 @@ const LobbyPage: React.FC = () => {
           const { hostedCode: incomingHostCode, autoJoinCode } = location.state;
           if (incomingHostCode) {
               setHostedCode(incomingHostCode);
-              setViewMode('custom');
+              // We need to fetch the room to know if it is 4p or custom
+              get(ref(db, `rooms/${incomingHostCode}`)).then(snap => {
+                  if(snap.exists()) {
+                      const rData = snap.val();
+                      if(rData.mode === '4p') setViewMode('4p');
+                      else setViewMode('custom');
+                  } else {
+                      setViewMode('custom'); // Default fallback
+                  }
+              });
           } 
           else if (autoJoinCode) {
               setRoomCode(autoJoinCode);
-              setViewMode('custom');
+              // Attempt join immediately
+              // We don't know the mode yet, joinRoom handles it
               joinRoom(autoJoinCode);
           }
       }
@@ -82,22 +92,26 @@ const LobbyPage: React.FC = () => {
 
   // Listener for Hosted Room 
   useEffect(() => {
-      if (hostedCode) {
+      if (hostedCode && user) {
          const roomRef = ref(db, `rooms/${hostedCode}`);
          
-         // Only set timeout for 1v1 private rooms
-         if (viewMode === 'custom' && customSubMode === 'create') {
-             hostTimerRef.current = setTimeout(() => {
+         // Timeout Logic: 2 Minutes for expiration if Host doesn't start
+         // Only apply timeout if I am the host
+         if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
+         
+         hostTimerRef.current = setTimeout(async () => {
+             // Check if I am host before deleting
+             const snap = await get(roomRef);
+             if (snap.exists() && snap.val().host === user.uid) {
                  if (linkedChatPathRef.current) {
                      update(ref(db, linkedChatPathRef.current), { status: 'expired' });
                      linkedChatPathRef.current = null;
                  }
-                 remove(ref(db, `rooms/${hostedCode}`));
+                 remove(roomRef);
                  setHostedCode(null);
-                 window.history.replaceState({}, document.title);
-                 showAlert("Room Expired", "No opponent joined in time (2m).", "info");
-             }, PRIVATE_ROOM_TIMEOUT_MS); 
-         }
+                 showAlert("Room Expired", "Room closed after 2 minutes of inactivity.", "info");
+             }
+         }, PRIVATE_ROOM_TIMEOUT_MS); 
 
          const unsub = onValue(roomRef, (snap) => {
              if (snap.exists()) {
@@ -110,55 +124,67 @@ const LobbyPage: React.FC = () => {
                      
                      // Auto-Start Logic for Host
                      const playerCount = Object.keys(val.players || {}).length;
-                     if (val.host === user?.uid && playerCount === 4) {
+                     if (val.host === user.uid && playerCount === 4) {
                          start4PMatch(val);
                      }
                  }
              } else {
                  // Room deleted (Match started or Host left)
                  if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
-                 // If I'm not the host and I'm in waiting mode, I should probably check if I have an active match now
+                 // If room is gone, verify if we were redirected to a match
+                 // Usually App.tsx handles the activeMatch redirect, but we can clear state here
+                 setHostedCode(null);
+                 setLobbyPlayers({});
              }
          });
          
-         // Clean up on disconnect for Host
-         if (user) {
-             const userRoomRef = ref(db, `rooms/${hostedCode}`);
-             onDisconnect(userRoomRef).remove();
-         }
+         // Clean up on disconnect 
+         // FIX: Only Host deletes room. Guests remove themselves.
+         // We can't strictly check isHost inside onDisconnect callback easily without keeping ref
+         // So we do a targeted remove based on assumed role in next effect or rely on backend rules
+         // For client side:
+         const userInRoomRef = ref(db, `rooms/${hostedCode}/players/${user.uid}`);
+         onDisconnect(userInRoomRef).remove(); // Everyone removes themselves
+         
+         // Note: If host disconnects, ideally we want room to close.
+         // This requires checking if host. We'll do it roughly:
+         // If I created the room, I set an onDisconnect on the room itself.
+         // This is handled in create functions.
 
          return () => {
              unsub();
              if (hostTimerRef.current) clearTimeout(hostTimerRef.current);
          };
       }
-  }, [hostedCode, viewMode, user]);
+  }, [hostedCode, user]);
 
   const handleBack = async () => {
     playSound('click');
     
-    if (hostedCode) {
-        if (linkedChatPathRef.current) {
-            update(ref(db, linkedChatPathRef.current), { status: 'canceled' });
-            linkedChatPathRef.current = null;
-        }
+    if (hostedCode && user) {
+        const roomRef = ref(db, `rooms/${hostedCode}`);
+        const snap = await get(roomRef);
         
-        // 4P: If Guest leaves, just remove self. If Host, delete room.
-        if (viewMode === '4p' && lobbyPlayers && user) {
-             const roomSnap = await get(ref(db, `rooms/${hostedCode}`));
-             if (roomSnap.exists()) {
-                 const rData = roomSnap.val();
-                 if (rData.host === user.uid) {
-                     await remove(ref(db, `rooms/${hostedCode}`)); // Host kills room
-                 } else {
-                     await remove(ref(db, `rooms/${hostedCode}/players/${user.uid}`)); // Guest leaves
-                 }
-             }
-        } else {
-            await remove(ref(db, `rooms/${hostedCode}`));
+        if (snap.exists()) {
+            const rData = snap.val();
+            
+            if (rData.host === user.uid) {
+                // I am Host -> Kill Room
+                if (linkedChatPathRef.current) {
+                    update(ref(db, linkedChatPathRef.current), { status: 'canceled' });
+                    linkedChatPathRef.current = null;
+                }
+                await remove(roomRef);
+                showToast("Room closed", "info");
+            } else {
+                // I am Guest -> Leave Room
+                await remove(ref(db, `rooms/${hostedCode}/players/${user.uid}`));
+                showToast("Left room", "info");
+            }
         }
 
         setHostedCode(null);
+        setLobbyPlayers({});
         window.history.replaceState({}, document.title);
         return;
     }
@@ -234,7 +260,6 @@ const LobbyPage: React.FC = () => {
   const create4PRoom = async () => {
       if(!user || !selectedChapter) return;
       const code = Math.floor(1000 + Math.random() * 9000).toString();
-      setHostedCode(code);
       
       const roomData: Room = {
           host: user.uid,
@@ -250,12 +275,19 @@ const LobbyPage: React.FC = () => {
       };
       
       await set(ref(db, `rooms/${code}`), roomData);
+      
+      // Host Disconnect Logic: Destroy Room
+      onDisconnect(ref(db, `rooms/${code}`)).remove();
+
+      setHostedCode(code);
       playSound('click');
       showToast("Squad Room Created!", "success");
   };
 
   const joinRoom = async (codeOverride?: string) => {
-    const codeToJoin = codeOverride || roomCode;
+    let codeToJoin = codeOverride || roomCode;
+    codeToJoin = codeToJoin.trim(); // Sanitize input
+    
     if (!user || !codeToJoin) return;
     if (!codeOverride) playSound('click');
     
@@ -272,8 +304,9 @@ const LobbyPage: React.FC = () => {
               showAlert("Full", "Room is full (4/4)", "error");
               return;
           }
+          
+          // Already in?
           if (players[user.uid]) {
-              // Already joined, just go to waiting view
               setHostedCode(codeToJoin);
               setViewMode('4p');
               return;
@@ -284,6 +317,9 @@ const LobbyPage: React.FC = () => {
               name: profile?.name || 'Player',
               avatar: profile?.avatar || ''
           });
+          
+          // Guest Disconnect Logic: Remove Self Only
+          onDisconnect(ref(db, `rooms/${codeToJoin}/players/${user.uid}`)).remove();
           
           setHostedCode(codeToJoin);
           setViewMode('4p');
@@ -479,7 +515,7 @@ const LobbyPage: React.FC = () => {
                           })}
                       </div>
 
-                      {user && lobbyPlayers[user.uid] && Object.keys(lobbyPlayers)[0] === user.uid ? (
+                      {user && lobbyPlayers[user.uid] && (Object.keys(lobbyPlayers)[0] === user.uid || lobbyPlayers[user.uid].name === (profile?.name || 'Host')) ? (
                           <Button 
                             fullWidth 
                             size="lg" 
@@ -598,7 +634,10 @@ const LobbyPage: React.FC = () => {
       if(!user || !selectedChapter) return;
       const code = Math.floor(1000 + Math.random() * 9000).toString();
       setHostedCode(code);
-      await set(ref(db, `rooms/${code}`), { host: user.uid, sid: selectedSubject, lid: selectedChapter, questionLimit: quizLimit, createdAt: Date.now() });
+      await set(ref(db, `rooms/${code}`), { host: user.uid, sid: selectedSubject, lid: selectedChapter, questionLimit: quizLimit, createdAt: Date.now(), mode: '1v1' });
+      // Add disconnect logic for 1v1
+      onDisconnect(ref(db, `rooms/${code}`)).remove();
+      
       playSound('click');
       showToast("Room Created!", "success");
   }

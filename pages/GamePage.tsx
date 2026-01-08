@@ -445,8 +445,8 @@ const GamePage: React.FC = () => {
       const rightUid = pIds.find(id => id !== leftUid) || pIds[1] || 'ghost';
       const leftP = playersMap[leftUid] || { name: 'You', avatar: '', uid: leftUid, points: 0 };
       const rightP = playersMap[rightUid] || { name: 'Opponent', avatar: '', uid: rightUid, points: 0 };
-      const leftScore = match!.scores[leftUid] || 0;
-      const rightScore = match!.scores[rightUid] || 0;
+      const leftScore = match!.scores?.[leftUid] || 0;
+      const rightScore = match!.scores?.[rightUid] || 0;
       const activeLeft = match!.turn === leftUid;
       const activeRight = match!.turn === rightUid;
 
@@ -517,19 +517,19 @@ const GamePage: React.FC = () => {
       // 4P layout logic
       const allPIds = Object.keys(match!.players || {});
       const opponents = allPIds.filter(id => id !== user?.uid);
-      const myScore = match!.scores[user!.uid] || 0;
+      const myScore = match!.scores?.[user!.uid] || 0;
 
       return (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full w-full">
               {/* Top Opponents Bar */}
               <div className="grid grid-cols-3 gap-2 mb-4">
                   {opponents.map(uid => {
                       const p = playersMap[uid] || { name: 'Player', avatar: '', uid };
-                      const score = match!.scores[uid] || 0;
+                      const score = match!.scores?.[uid] || 0;
                       const hasAnswered = match!.currentAnswers?.[uid];
                       
                       return (
-                          <div key={uid} className="flex flex-col items-center bg-white/50 dark:bg-slate-800/50 rounded-xl p-2 backdrop-blur-sm border border-white/20">
+                          <div key={uid} className="flex flex-col items-center bg-white/50 dark:bg-slate-800/50 rounded-xl p-2 backdrop-blur-sm border border-white/20 relative">
                               <div className="relative">
                                   <Avatar src={p.avatar} size="sm" className="mb-1" />
                                   {hasAnswered && <div className="absolute -bottom-1 -right-1 bg-green-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white"><i className="fas fa-check"></i></div>}
@@ -599,8 +599,8 @@ const GamePage: React.FC = () => {
   const renderPodium = () => {
       const players = Object.keys(match!.players || {});
       const ranked = players.sort((a, b) => {
-          const scoreA = match!.scores[a] || 0;
-          const scoreB = match!.scores[b] || 0;
+          const scoreA = match!.scores?.[a] || 0;
+          const scoreB = match!.scores?.[b] || 0;
           if (scoreB !== scoreA) return scoreB - scoreA;
           return (match!.totalResponseTime?.[a] || 0) - (match!.totalResponseTime?.[b] || 0);
       });
@@ -625,7 +625,7 @@ const GamePage: React.FC = () => {
                                       <span className="text-2xl font-black text-slate-400">2</span>
                                   </div>
                                   <span className="font-bold text-xs mt-1 truncate w-20 text-center">{playersMap[ranked[1]]?.name}</span>
-                                  <span className="text-[10px] font-black text-slate-400">{match!.scores[ranked[1]]} PTS</span>
+                                  <span className="text-[10px] font-black text-slate-400">{match!.scores?.[ranked[1]] || 0} PTS</span>
                               </div>
                           )}
                           
@@ -640,7 +640,7 @@ const GamePage: React.FC = () => {
                                       <span className="text-4xl font-black text-yellow-500">1</span>
                                   </div>
                                   <span className="font-bold text-sm mt-1 truncate w-24 text-center text-game-primary">{playersMap[ranked[0]]?.name}</span>
-                                  <span className="text-xs font-black text-slate-800 dark:text-white">{match!.scores[ranked[0]]} PTS</span>
+                                  <span className="text-xs font-black text-slate-800 dark:text-white">{match!.scores?.[ranked[0]] || 0} PTS</span>
                               </div>
                           )}
 
@@ -652,7 +652,7 @@ const GamePage: React.FC = () => {
                                       <span className="text-2xl font-black text-orange-400">3</span>
                                   </div>
                                   <span className="font-bold text-xs mt-1 truncate w-20 text-center">{playersMap[ranked[2]]?.name}</span>
-                                  <span className="text-[10px] font-black text-slate-400">{match!.scores[ranked[2]]} PTS</span>
+                                  <span className="text-[10px] font-black text-slate-400">{match!.scores?.[ranked[2]] || 0} PTS</span>
                               </div>
                           )}
                       </div>
