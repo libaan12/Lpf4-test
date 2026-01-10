@@ -23,7 +23,9 @@ const DownloadPage: React.FC = () => {
          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')}>
             <div className="relative">
                 <div className="absolute inset-0 bg-game-primary blur-lg opacity-40 group-hover:opacity-70 transition-opacity"></div>
-                <img src="/logo.png" className="w-10 h-10 relative z-10 drop-shadow-md" alt="Logo" />
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-game-primary to-orange-600 flex items-center justify-center relative z-10 shadow-md">
+                    <i className="fas fa-graduation-cap text-white"></i>
+                </div>
             </div>
             <span className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tighter">LP-F4</span>
          </div>

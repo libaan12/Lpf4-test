@@ -30,8 +30,8 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
         <div className="h-full flex flex-col justify-between py-6 p-4">
             <div className="flex flex-col gap-2">
                 <div className="px-4 mb-8 flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')}>
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-game-primary to-purple-600 shadow-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform">
-                         <img src="/logo.png" alt="Logo" className="w-6 h-6 filter brightness-200" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-game-primary to-purple-600 shadow-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform overflow-hidden">
+                         <i className="fas fa-graduation-cap text-white text-sm"></i>
                     </div>
                     <span className="font-black text-2xl tracking-tighter hidden lg:block text-slate-800 dark:text-white">LP-F4</span>
                 </div>

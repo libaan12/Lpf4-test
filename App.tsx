@@ -260,8 +260,10 @@ const AppContent: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-tr from-orange-500 to-red-600 rounded-3xl blur-xl opacity-40 animate-pulse"></div>
                 
                 {/* Logo Box */}
-                <div className="relative w-32 h-32 bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl flex items-center justify-center border border-white/50 dark:border-slate-800 ring-1 ring-orange-500/10 backdrop-blur-md">
-                     <img src="/logo.png" alt="Logo" className="w-20 h-20 object-contain drop-shadow-md animate-[float_4s_ease-in-out_infinite]" />
+                <div className="relative w-32 h-32 bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl flex items-center justify-center border border-white/50 dark:border-slate-800 ring-1 ring-orange-500/10 backdrop-blur-md overflow-hidden">
+                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-game-primary to-red-600">
+                         <i className="fas fa-graduation-cap text-5xl text-white drop-shadow-md animate-pulse"></i>
+                     </div>
                 </div>
                 
                 {/* Orbiting particles (Pure CSS) */}
