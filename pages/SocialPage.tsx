@@ -184,25 +184,22 @@ const SocialPage: React.FC = () => {
             />
         </div>
 
-        {/* 2. Tabs (Smooth Slider) */}
-        <div className="relative flex w-full bg-slate-200 dark:bg-slate-800 p-1 rounded-2xl mb-6 shadow-inner h-14">
-            {/* Sliding Indicator */}
-            <div 
-                className="absolute top-1 bottom-1 bg-white dark:bg-slate-700 rounded-xl shadow-md transition-all duration-300 ease-out z-0"
-                style={{
-                    width: 'calc((100% - 0.5rem) / 3)',
-                    left: '0.25rem',
-                    transform: `translateX(${activeTab === 'friends' ? '0%' : activeTab === 'requests' ? '100%' : '200%'})`
-                }}
-            />
-            
+        {/* 2. Tabs (Pills) - 3D Effect */}
+        <div className="flex items-center gap-3 mb-6 overflow-x-auto no-scrollbar pb-2 pt-1 px-1">
             <button 
                 onClick={() => setActiveTab('friends')}
-                className={`flex-1 relative z-10 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-colors duration-300 ${activeTab === 'friends' ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-400'}`}
+                className={`btn-3d px-6 py-3 rounded-full font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                    activeTab === 'friends' 
+                    ? 'bg-[#ea580c] text-white' 
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                }`}
+                style={{ 
+                    boxShadow: activeTab === 'friends' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
+                }}
             >
-                Friends
+                Friends 
                 {friends.length > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] leading-none ${activeTab === 'friends' ? 'bg-game-primary text-white' : 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300'}`}>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] leading-none ${activeTab === 'friends' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
                         {friends.length}
                     </span>
                 )}
@@ -210,11 +207,18 @@ const SocialPage: React.FC = () => {
             
             <button 
                 onClick={() => setActiveTab('requests')}
-                className={`flex-1 relative z-10 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-colors duration-300 ${activeTab === 'requests' ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-400'}`}
+                className={`btn-3d px-6 py-3 rounded-full font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                    activeTab === 'requests' 
+                    ? 'bg-[#ea580c] text-white' 
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                }`}
+                style={{ 
+                    boxShadow: activeTab === 'requests' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
+                }}
             >
                 Requests
                 {requests.length > 0 && (
-                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[9px] leading-none ${activeTab === 'requests' ? 'bg-red-500 text-white' : 'bg-red-500/80 text-white'}`}>
+                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] leading-none ${activeTab === 'requests' ? 'bg-white text-[#ea580c]' : 'bg-red-500 text-white'}`}>
                         {requests.length}
                     </span>
                 )}
@@ -222,7 +226,14 @@ const SocialPage: React.FC = () => {
             
             <button 
                 onClick={() => setActiveTab('explore')}
-                className={`flex-1 relative z-10 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-colors duration-300 ${activeTab === 'explore' ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-400'}`}
+                className={`btn-3d px-6 py-3 rounded-full font-black text-sm transition-all whitespace-nowrap ${
+                    activeTab === 'explore' 
+                    ? 'bg-[#ea580c] text-white' 
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                }`}
+                style={{ 
+                    boxShadow: activeTab === 'explore' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
+                }}
             >
                 Explore
             </button>
@@ -259,10 +270,8 @@ const SocialPage: React.FC = () => {
 
                                     {/* Info */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-black text-slate-800 dark:text-white text-base truncate mb-0.5 flex items-center gap-1">
+                                        <div className="font-black text-slate-800 dark:text-white text-base truncate mb-0.5">
                                             {f.name}
-                                            {f.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                            {f.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                                         </div>
                                         <div className={`text-xs truncate font-bold ${meta.unreadCount > 0 ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
                                             {isMe ? `You: ${lastMsg}` : lastMsg}
@@ -306,7 +315,6 @@ const SocialPage: React.FC = () => {
                                         <div className="font-black text-slate-800 dark:text-white text-sm truncate flex items-center gap-1">
                                             {u.name}
                                             {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
-                                            {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                                         </div>
                                         <div className="text-xs text-slate-400 font-bold truncate">@{u.username || 'user'}</div>
                                     </div>
@@ -352,8 +360,7 @@ const SocialPage: React.FC = () => {
                                     <div>
                                         <div className="font-black text-slate-800 dark:text-white text-sm flex items-center gap-1">
                                             {r.user.name}
-                                            {r.user.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs" title="Verified"></i>}
-                                            {r.user.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Official Support"></i>}
+                                            {r.user.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs"></i>}
                                         </div>
                                         <div className="text-xs text-slate-400 font-bold">Wants to be friends</div>
                                     </div>
