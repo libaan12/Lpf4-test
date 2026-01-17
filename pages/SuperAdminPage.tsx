@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ref, update, onValue, off, set, remove, get, push } from 'firebase/database';
 import { db } from '../firebase';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport } from '../types';
@@ -11,969 +11,782 @@ const SuperAdminPage: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'quizzes' | 'matches' | 'reports' | 'reactions'>('users');
+  const [activeTab, setActiveTab] = useState<'home' | 'users' | 'quizzes' | 'arena' | 'reports' | 'social'>('home');
   const navigate = useNavigate();
   
-  // --- USER MANAGEMENT STATE ---
+  // --- CORE DATA STATES ---
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
-
-  // --- QUIZ MANAGEMENT STATE ---
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [selectedChapter, setSelectedChapter] = useState<string>('');
-  
-  // --- MATCH MANAGEMENT STATE ---
   const [matches, setMatches] = useState<MatchState[]>([]);
-
-  // --- REPORT MANAGEMENT STATE ---
   const [reports, setReports] = useState<QuestionReport[]>([]);
-  
-  // --- REACTION MANAGEMENT STATE ---
   const [emojis, setEmojis] = useState<{id: string, value: string}[]>([]);
   const [messages, setMessages] = useState<{id: string, value: string}[]>([]);
-  const [newEmoji, setNewEmoji] = useState('');
-  const [newMessage, setNewMessage] = useState('');
-
-  // Editing Question
+  
+  // Selection State
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [reportFilter, setReportFilter] = useState<'all' | 'wrong_answer' | 'typo' | 'other'>('all');
 
-  // INITIAL AUTH & SETTINGS
-  useEffect(() => {
-    if (isAuthenticated) {
-        // Listen for AI Settings
-        const settingsRef = ref(db, 'settings/aiAssistantEnabled');
-        const handleSettings = (snap: any) => {
-             setAiEnabled(snap.exists() ? snap.val() : true);
-        };
-        const unsubSettings = onValue(settingsRef, handleSettings);
-
-        return () => {
-            off(settingsRef, 'value', handleSettings);
-        }
-    }
-  }, [isAuthenticated]);
-
-  // FETCH USERS (Only when tab is users)
-  useEffect(() => {
-      if (isAuthenticated && activeTab === 'users') {
-        setLoading(true);
-        const userRef = ref(db, 'users');
-        const handleData = (snap: any) => {
-            if (snap.exists()) {
-                const data = snap.val();
-                const list: UserProfile[] = Object.keys(data).map(key => ({ uid: key, ...data[key] }));
-                setUsers(list);
-            } else { setUsers([]); }
-            setLoading(false);
-        };
-        const unsubscribe = onValue(userRef, handleData);
-        return () => off(userRef, 'value', handleData);
-      }
-  }, [isAuthenticated, activeTab]);
-
-  // FILTER USERS
-  useEffect(() => {
-      if (searchTerm.trim() === '') {
-          setFilteredUsers(users);
-      } else {
-          const lower = searchTerm.toLowerCase();
-          setFilteredUsers(users.filter(u => 
-              (u.name && u.name.toLowerCase().includes(lower)) || 
-              (u.username && u.username.toLowerCase().includes(lower)) ||
-              (u.email && u.email.toLowerCase().includes(lower))
-          ));
-      }
-  }, [searchTerm, users]);
-
-  // FETCH SUBJECTS (Only when tab is quizzes)
-  useEffect(() => {
-      if (isAuthenticated && activeTab === 'quizzes') {
-          const subRef = ref(db, 'subjects');
-          const handleSub = (snap: any) => {
-              if (snap.exists()) {
-                const list = (Object.values(snap.val()) as Subject[]).filter(s => s && s.id && s.name);
-                setSubjects(list);
-              } else {
-                setSubjects([]);
-              }
-          };
-          onValue(subRef, handleSub);
-          return () => off(subRef);
-      }
-  }, [isAuthenticated, activeTab]);
-
-  // FETCH MATCHES (Only when tab is matches)
-  useEffect(() => {
-      if (isAuthenticated && activeTab === 'matches') {
-          const matchesRef = ref(db, 'matches');
-          const handleMatches = (snap: any) => {
-              if (snap.exists()) {
-                  const data = snap.val();
-                  // Map and sort by newest first
-                  const list: MatchState[] = Object.keys(data).map(key => ({ ...data[key], matchId: key }));
-                  setMatches(list.reverse());
-              } else {
-                  setMatches([]);
-              }
-          };
-          onValue(matchesRef, handleMatches);
-          return () => off(matchesRef);
-      }
-  }, [isAuthenticated, activeTab]);
-
-  // FETCH REPORTS
-  useEffect(() => {
-      if (isAuthenticated && activeTab === 'reports') {
-          const reportsRef = ref(db, 'reports');
-          const handleReports = (snap: any) => {
-              if (snap.exists()) {
-                  const data = snap.val();
-                  const list: QuestionReport[] = Object.keys(data).map(key => ({ ...data[key], id: key }));
-                  setReports(list.reverse());
-              } else {
-                  setReports([]);
-              }
-          };
-          onValue(reportsRef, handleReports);
-          return () => off(reportsRef);
-      }
-  }, [isAuthenticated, activeTab]);
-
-  // FETCH REACTIONS
-  useEffect(() => {
-      if (isAuthenticated && activeTab === 'reactions') {
-          const rRef = ref(db, 'settings/reactions');
-          const unsub = onValue(rRef, snap => {
-              if (snap.exists()) {
-                  const val = snap.val();
-                  if (val.emojis) {
-                      setEmojis(Object.entries(val.emojis).map(([k, v]) => ({id: k, value: v as string})));
-                  } else { setEmojis([]); }
-                  if (val.messages) {
-                      setMessages(Object.entries(val.messages).map(([k, v]) => ({id: k, value: v as string})));
-                  } else { setMessages([]); }
-              } else {
-                  setEmojis([]); setMessages([]);
-              }
-          });
-          return () => off(rRef);
-      }
-  }, [isAuthenticated, activeTab]);
-
-  // FETCH CHAPTERS
-  useEffect(() => {
-      if (selectedSubject) {
-          const chapRef = ref(db, `chapters/${selectedSubject}`);
-          onValue(chapRef, (snap) => {
-              if (snap.exists()) {
-                  setChapters(Object.values(snap.val()) as Chapter[]);
-              } else {
-                  setChapters([]);
-              }
-          });
-      } else {
-          setChapters([]);
-          setSelectedChapter('');
-      }
-  }, [selectedSubject]);
-
-  // FETCH QUESTIONS
-  useEffect(() => {
-      if (selectedChapter) {
-          const qRef = ref(db, `questions/${selectedChapter}`);
-          onValue(qRef, (snap) => {
-              if (snap.exists()) {
-                  const data = snap.val();
-                  const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-                  setQuestions(list);
-              } else {
-                  setQuestions([]);
-              }
-          });
-      } else {
-          setQuestions([]);
-      }
-  }, [selectedChapter]);
-
+  // --- LOGIC: AUTHENTICATION ---
   const checkPin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === '1234') { setIsAuthenticated(true); } else {
+    if (pin === '1234') { 
+        setIsAuthenticated(true); 
+    } else {
         showAlert('Access Denied', 'Incorrect PIN', 'error');
     }
   };
 
-  // --- REACTION ACTIONS ---
-  const handleAddReaction = async (type: 'emojis' | 'messages') => {
-      const val = type === 'emojis' ? newEmoji.trim() : newMessage.trim();
-      if (!val) return;
-      try {
-          await push(ref(db, `settings/reactions/${type}`), val);
-          showToast('Added', 'success');
-          if (type === 'emojis') setNewEmoji(''); else setNewMessage('');
-      } catch(e) { showAlert('Error', 'Failed to add', 'error'); }
+  // --- LOGIC: DATA SYNC ---
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const syncRefs = [
+      { path: 'users', setter: (data: any) => setUsers(Object.keys(data || {}).map(k => ({ uid: k, ...data[k] }))) },
+      { path: 'matches', setter: (data: any) => setMatches(Object.keys(data || {}).map(k => ({ ...data[k], matchId: k })).reverse()) },
+      { path: 'reports', setter: (data: any) => setReports(Object.keys(data || {}).map(k => ({ ...data[k], id: k })).reverse()) },
+      { path: 'subjects', setter: (data: any) => setSubjects(Object.values(data || {}).filter((s: any) => s.id)) },
+      { path: 'settings/aiAssistantEnabled', setter: (val: any) => setAiEnabled(val === null ? true : val) },
+      { 
+        path: 'settings/reactions', 
+        setter: (val: any) => {
+          if (val?.emojis) setEmojis(Object.entries(val.emojis).map(([k, v]) => ({id: k, value: v as string})));
+          if (val?.messages) setMessages(Object.entries(val.messages).map(([k, v]) => ({id: k, value: v as string})));
+        } 
+      }
+    ];
+
+    const unsubs = syncRefs.map(r => {
+      const dbRef = ref(db, r.path);
+      const listener = onValue(dbRef, (snap) => r.setter(snap.val()));
+      return () => off(dbRef, 'value', listener);
+    });
+
+    return () => unsubs.forEach(fn => fn());
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (selectedSubject) {
+      const chapRef = ref(db, `chapters/${selectedSubject}`);
+      onValue(chapRef, (snap) => setChapters(Object.values(snap.val() || {})));
+    }
+  }, [selectedSubject]);
+
+  useEffect(() => {
+    if (selectedChapter) {
+      const qRef = ref(db, `questions/${selectedChapter}`);
+      onValue(qRef, (snap) => {
+        const data = snap.val();
+        setQuestions(Object.keys(data || {}).map(key => ({ id: key, ...data[key] })));
+      });
+    }
+  }, [selectedChapter]);
+
+  // --- LOGIC: ACTIONS ---
+  const toggleUserProp = async (uid: string, prop: string, current: any) => {
+    try {
+      await update(ref(db, `users/${uid}`), { [prop]: !current });
+      showToast("Updated", "success");
+    } catch(e) { showAlert("Error", "Failed to update", "error"); }
   };
 
-  const handleDeleteReaction = async (type: 'emojis' | 'messages', id: string) => {
-      const confirmed = await showConfirm('Delete Reaction?', 'This will remove it from the game for everyone.');
-      if (!confirmed) return;
+  const adjustPoints = async (uid: string, current: number, delta: number) => {
+    try {
+      await update(ref(db, `users/${uid}`), { points: Math.max(0, current + delta) });
+    } catch(e) {}
+  };
+
+  const terminateMatch = async (matchId: string) => {
+    if (await showConfirm("Destroy Match?", "This will stop the game for all players.", "Destroy", "Cancel", "danger")) {
+      const match = matches.find(m => m.matchId === matchId);
+      const updates: any = {};
+      updates[`matches/${matchId}`] = null;
+      if (match?.players) Object.keys(match.players).forEach(uid => updates[`users/${uid}/activeMatch`] = null);
+      await update(ref(db), updates);
+      showToast("Match Terminated", "success");
+    }
+  };
+
+  const handleUpdateQuestion = async () => {
+    if (!editingQuestion) return;
+    const path = `questions/${editingQuestion.subject}/${editingQuestion.id}`;
+    await update(ref(db, path), {
+        question: editingQuestion.question,
+        options: editingQuestion.options,
+        answer: editingQuestion.answer
+    });
+    setEditingQuestion(null);
+    showToast("Updated", "success");
+  };
+
+  // Fix: Added missing handleDeleteQuestion function
+  const handleDeleteQuestion = async (id: string | number) => {
+    if (!selectedChapter) return;
+    if (await showConfirm("Delete Question?", "This action is irreversible.", "Delete", "Cancel", "danger")) {
       try {
-          await remove(ref(db, `settings/reactions/${type}/${id}`));
-          showToast('Deleted', 'success');
-      } catch(e) { showAlert('Error', 'Failed to delete', 'error'); }
+        await remove(ref(db, `questions/${selectedChapter}/${id}`));
+        showToast("Question Deleted", "success");
+      } catch (e) {
+        console.error(e);
+        showAlert("Error", "Failed to delete question.", "error");
+      }
+    }
+  };
+
+  // --- FILTERING ---
+  const filteredUsers = useMemo(() => {
+    const lower = searchTerm.toLowerCase();
+    return users.filter(u => u.name?.toLowerCase().includes(lower) || u.username?.toLowerCase().includes(lower));
+  }, [users, searchTerm]);
+
+  const filteredReports = useMemo(() => {
+    if (reportFilter === 'all') return reports;
+    return reports.filter(r => r.reason === reportFilter);
+  }, [reports, reportFilter]);
+
+  // --- COMPONENTS: SUB-VIEWS ---
+
+  const DashboardView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-800/50 p-6 rounded-[2rem] border border-slate-700/50 shadow-inner relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 text-green-500 font-black text-xs">+5.2%</div>
+          <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Total Users</div>
+          <div className="text-3xl font-black text-white">{users.length.toLocaleString()}</div>
+          <i className="fas fa-users absolute -bottom-4 -right-4 text-6xl opacity-5 group-hover:scale-110 transition-transform"></i>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-[2rem] border border-slate-700/50 shadow-inner relative overflow-hidden group">
+          <div className="absolute top-4 right-4"><span className="w-2 h-2 bg-cyan-400 rounded-full inline-block animate-pulse"></span> <span className="text-cyan-400 text-[10px] font-black uppercase">Live</span></div>
+          <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">In Arena</div>
+          <div className="text-3xl font-black text-cyan-400">{matches.length * 2}</div>
+          <i className="fas fa-bolt absolute -bottom-4 -right-4 text-6xl opacity-5 group-hover:scale-110 transition-transform"></i>
+        </div>
+      </div>
+
+      {/* Reports Banner */}
+      <div className="bg-orange-950/20 border border-orange-500/20 p-5 rounded-[2rem] flex items-center justify-between">
+        <div className="flex items-center gap-4">
+           <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white text-xl">
+             <i className="fas fa-exclamation-triangle"></i>
+           </div>
+           <div>
+             <div className="text-white font-black text-2xl">{reports.length} <span className="text-sm text-slate-400 font-bold uppercase">Reports</span></div>
+             <div className="text-orange-500 text-[10px] font-black uppercase tracking-tight">{reports.length > 0 ? `${reports.length} requiring immediate action` : 'System All Clear'}</div>
+           </div>
+        </div>
+        <button onClick={() => setActiveTab('reports')} className="bg-orange-500 text-white px-6 py-2.5 rounded-xl font-black text-sm shadow-lg shadow-orange-500/20">Review</button>
+      </div>
+
+      {/* Arena Performance Chart Simulation */}
+      <Card className="!bg-slate-800/30 border-slate-700/50 !p-6 rounded-[2.5rem]">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-white font-black uppercase tracking-tighter text-lg">Arena Performance</h3>
+          <span className="text-cyan-400 text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-cyan-400/10 rounded-full">Daily Peak</span>
+        </div>
+        <div className="flex items-end gap-1 mb-4">
+          <span className="text-5xl font-black text-white">92%</span>
+          <span className="text-slate-500 font-bold text-sm mb-1 ml-2">Completion Rate</span>
+        </div>
+        <div className="h-32 w-full relative mt-4">
+          <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+            <path d="M0,80 Q50,20 100,60 T200,40 T300,70 T400,30" fill="none" stroke="#22d3ee" strokeWidth="4" strokeLinecap="round" />
+            <path d="M0,80 Q50,20 100,60 T200,40 T300,70 T400,30 V100 H0 Z" fill="url(#grad)" opacity="0.1" />
+            <defs>
+              <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style={{stopColor:'#22d3ee', stopOpacity:1}} />
+                <stop offset="100%" style={{stopColor:'#22d3ee', stopOpacity:0}} />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div className="flex justify-between mt-2 text-[10px] font-black text-slate-600 uppercase tracking-widest">
+            <span>00:00</span>
+            <span>12:00</span>
+            <span>23:59</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Recent Activity */}
+      <div>
+        <h3 className="text-white font-black uppercase tracking-tighter text-lg mb-4 ml-2">Recent Activity</h3>
+        <div className="space-y-3">
+          <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/30 flex items-center justify-between group cursor-pointer hover:bg-slate-800/60 transition-all">
+             <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-500/10 text-blue-500 rounded-xl flex items-center justify-center border border-blue-500/20"><i className="fas fa-check-circle"></i></div>
+                <div>
+                   <div className="text-white font-bold text-sm">Alex Rivier verified their account</div>
+                   <div className="text-slate-500 text-[10px] font-bold uppercase tracking-tight">2 minutes ago • Level 12</div>
+                </div>
+             </div>
+             <i className="fas fa-chevron-right text-slate-700 group-hover:translate-x-1 transition-transform"></i>
+          </div>
+          <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/30 flex items-center justify-between group cursor-pointer hover:bg-slate-800/60 transition-all">
+             <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-cyan-500/10 text-cyan-500 rounded-xl flex items-center justify-center border border-cyan-500/20"><i className="fas fa-question-circle"></i></div>
+                <div>
+                   <div className="text-white font-bold text-sm">New Quiz: "Advanced React Pattern..."</div>
+                   <div className="text-slate-500 text-[10px] font-bold uppercase tracking-tight">14 minutes ago • Created by Sarah</div>
+                </div>
+             </div>
+             <i className="fas fa-chevron-right text-slate-700 group-hover:translate-x-1 transition-transform"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const UsersView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Search Header */}
+      <div className="flex gap-3">
+        <div className="flex-1 relative">
+           <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+           <input 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-bold focus:ring-2 focus:ring-cyan-400 transition-all shadow-inner"
+              placeholder="Search ID, email, or name..."
+           />
+        </div>
+        <button className="bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center text-white border border-slate-700 shadow-lg"><i className="fas fa-sliders-h"></i></button>
+      </div>
+
+      {/* Grid Stats */}
+      <div className="grid grid-cols-3 gap-3">
+         <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Total</div>
+            <div className="text-xl font-black text-white">{users.length}</div>
+            <div className="text-cyan-400 text-[8px] font-black mt-1"><i className="fas fa-arrow-up mr-1"></i>12%</div>
+         </div>
+         <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Admins</div>
+            <div className="text-xl font-black text-white">{users.filter(u => u.role === 'admin').length}</div>
+            <div className="text-slate-500 text-[8px] font-black mt-1">0%</div>
+         </div>
+         <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Flags</div>
+            <div className="text-xl font-black text-red-500">{reports.length}</div>
+            <div className="text-red-400 text-[8px] font-black mt-1"><i className="fas fa-exclamation-triangle mr-1"></i>+1</div>
+         </div>
+      </div>
+
+      <div className="flex justify-between items-center px-1">
+        <h3 className="text-cyan-400 text-[11px] font-black uppercase tracking-[0.2em]">User Records</h3>
+        <span className="text-[10px] font-black text-slate-500 uppercase bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/30">Live Updates</span>
+      </div>
+
+      {/* User Cards List */}
+      <div className="space-y-4">
+        {filteredUsers.slice(0, 30).map(u => (
+          <Card key={u.uid} className="!bg-slate-800/40 border-slate-700/30 !p-5 rounded-[2.5rem] relative group">
+            {/* User Profile Info */}
+            <div className="flex items-center gap-4 mb-6">
+               <div className="relative shrink-0">
+                  <Avatar src={u.avatar} size="lg" className="border-slate-700" />
+                  <span className={`absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-slate-800 ${u.isOnline ? 'bg-green-500' : 'bg-slate-500'}`}></span>
+               </div>
+               <div className="flex-1 min-w-0">
+                  <h4 className="text-lg font-black text-white flex items-center gap-2 truncate">
+                    {u.name}
+                    {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-sm"></i>}
+                  </h4>
+                  <div className="text-cyan-400 text-xs font-mono truncate">{u.email || `@${u.username}`}</div>
+               </div>
+               <button 
+                  onClick={() => toggleBan(u.uid, u.banned)}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${u.banned ? 'bg-red-500 text-white' : 'bg-slate-700/50 text-red-500 hover:bg-red-500/20'}`}
+               >
+                  <i className="fas fa-ban"></i>
+               </button>
+            </div>
+
+            {/* Toggles Grid */}
+            <div className="grid grid-cols-3 gap-2 mb-6 text-center">
+               <div className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/30">
+                  <div className="text-[9px] font-black text-slate-500 uppercase mb-2">Role</div>
+                  <button onClick={() => toggleUserProp(u.uid, 'role', u.role === 'admin' ? true : false)} className={`w-10 h-5 rounded-full relative transition-colors ${u.role === 'admin' ? 'bg-cyan-500' : 'bg-slate-700'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${u.role === 'admin' ? 'left-5.5' : 'left-0.5'}`}></div>
+                  </button>
+                  <div className={`text-[9px] font-black mt-1 uppercase ${u.role === 'admin' ? 'text-cyan-400' : 'text-slate-500'}`}>{u.role || 'User'}</div>
+               </div>
+               <div className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/30">
+                  <div className="text-[9px] font-black text-slate-500 uppercase mb-2">Verify</div>
+                  <button onClick={() => toggleVerification(u.uid, u.isVerified)} className={`w-10 h-5 rounded-full relative transition-colors ${u.isVerified ? 'bg-blue-500' : 'bg-slate-700'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${u.isVerified ? 'left-5.5' : 'left-0.5'}`}></div>
+                  </button>
+                  <div className={`text-[9px] font-black mt-1 uppercase ${u.isVerified ? 'text-blue-400' : 'text-slate-500'}`}>{u.isVerified ? 'Active' : 'Standard'}</div>
+               </div>
+               <div className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/30">
+                  <div className="text-[9px] font-black text-slate-500 uppercase mb-2">Support</div>
+                  <button onClick={() => toggleSupport(u.uid, u.isSupport)} className={`w-10 h-5 rounded-full relative transition-colors ${u.isSupport ? 'bg-orange-500' : 'bg-slate-700'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${u.isSupport ? 'left-5.5' : 'left-0.5'}`}></div>
+                  </button>
+                  <div className={`text-[9px] font-black mt-1 uppercase ${u.isSupport ? 'text-orange-400' : 'text-slate-500'}`}>{u.isSupport ? 'Agent' : 'Restricted'}</div>
+               </div>
+            </div>
+
+            {/* Point Adjuster */}
+            <div className="flex items-center justify-between bg-slate-900/40 p-4 rounded-2xl border border-slate-700/50">
+               <div>
+                  <div className="text-[9px] font-black text-slate-500 uppercase">Current Points</div>
+                  <div className="text-cyan-400 font-black text-sm">{u.points.toLocaleString()} PTS</div>
+               </div>
+               <div className="flex items-center gap-4 bg-slate-800/80 rounded-xl px-2 py-1">
+                  <button onClick={() => adjustPoints(u.uid, u.points, -10)} className="text-slate-500 hover:text-white p-2"><i className="fas fa-minus"></i></button>
+                  <span className="text-white font-black text-sm w-12 text-center">+{u.points}</span>
+                  <button onClick={() => adjustPoints(u.uid, u.points, 10)} className="text-cyan-400 hover:text-white p-2"><i className="fas fa-plus"></i></button>
+               </div>
+               <button className="bg-cyan-500/20 text-cyan-400 w-10 h-10 rounded-xl flex items-center justify-center border border-cyan-500/30"><i className="fas fa-check"></i></button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+
+  const QuizzesView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Top Controls */}
+      <div className="flex items-center justify-between px-2">
+         <div className="flex items-center gap-3">
+           <div className="w-12 h-12 bg-cyan-400 rounded-2xl flex items-center justify-center text-slate-900 text-xl"><i className="fas fa-chart-bar"></i></div>
+           <h2 className="text-white font-black text-2xl uppercase tracking-tighter">Quiz Manager</h2>
+         </div>
+         <div className="flex gap-2">
+           <button onClick={() => { setSelectedChapter(''); setQuestions([]); }} className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-700"><i className="fas fa-sync-alt"></i></button>
+           <button className="w-12 h-12 bg-cyan-400 rounded-2xl flex items-center justify-center text-slate-900 text-xl shadow-lg shadow-cyan-400/20"><i className="fas fa-user-circle"></i></button>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+         <div className="relative">
+            <div className="absolute top-2 left-4 text-[8px] font-black text-slate-500 uppercase tracking-widest z-10">Subject</div>
+            <select 
+              value={selectedSubject}
+              onChange={e => setSelectedSubject(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 pt-6 text-white font-black text-sm appearance-none shadow-lg focus:ring-2 focus:ring-cyan-400"
+            >
+              <option value="">Choose Subject</option>
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <i className="fas fa-layer-group absolute right-4 bottom-4 text-slate-600"></i>
+         </div>
+         <div className="relative">
+            <div className="absolute top-2 left-4 text-[8px] font-black text-slate-500 uppercase tracking-widest z-10">Chapter</div>
+            <select 
+              value={selectedChapter}
+              onChange={e => setSelectedChapter(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 pt-6 text-white font-black text-sm appearance-none shadow-lg focus:ring-2 focus:ring-cyan-400 disabled:opacity-50"
+              disabled={!selectedSubject}
+            >
+              <option value="">Select Chapter</option>
+              {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <i className="fas fa-square-full absolute right-4 bottom-4 text-cyan-400/50 scale-75"></i>
+         </div>
+      </div>
+
+      {/* Meta Bar */}
+      <div className="flex justify-between items-center text-slate-500 text-[10px] font-black uppercase tracking-widest px-1">
+        <div className="flex gap-2 items-center">
+           Admin <i className="fas fa-chevron-right text-[8px]"></i> 
+           Math <i className="fas fa-chevron-right text-[8px]"></i> 
+           <span className="text-cyan-400">Ch. 4</span>
+        </div>
+        <span className="bg-cyan-400/10 text-cyan-400 px-3 py-1 rounded-full border border-cyan-400/20">{questions.length} Questions</span>
+      </div>
+
+      {/* Questions List */}
+      <div className="space-y-4">
+        {questions.map((q, idx) => (
+          <div key={q.id} className="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 relative overflow-hidden group">
+            <div className="flex items-start gap-4">
+               <div className="w-12 h-12 bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded-2xl flex items-center justify-center font-black text-xl shrink-0">Q{idx+1}</div>
+               <div className="flex-1">
+                  <div className="text-cyan-400 text-[9px] font-black uppercase tracking-widest mb-1">Status: Live</div>
+                  <h4 className="text-white font-bold leading-tight mb-4">{q.question}</h4>
+                  <div className="flex gap-4">
+                     <span className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><i className="fas fa-list-ul text-cyan-400"></i> {q.options.length} Options</span>
+                     <span className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><i className="fas fa-star text-yellow-500"></i> Easy</span>
+                     <span className="text-cyan-400 text-[9px] font-black uppercase ml-auto tracking-widest flex items-center gap-1 opacity-50"><i className="fas fa-database"></i> Sync ID: {String(q.id).substring(0,4)}</span>
+                  </div>
+               </div>
+               <div className="flex flex-col gap-3">
+                  <button onClick={() => setEditingQuestion(q)} className="w-10 h-10 rounded-xl bg-slate-700/50 text-cyan-400 flex items-center justify-center hover:bg-cyan-400 hover:text-slate-900 transition-all"><i className="fas fa-edit"></i></button>
+                  <button onClick={() => handleDeleteQuestion(q.id)} className="w-10 h-10 rounded-xl bg-slate-700/50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-trash"></i></button>
+               </div>
+            </div>
+          </div>
+        ))}
+        {questions.length === 0 && <div className="text-center py-20 text-slate-600 font-black uppercase tracking-widest">Select a Chapter</div>}
+      </div>
+
+      {/* Floating Add Button */}
+      <button className="fixed bottom-24 right-6 w-16 h-16 bg-cyan-400 rounded-full flex items-center justify-center text-slate-900 text-3xl shadow-[0_10px_30px_rgba(34,211,238,0.4)] z-10 active:scale-90 transition-transform"><i className="fas fa-plus"></i></button>
+    </div>
+  );
+
+  const ArenaView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Header Cards */}
+      <div className="bg-cyan-500 p-6 rounded-[2.5rem] shadow-xl shadow-cyan-500/20 relative overflow-hidden group">
+         <div className="absolute top-0 right-0 p-4 opacity-20"><i className="fas fa-chart-line text-8xl"></i></div>
+         <div className="relative z-10 flex justify-between items-center">
+            <div>
+               <div className="text-slate-900/50 text-[10px] font-black uppercase tracking-widest mb-1">Server Load</div>
+               <div className="text-4xl font-black text-white">Optimal</div>
+            </div>
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i className="fas fa-signal text-2xl"></i></div>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+         <div className="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Active</div>
+            <div className="text-3xl font-black text-white">{matches.length} <span className="text-sm text-slate-500 font-bold uppercase">matches</span></div>
+         </div>
+         <div className="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Latency</div>
+            <div className="text-3xl font-black text-cyan-400">24<span className="text-sm font-bold uppercase ml-1">ms</span></div>
+         </div>
+      </div>
+
+      <div className="flex justify-between items-center px-1">
+         <h3 className="text-white font-black uppercase tracking-tighter text-lg">Real-time Feed</h3>
+         <span className="text-[9px] font-black text-green-400 uppercase bg-green-400/10 px-3 py-1 rounded-full border border-green-400/20 flex items-center gap-2"><i className="fas fa-circle text-[6px] animate-pulse"></i> Live Sync</span>
+      </div>
+
+      {/* Matches List */}
+      <div className="space-y-4">
+        {matches.map(m => {
+           const pIds = Object.keys(m.players || {});
+           return (
+            <div key={m.matchId} className="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-24 h-1 bg-cyan-400"></div>
+               <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-lg font-black text-white">{m.subjectTitle || 'Battle Arena'} #{String(m.matchId).substring(6,9)}</h4>
+                    <div className="text-slate-500 text-[10px] font-bold uppercase mt-1">Duration: 12:45 • Room: US-EAST-1</div>
+                  </div>
+                  <span className="bg-cyan-400/10 text-cyan-400 text-[9px] font-black px-3 py-1 rounded-lg border border-cyan-400/20 uppercase tracking-widest">Level 4</span>
+               </div>
+               
+               <div className="flex items-center gap-3 mb-6">
+                  <div className="flex -space-x-3">
+                    {pIds.map(uid => (
+                      <Avatar key={uid} src={m.players[uid].avatar} size="sm" className="border-2 border-slate-800" />
+                    ))}
+                    {pIds.length > 2 && <div className="w-10 h-10 rounded-full bg-slate-900 border-2 border-slate-800 flex items-center justify-center text-[10px] font-black text-white">+{pIds.length-2}</div>}
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-bold ml-2">Alex, Sarah, and {pIds.length-2} others</div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => navigate(`/game/${m.matchId}`)} className="bg-slate-700/50 text-cyan-400 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-cyan-400 hover:text-slate-900 transition-all border border-slate-700"><i className="fas fa-eye"></i> Spectate</button>
+                  <button onClick={() => terminateMatch(m.matchId)} className="bg-red-500/10 text-red-500 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"><i className="fas fa-ban"></i> Terminate</button>
+               </div>
+            </div>
+           )
+        })}
+      </div>
+    </div>
+  );
+
+  const ReportsView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4">
+         <div className="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Pending</div>
+            <div className="text-4xl font-black text-white">{reports.length} <span className="text-sm text-cyan-400 ml-1 font-black">+3%</span></div>
+            <div className="w-full h-1 bg-slate-700 rounded-full mt-4 overflow-hidden"><div className="w-1/3 h-full bg-cyan-400"></div></div>
+         </div>
+         <div className="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50">
+            <div className="text-slate-500 text-[10px] font-black uppercase mb-1">Top Issue</div>
+            <div className="text-2xl font-black text-white">Inaccurate</div>
+            <div className="text-cyan-400 text-[10px] font-black uppercase mt-2 tracking-widest">65% of reports</div>
+         </div>
+      </div>
+
+      {/* Filter Chips */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+         <button onClick={() => setReportFilter('all')} className={`px-6 py-2.5 rounded-full font-black text-sm transition-all shadow-lg ${reportFilter === 'all' ? 'bg-cyan-400 text-slate-900' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>All</button>
+         <button onClick={() => setReportFilter('wrong_answer')} className={`px-6 py-2.5 rounded-full font-black text-sm transition-all ${reportFilter === 'wrong_answer' ? 'bg-cyan-400 text-slate-900' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>Inaccurate</button>
+         <button onClick={() => setReportFilter('typo')} className={`px-6 py-2.5 rounded-full font-black text-sm transition-all ${reportFilter === 'typo' ? 'bg-cyan-400 text-slate-900' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>Typo</button>
+         <button onClick={() => setReportFilter('other')} className={`px-6 py-2.5 rounded-full font-black text-sm transition-all ${reportFilter === 'other' ? 'bg-cyan-400 text-slate-900' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>Spam</button>
+      </div>
+
+      {/* Reports List */}
+      <div className="space-y-4">
+         {filteredReports.map(r => (
+           <div key={r.id} className="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 relative overflow-hidden group">
+              <div className="flex justify-between items-start mb-4">
+                 <div>
+                    <span className="text-cyan-400 text-[10px] font-black uppercase tracking-widest">#Q-{String(r.questionId).substring(0,4)}</span>
+                    <div className="text-slate-500 text-[9px] font-black uppercase mt-1">Physics • Grade 10</div>
+                 </div>
+                 <div className="text-slate-600 text-[10px] font-black uppercase">2M Ago</div>
+              </div>
+              
+              <div className="flex gap-4 mb-6">
+                 <div className="w-12 h-12 bg-orange-500/10 text-orange-500 border border-orange-500/20 rounded-2xl flex items-center justify-center text-xl shrink-0"><i className="fas fa-exclamation-circle"></i></div>
+                 <div>
+                    <h4 className="text-white font-black text-base">{getReasonLabel(r.reason)}</h4>
+                    <p className="text-slate-500 italic text-xs leading-relaxed mt-1">"{r.questionText.substring(0, 80)}..."</p>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                 <button onClick={() => handleEditReported(r)} className="bg-cyan-400/10 text-cyan-400 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-cyan-400/20 hover:bg-cyan-400 hover:text-slate-900 transition-all"><i className="fas fa-list-check"></i> Review & Fix</button>
+                 <button onClick={() => handleClearReport(r.id)} className="bg-slate-700/30 text-slate-500 py-3 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 border border-slate-700/50 hover:bg-slate-700 hover:text-white transition-all"><i className="fas fa-times"></i> Dismiss</button>
+              </div>
+           </div>
+         ))}
+         {filteredReports.length === 0 && <div className="text-center py-20 text-slate-600 font-black uppercase tracking-widest">No Flags Pending</div>}
+      </div>
+    </div>
+  );
+
+  const SocialView = () => (
+    <div className="space-y-6 animate__animated animate__fadeIn">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-2">
+         <div className="w-12 h-12 bg-cyan-400 rounded-2xl flex items-center justify-center text-slate-900 text-xl"><i className="fas fa-smile"></i></div>
+         <h2 className="text-white font-black text-2xl uppercase tracking-tighter">Reaction Settings</h2>
+      </div>
+
+      {/* Emoji Grid Section */}
+      <section className="space-y-4">
+        <div className="flex justify-between items-center px-1">
+          <h3 className="text-white font-black text-lg uppercase tracking-tight">Active Emojis</h3>
+          <span className="text-cyan-400 text-[10px] font-black uppercase tracking-widest bg-cyan-400/10 px-3 py-1 rounded-full border border-cyan-400/20">{emojis.length}/8</span>
+        </div>
+        <div className="grid grid-cols-4 gap-4">
+           {emojis.map(e => (
+             <div key={e.id} className="aspect-square bg-slate-800/60 rounded-2xl border border-slate-700/50 flex items-center justify-center text-3xl relative group">
+                {e.value}
+                <button onClick={() => handleDeleteReaction('emojis', e.id)} className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-transform"><i className="fas fa-times"></i></button>
+             </div>
+           ))}
+           {emojis.length < 8 && (
+             <button className="aspect-square border-2 border-dashed border-slate-700 rounded-2xl flex items-center justify-center text-slate-600 text-2xl hover:border-cyan-400 hover:text-cyan-400 transition-all"><i className="fas fa-plus"></i></button>
+           )}
+        </div>
+      </section>
+
+      {/* PTT Messages List */}
+      <section className="space-y-4">
+        <h3 className="text-white font-black text-lg uppercase tracking-tight px-1">PTT Messages</h3>
+        <div className="space-y-3">
+          {messages.map(m => (
+            <div key={m.id} className="bg-slate-800/40 p-5 rounded-2xl border border-slate-700/50 flex items-center justify-between group">
+               <div className="flex items-center gap-4">
+                  <i className="fas fa-grip-vertical text-slate-700 cursor-move"></i>
+                  <span className="text-white font-bold text-sm tracking-tight">{m.value}</span>
+               </div>
+               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button className="text-cyan-400 hover:text-white transition-colors p-2"><i className="fas fa-pencil-alt"></i></button>
+                  <button onClick={() => handleDeleteReaction('messages', m.id)} className="text-red-500 hover:text-white transition-colors p-2"><i className="fas fa-trash"></i></button>
+               </div>
+            </div>
+          ))}
+          <button className="w-full py-4 border-2 border-dashed border-slate-700 rounded-2xl flex items-center justify-center gap-3 text-cyan-400 font-black text-sm uppercase tracking-widest hover:border-cyan-400 transition-all">
+            <i className="fas fa-plus-circle"></i> New Message
+          </button>
+        </div>
+      </section>
+
+      <div className="pt-4">
+        <Button fullWidth className="!bg-cyan-500 !py-5 shadow-xl shadow-cyan-500/30 rounded-[1.5rem]" onClick={handleSeedDefaults}>
+           <i className="fas fa-layer-group mr-2"></i> Load Somali Defaults
+        </Button>
+        <p className="text-center text-slate-500 text-[8px] mt-4 font-black uppercase tracking-[0.2em] max-w-[250px] mx-auto opacity-60">Note: Loading defaults will overwrite current PTT configuration and sync to all active game clients.</p>
+      </div>
+    </div>
+  );
+
+  const getReasonLabel = (reason: string) => {
+      switch(reason) {
+          case 'wrong_answer': return 'Incorrect Answer Key';
+          case 'typo': return 'Typo in Question';
+          case 'other': return 'Inappropriate Content';
+          default: return reason;
+      }
+  };
+
+  const toggleBan = async (uid: string, current: boolean = false) => {
+    if (await showConfirm("Update Access?", `${!current ? 'Ban' : 'Unban'} this user?`)) {
+       await update(ref(db, `users/${uid}`), { banned: !current });
+       showToast("Updated", "success");
+    }
+  };
+
+  const toggleVerification = async (uid: string, current: boolean = false) => {
+    await update(ref(db, `users/${uid}`), { isVerified: !current, verificationNotificationPending: !current });
+  };
+
+  const toggleSupport = async (uid: string, current: boolean = false) => {
+    await update(ref(db, `users/${uid}`), { isSupport: !current });
+  };
+
+  const handleClearReport = async (id: string) => {
+    await remove(ref(db, `reports/${id}`));
+    showToast("Cleared", "success");
+  };
+
+  const handleEditReported = async (report: QuestionReport) => {
+    const qSnap = await get(ref(db, `questions/${report.chapterId}/${report.questionId}`));
+    if (qSnap.exists()) setEditingQuestion({ id: report.questionId, ...qSnap.val(), subject: report.chapterId });
+  };
+
+  const handleDeleteReaction = async (type: string, id: string) => {
+    await remove(ref(db, `settings/reactions/${type}/${id}`));
   };
 
   const handleSeedDefaults = async () => {
       const DEFAULT_EMOJIS = ['😂', '😡', '👏', '😱', '🥲', '🔥', '🏆', '🤯'];
       const DEFAULT_MESSAGES = ['Nasiib wacan!', 'Aad u fiican', 'Iska jir!', 'Hala soo baxo!', 'Mahadsanid'];
-      
-      try {
-          const updates: any = {};
-          DEFAULT_EMOJIS.forEach(e => {
-              const key = push(ref(db, 'settings/reactions/emojis')).key;
-              updates[`settings/reactions/emojis/${key}`] = e;
-          });
-          DEFAULT_MESSAGES.forEach(m => {
-              const key = push(ref(db, 'settings/reactions/messages')).key;
-              updates[`settings/reactions/messages/${key}`] = m;
-          });
-          await update(ref(db), updates);
-          showToast('Defaults Initialized', 'success');
-      } catch(e) { showAlert('Error', 'Failed to seed defaults', 'error'); }
+      const updates: any = {};
+      DEFAULT_EMOJIS.forEach(e => updates[`settings/reactions/emojis/${push(ref(db, 'settings/reactions/emojis')).key}`] = e);
+      DEFAULT_MESSAGES.forEach(m => updates[`settings/reactions/messages/${push(ref(db, 'settings/reactions/messages')).key}`] = m);
+      await update(ref(db), updates);
+      showToast('Defaults Initialized', 'success');
   };
 
-  // --- USER ACTIONS ---
-
-  const toggleRole = async (uid: string, currentRole?: string) => {
-      const newRole = currentRole === 'admin' ? 'user' : 'admin';
-      try {
-        await update(ref(db, `users/${uid}`), { role: newRole });
-        showToast(`User is now ${newRole}`, 'success');
-        if (selectedUser && selectedUser.uid === uid) {
-            setSelectedUser({ ...selectedUser, role: newRole as 'admin' | 'user' });
-        }
-      } catch (e) {
-        showAlert('Error', 'Failed to update role', 'error');
-      }
-  };
-
-  const toggleBan = async (uid: string, currentBanStatus?: boolean) => {
-      const newStatus = !currentBanStatus;
-      const action = newStatus ? 'Banned' : 'Unbanned';
-      
-      const confirmed = await showConfirm(
-          `${action} User?`, 
-          `Are you sure you want to ${newStatus ? 'BAN' : 'UNBAN'} this user? They will ${newStatus ? 'lose access immediately' : 'regain access'}.`
-      );
-
-      if (!confirmed) return;
-
-      try {
-          await update(ref(db, `users/${uid}`), { banned: newStatus });
-          if (newStatus) {
-              await update(ref(db, `users/${uid}`), { activeMatch: null });
-          }
-          showToast(`User ${action}`, 'success');
-          if (selectedUser && selectedUser.uid === uid) {
-              setSelectedUser({ ...selectedUser, banned: newStatus });
-          }
-      } catch (e) {
-          showAlert('Error', `Failed to ${action} user`, 'error');
-      }
-  };
-  
-  const toggleVerification = async (uid: string, currentStatus?: boolean) => {
-      const newStatus = !currentStatus;
-      // Set the pending flag only when turning verification ON
-      const updates: any = { isVerified: newStatus };
-      if (newStatus) {
-          updates.verificationNotificationPending = true;
-      }
-
-      try {
-          await update(ref(db, `users/${uid}`), updates);
-          showToast(newStatus ? 'User Verified' : 'Verification Removed', 'success');
-          if (selectedUser && selectedUser.uid === uid) {
-              setSelectedUser({ ...selectedUser, isVerified: newStatus });
-          }
-      } catch(e) { console.error(e); }
-  };
-
-  const toggleSupport = async (uid: string, currentStatus?: boolean) => {
-      const newStatus = !currentStatus;
-      try {
-          await update(ref(db, `users/${uid}`), { isSupport: newStatus });
-          showToast(newStatus ? 'Support Badge Granted' : 'Support Badge Revoked', 'success');
-          if (selectedUser && selectedUser.uid === uid) {
-              setSelectedUser({ ...selectedUser, isSupport: newStatus });
-          }
-      } catch(e) { console.error(e); }
-  };
-
-  const toggleCustomAvatarPrivilege = async (uid: string, currentStatus?: boolean) => {
-      const newStatus = !currentStatus;
-      try {
-          await update(ref(db, `users/${uid}`), { allowCustomAvatar: newStatus });
-          showToast(newStatus ? 'Custom Avatar Allowed' : 'Custom Avatar Revoked', 'success');
-          if (selectedUser && selectedUser.uid === uid) {
-              setSelectedUser({ ...selectedUser, allowCustomAvatar: newStatus });
-          }
-      } catch (e) { console.error(e); }
-  };
-
-  const deleteUser = async (uid: string) => {
-      const confirmed = await showConfirm(
-          "Delete User Permanently?", 
-          "This action cannot be undone. All user data will be wiped.",
-          "warning"
-      );
-      
-      if (!confirmed) return;
-
-      try {
-          const userSnap = await get(ref(db, `users/${uid}`));
-          if (userSnap.exists()) {
-              const userData = userSnap.val();
-              if (userData.activeMatch) {
-                   await remove(ref(db, `matches/${userData.activeMatch}/players/${uid}`));
-              }
-          }
-          await remove(ref(db, `users/${uid}`));
-          setSelectedUser(null);
-          showAlert('Deleted', 'User record deleted.', 'success');
-      } catch (e) {
-          console.error(e);
-          showAlert('Error', 'Failed to delete user data.', 'error');
-      }
-  };
-
-  const toggleAiFeature = async () => {
-    try {
-        await set(ref(db, 'settings/aiAssistantEnabled'), !aiEnabled);
-        showToast(!aiEnabled ? 'AI Enabled' : 'AI Disabled', 'success');
-    } catch (e) {
-        console.error(e);
-    }
-  };
-
-  // --- QUIZ ACTIONS ---
-
-  const handleDeleteQuestion = async (qId: string | number) => {
-      const confirmed = await showConfirm("Delete Question?", "This cannot be undone.");
-      if (!confirmed) return;
-      try {
-          await remove(ref(db, `questions/${selectedChapter}/${qId}`));
-          showToast("Question deleted", "success");
-      } catch (e) {
-          showAlert("Error", "Could not delete question", "error");
-      }
-  };
-
-  const handleUpdateQuestion = async () => {
-      if (!editingQuestion) return;
-      // Validation
-      if (!editingQuestion.question.trim() || editingQuestion.options.some(o => !o.trim())) {
-          showToast("Fields cannot be empty", "warning");
-          return;
-      }
-      
-      try {
-          // Path determined by subject property which stores chapterId
-          const path = `questions/${editingQuestion.subject}/${editingQuestion.id}`;
-          await update(ref(db, path), {
-              question: editingQuestion.question,
-              options: editingQuestion.options,
-              answer: editingQuestion.answer
-          });
-          setEditingQuestion(null);
-          showToast("Question Updated", "success");
-      } catch (e) {
-          showAlert("Error", "Update failed", "error");
-      }
-  };
-
-  // --- MATCH ACTIONS ---
-
-  const handleDestroyMatch = async (matchId: string) => {
-      const confirmed = await showConfirm(
-          "Destroy Match?", 
-          "This will immediately terminate the game session for all participants.", 
-          "Destroy", 
-          "Cancel", 
-          "danger"
-      );
-      
-      if (!confirmed) return;
-
-      try {
-          const match = matches.find(m => m.matchId === matchId);
-          const updates: any = {};
-          
-          // Delete Match
-          updates[`matches/${matchId}`] = null;
-          
-          // Clear activeMatch for players
-          if (match && match.players) {
-              Object.keys(match.players).forEach(uid => {
-                  updates[`users/${uid}/activeMatch`] = null;
-              });
-          }
-          
-          await update(ref(db), updates);
-          showToast("Match Terminated", "success");
-      } catch (e) {
-          console.error(e);
-          showAlert("Error", "Failed to destroy match", "error");
-      }
-  };
-
-  // --- REPORT ACTIONS ---
-  
-  const handleEditReported = async (report: QuestionReport) => {
-      try {
-          const qSnap = await get(ref(db, `questions/${report.chapterId}/${report.questionId}`));
-          if (qSnap.exists()) {
-              // Explicitly pass subject (chapterId) for update path
-              setEditingQuestion({ id: report.questionId, ...qSnap.val(), subject: report.chapterId });
-          } else {
-              showAlert("Error", "Question no longer exists.", "error");
-          }
-      } catch (e) {
-          showAlert("Error", "Could not fetch question details.", "error");
-      }
-  };
-
-  const handleClearReport = async (reportId: string) => {
-      try {
-          await remove(ref(db, `reports/${reportId}`));
-          showToast("Report cleared", "success");
-      } catch (e) {
-          showToast("Clear failed", "error");
-      }
-  };
-
-  const getReasonLabel = (reason: string) => {
-      switch(reason) {
-          case 'wrong_answer': return 'Wrong Answer';
-          case 'typo': return 'Typo/Error';
-          case 'other': return 'Other';
-          default: return reason;
-      }
-  };
-
-  // --- RENDER ---
+  // --- FINAL RENDER ---
 
   if (!isAuthenticated) {
       return (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4 transition-colors">
-              <Card className="w-full max-w-md bg-white dark:bg-gray-800 border-none shadow-2xl">
-                  <div className="text-center mb-6">
-                      <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-200 dark:border-red-500/30">
-                          <i className="fas fa-user-shield text-3xl text-red-500"></i>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
+              <div className="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-[3rem] shadow-2xl shadow-cyan-500/10">
+                  <div className="text-center mb-8">
+                      <div className="w-20 h-20 bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-700 shadow-inner group">
+                          <i className="fas fa-shield-halved text-4xl text-cyan-400 group-hover:scale-110 transition-transform"></i>
                       </div>
-                      <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-1">Restricted Access</h1>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">Super Admin Dashboard</p>
+                      <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tighter italic">Command Center</h1>
+                      <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Administrator Login</p>
                   </div>
                   <form onSubmit={checkPin}>
-                      <Input 
-                        type="password" 
-                        placeholder="Security PIN" 
-                        value={pin} 
-                        onChange={e => setPin(e.target.value)}
-                        className="text-center text-2xl tracking-[0.5em] font-mono h-14 text-gray-900 dark:text-white"
-                        autoFocus
-                      />
-                      <Button fullWidth variant="danger" className="mt-4 shadow-red-500/30">Unlock System</Button>
+                      <div className="relative mb-6">
+                        <i className="fas fa-lock absolute left-5 top-1/2 -translate-y-1/2 text-slate-600"></i>
+                        <input 
+                            type="password" 
+                            placeholder="SECURITY PIN" 
+                            value={pin} 
+                            onChange={e => setPin(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-5 text-center text-2xl tracking-[0.8em] font-mono text-cyan-400 focus:ring-2 focus:ring-cyan-500 outline-none transition-all placeholder:text-slate-800"
+                            autoFocus
+                        />
+                      </div>
+                      <Button fullWidth className="!bg-cyan-500 !py-5 shadow-xl shadow-cyan-500/20 rounded-2xl font-black text-lg italic">AUTHENTICATE</Button>
                   </form>
-              </Card>
+              </div>
           </div>
       );
   }
 
   return (
-    <div className="min-h-full bg-gray-100 dark:bg-gray-900 p-4 absolute inset-0 overflow-y-auto transition-colors pt-32">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-700/50 shadow-sm flex flex-col px-4 py-3 transition-colors duration-300">
-            <div className="flex justify-between items-center mb-2">
+    <div className="min-h-screen bg-slate-950 flex flex-col font-sans transition-colors overflow-hidden">
+        {/* Header: Command Center Style */}
+        <header className="px-6 py-8 flex items-center justify-between z-30">
+            <div className="flex items-center gap-4">
+                <Avatar src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" size="sm" className="border-cyan-400 ring-2 ring-cyan-400/20" />
                 <div>
-                    <h1 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white uppercase tracking-tight">Super Admin</h1>
-                    <p className="text-gray-500 dark:text-gray-400 font-bold text-xs">System Control Center</p>
+                   <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Command Center</div>
+                   <h1 className="text-xl font-black text-white tracking-tighter">Good Morning, Admin</h1>
                 </div>
-                <button onClick={() => navigate('/')} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><i className="fas fa-times text-xl"></i></button>
             </div>
-            <div className="flex bg-slate-100 dark:bg-gray-800 rounded-xl p-1 gap-1 overflow-x-auto">
-                <button onClick={() => setActiveTab('users')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'users' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>Users</button>
-                <button onClick={() => setActiveTab('quizzes')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'quizzes' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>Quizzes</button>
-                <button onClick={() => setActiveTab('matches')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'matches' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>Live</button>
-                <button onClick={() => setActiveTab('reports')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all relative ${activeTab === 'reports' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>
-                    Reports
-                    {reports.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">{reports.length}</span>}
+            <div className="relative">
+               <button className="w-12 h-12 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                  <i className="fas fa-bell"></i>
+               </button>
+               {reports.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-slate-950"></span>}
+            </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto px-6 pb-32 pt-2 custom-scrollbar">
+            {activeTab === 'home' && <DashboardView />}
+            {activeTab === 'users' && <UsersView />}
+            {activeTab === 'quizzes' && <QuizzesView />}
+            {activeTab === 'arena' && <ArenaView />}
+            {activeTab === 'reports' && <ReportsView />}
+            {activeTab === 'social' && <SocialView />}
+        </main>
+
+        {/* Bottom Navigation: High Fidelity Style */}
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 p-4">
+           <div className="max-w-md mx-auto flex items-center justify-between px-2">
+              {[
+                  { id: 'home', icon: 'fa-th-large', label: 'Home' },
+                  { id: 'users', icon: 'fa-user-group', label: 'Users' },
+                  { id: 'quizzes', icon: 'fa-question-circle', label: 'Quizzes' },
+                  { id: 'arena', icon: 'fa-bolt', label: 'Arena' },
+                  { id: 'social', icon: 'fa-smile', label: 'Social' }
+              ].map(item => (
+                <button 
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as any)}
+                  className={`flex flex-col items-center gap-1 transition-all duration-300 ${activeTab === item.id ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'}`}
+                >
+                  <div className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${activeTab === item.id ? 'bg-cyan-400/10' : ''}`}>
+                    <i className={`fas ${item.icon} text-xl`}></i>
+                  </div>
+                  <span className={`text-[8px] font-black uppercase tracking-widest ${activeTab === item.id ? 'opacity-100' : 'opacity-0 translate-y-1'}`}>{item.label}</span>
                 </button>
-                <button onClick={() => setActiveTab('reactions')} className={`flex-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'reactions' ? 'bg-white dark:bg-gray-700 shadow text-game-primary' : 'text-gray-500 hover:text-gray-700'}`}>Reactions</button>
-            </div>
+              ))}
+           </div>
+        </nav>
+
+        {/* Sync Footer */}
+        <div className="fixed bottom-24 left-0 right-0 flex justify-center pointer-events-none opacity-40">
+           <div className="bg-slate-900/50 px-6 py-2 rounded-full border border-slate-800 flex items-center gap-3">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Firebase Connected</span>
+           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto pb-20">
-            
-            {/* AI Control Card */}
-            <Card className="mb-8 border-l-4 border-indigo-500">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                            <i className="fas fa-robot text-xl"></i>
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">AI Assistant</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Global Switch for Gemini AI</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={toggleAiFeature}
-                        className={`
-                            relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2  focus-visible:ring-white/75
-                            ${aiEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}
-                        `}
-                    >
-                        <span className="sr-only">Use setting</span>
-                        <span
-                            aria-hidden="true"
-                            className={`
-                                pointer-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out
-                                ${aiEnabled ? 'translate-x-6' : 'translate-x-0'}
-                            `}
-                        />
-                    </button>
-                </div>
-            </Card>
-
-            {/* --- USER MANAGEMENT TAB --- */}
-            {activeTab === 'users' && (
-                <div className="animate__animated animate__fadeIn">
-                    <div className="mb-4">
-                        <Input 
-                            placeholder="Search users..." 
-                            icon="fa-search" 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                        />
-                    </div>
-                    <Card className="!bg-white dark:!bg-gray-800 overflow-hidden shadow-lg border-0 p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                                        <th className="p-4 pl-6">User</th>
-                                        <th className="p-4">Stats</th>
-                                        <th className="p-4">Status</th>
-                                        <th className="p-4 text-right pr-6">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                    {filteredUsers.map(u => (
-                                        <tr key={u.uid} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${u.banned ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-                                            <td className="p-4 pl-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                                                        <img src={u.avatar} alt="" className="w-full h-full object-cover" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                                            {u.name}
-                                                            {u.isVerified && <i className="fas fa-check-circle text-blue-500 text-xs" title="Verified"></i>}
-                                                            {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs" title="Support"></i>}
-                                                            {u.role === 'admin' && <i className="fas fa-shield-alt text-somali-blue text-xs" title="Admin"></i>}
-                                                        </div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">@{u.username}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex flex-col">
-                                                    <span className="font-mono font-bold text-somali-blue dark:text-blue-400">{u.points} pts</span>
-                                                    <span className="text-[10px] text-gray-400 uppercase">LVL {Math.floor(u.points / 10) + 1}</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                {u.banned ? (
-                                                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">BANNED</span>
-                                                ) : (
-                                                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">ACTIVE</span>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-right pr-6">
-                                                <Button size="sm" onClick={() => setSelectedUser(u)} variant="secondary">
-                                                    Edit
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* --- QUIZ MANAGEMENT TAB --- */}
-            {activeTab === 'quizzes' && (
-                <div className="animate__animated animate__fadeIn space-y-6">
-                    {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="relative">
-                            <select 
-                                value={selectedSubject} 
-                                onChange={(e) => setSelectedSubject(e.target.value)}
-                                className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl font-bold text-gray-900 dark:text-white appearance-none cursor-pointer"
-                            >
-                                <option value="">Select Subject</option>
-                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                            <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                        </div>
-                        <div className="relative">
-                            <select 
-                                value={selectedChapter} 
-                                onChange={(e) => setSelectedChapter(e.target.value)}
-                                className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl font-bold text-gray-900 dark:text-white appearance-none cursor-pointer disabled:opacity-50"
-                                disabled={!selectedSubject}
-                            >
-                                <option value="">Select Chapter</option>
-                                {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                            <i className="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-                        </div>
-                    </div>
-
-                    {/* Question List */}
-                    {selectedChapter && (
-                        <Card className="!bg-white dark:!bg-gray-800 border-0 shadow-lg">
-                            <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-700 pb-4">
-                                <h2 className="font-bold text-lg text-gray-900 dark:text-white">
-                                    <i className="fas fa-list-ul mr-2 text-game-primary"></i> 
-                                    Questions ({questions.length})
-                                </h2>
-                            </div>
-                            
-                            {questions.length === 0 ? (
-                                <div className="text-center py-10 text-gray-400 font-bold">No questions found in this chapter.</div>
-                            ) : (
-                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {questions.map((q, idx) => (
-                                        <div key={q.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row gap-4 items-start md:items-center group hover:border-game-primary/30 transition-colors">
-                                            <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center justify-center font-bold shrink-0">
-                                                {idx + 1}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="font-bold text-gray-800 dark:text-white mb-2">{q.question}</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {q.options.map((opt, i) => (
-                                                        <span key={i} className={`text-xs px-2 py-1 rounded border ${i === q.answer ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}>
-                                                            {opt}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2 self-end md:self-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Button size="sm" onClick={() => setEditingQuestion(q)} variant="secondary" className="!px-3"><i className="fas fa-pencil-alt"></i></Button>
-                                                <Button size="sm" onClick={() => handleDeleteQuestion(q.id)} variant="danger" className="!px-3"><i className="fas fa-trash"></i></Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </Card>
-                    )}
-                </div>
-            )}
-
-            {/* --- MATCH MANAGEMENT TAB --- */}
-            {activeTab === 'matches' && (
-                <div className="animate__animated animate__fadeIn space-y-6">
-                    {matches.length === 0 ? (
-                        <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                             <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400 dark:text-gray-500 text-3xl">
-                                <i className="fas fa-gamepad"></i>
-                             </div>
-                             <h3 className="text-xl font-bold text-gray-500 dark:text-gray-400">No Active Matches</h3>
-                             <p className="text-sm text-gray-400 dark:text-gray-500">The arena is currently quiet.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4">
-                             {matches.map(m => {
-                                 const pIds = Object.keys(m.players || {});
-                                 const p1 = m.players?.[pIds[0]];
-                                 const p2 = m.players?.[pIds[1]];
-                                 
-                                 return (
-                                    <div key={m.matchId} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row items-center justify-between gap-6">
-                                        <div className="flex items-center gap-6 flex-1 w-full justify-center md:justify-start">
-                                             {/* Player 1 */}
-                                             <div className="flex flex-col items-center">
-                                                 <Avatar src={p1?.avatar} size="md" className="mb-2" />
-                                                 <div className="font-bold text-sm text-gray-900 dark:text-white truncate max-w-[100px]">{p1?.name || 'Unknown'}</div>
-                                                 <div className="text-xl font-black text-game-primary">{m.scores?.[pIds[0]] || 0}</div>
-                                             </div>
-                                             
-                                             <div className="text-center">
-                                                 <div className="text-2xl font-black text-gray-300 dark:text-gray-600 italic">VS</div>
-                                                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500">
-                                                     Q {m.currentQ + 1}
-                                                 </span>
-                                             </div>
-                                             
-                                             {/* Player 2 */}
-                                             <div className="flex flex-col items-center">
-                                                 <Avatar src={p2?.avatar} size="md" className="mb-2" />
-                                                 <div className="font-bold text-sm text-gray-900 dark:text-white truncate max-w-[100px]">{p2?.name || 'Unknown'}</div>
-                                                 <div className="text-xl font-black text-red-500">{m.scores?.[pIds[1]] || 0}</div>
-                                             </div>
-                                        </div>
-
-                                        <div className="flex flex-col items-end gap-2 w-full md:w-auto border-t md:border-t-0 border-gray-100 dark:border-gray-700 pt-4 md:pt-0">
-                                            <div className="flex gap-2 text-xs font-bold text-gray-500 dark:text-gray-400">
-                                                <span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded uppercase">{m.mode}</span>
-                                                <span className={`px-2 py-1 rounded uppercase ${m.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-gray-100'}`}>{m.status}</span>
-                                            </div>
-                                            <Button 
-                                                size="sm" 
-                                                variant="danger" 
-                                                onClick={() => handleDestroyMatch(m.matchId)}
-                                                className="w-full md:w-auto"
-                                            >
-                                                <i className="fas fa-ban mr-2"></i> Terminate
-                                            </Button>
-                                        </div>
-                                    </div>
-                                 );
-                             })}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* --- REPORT MANAGEMENT TAB --- */}
-            {activeTab === 'reports' && (
-                <div className="animate__animated animate__fadeIn space-y-4">
-                    {reports.length === 0 ? (
-                        <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                             <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-green-500 text-3xl">
-                                <i className="fas fa-check-double"></i>
-                             </div>
-                             <h3 className="text-xl font-bold text-gray-500 dark:text-gray-400">All Clear!</h3>
-                             <p className="text-sm text-gray-400 dark:text-gray-500">No question reports pending review.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4">
-                            {reports.map(r => (
-                                <div key={r.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 group hover:border-red-200 transition-colors">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${r.reason === 'wrong_answer' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
-                                                {getReasonLabel(r.reason)}
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-400 font-mono">ID: {r.id.substring(0, 8)}</span>
-                                        </div>
-                                        <div className="text-[10px] font-bold text-slate-400">{new Date(r.timestamp).toLocaleString()}</div>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl mb-4 border border-slate-100 dark:border-slate-800">
-                                        <p className="font-bold text-sm text-gray-800 dark:text-white leading-relaxed">"{r.questionText}"</p>
-                                        <p className="text-[10px] text-slate-500 mt-2 uppercase font-black">Chapter: {r.chapterId}</p>
-                                    </div>
-                                    <div className="flex justify-end gap-3 pt-3 border-t border-slate-50 dark:border-slate-700/50">
-                                        <button onClick={() => handleClearReport(r.id)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">Dismiss</button>
-                                        <Button size="sm" onClick={() => handleEditReported(r)} className="!bg-indigo-600 border-indigo-800">Review & Fix</Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* --- REACTION MANAGEMENT TAB --- */}
-            {activeTab === 'reactions' && (
-                <div className="animate__animated animate__fadeIn">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        {/* Emojis Section */}
-                        <Card className="!bg-white dark:!bg-gray-800">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Reaction Emojis</h3>
-                                <span className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-500">{emojis.length}</span>
-                            </div>
-                            <div className="flex gap-2 mb-6">
-                                <Input 
-                                    placeholder="Enter emoji (e.g. 🔥)" 
-                                    value={newEmoji} 
-                                    onChange={e => setNewEmoji(e.target.value)} 
-                                    className="!mb-0 flex-1"
-                                />
-                                <Button onClick={() => handleAddReaction('emojis')} disabled={!newEmoji.trim()}>Add</Button>
-                            </div>
-                            
-                            {emojis.length === 0 && (
-                                <div className="text-center py-8">
-                                    <p className="text-sm text-gray-400 mb-4">No emojis configured.</p>
-                                    <Button size="sm" variant="outline" onClick={handleSeedDefaults}>Load Defaults</Button>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-4 gap-4">
-                                {emojis.map(e => (
-                                    <div key={e.id} className="relative group bg-slate-50 dark:bg-slate-900 rounded-xl p-4 flex items-center justify-center text-3xl border border-slate-100 dark:border-slate-700 hover:border-game-primary transition-colors">
-                                        {e.value}
-                                        <button 
-                                            onClick={() => handleDeleteReaction('emojis', e.id)}
-                                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600"
-                                        >
-                                            <i className="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-
-                        {/* Messages Section */}
-                        <Card className="!bg-white dark:!bg-gray-800">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Quick Messages</h3>
-                                <span className="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-xs font-bold text-slate-500">{messages.length}</span>
-                            </div>
-                            <div className="flex gap-2 mb-6">
-                                <Input 
-                                    placeholder="Enter message..." 
-                                    value={newMessage} 
-                                    onChange={e => setNewMessage(e.target.value)} 
-                                    className="!mb-0 flex-1"
-                                />
-                                <Button onClick={() => handleAddReaction('messages')} disabled={!newMessage.trim()}>Add</Button>
-                            </div>
-
-                            {messages.length === 0 && (
-                                <div className="text-center py-8">
-                                    <p className="text-sm text-gray-400 mb-4">No messages configured.</p>
-                                    <Button size="sm" variant="outline" onClick={handleSeedDefaults}>Load Defaults</Button>
-                                </div>
-                            )}
-
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
-                                {messages.map(m => (
-                                    <div key={m.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700 group hover:border-game-primary transition-colors">
-                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{m.value}</span>
-                                        <button 
-                                            onClick={() => handleDeleteReaction('messages', m.id)}
-                                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                                        >
-                                            <i className="fas fa-trash-alt"></i>
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    </div>
-                </div>
-            )}
-        </div>
-
-        {/* --- MODALS --- */}
-
-        {/* User Detail Modal */}
-        {selectedUser && (
-            <Modal isOpen={true} title="User Control" onClose={() => setSelectedUser(null)}>
-                <div className="flex flex-col items-center mb-6">
-                    <div className="relative">
-                        <Avatar src={selectedUser.avatar} seed={selectedUser.uid} size="xl" className="border-4 border-white dark:border-gray-700 shadow-xl" isVerified={selectedUser.isVerified} />
-                        {selectedUser.banned && (
-                            <div className="absolute inset-0 bg-red-500/50 rounded-full flex items-center justify-center backdrop-blur-sm">
-                                <i className="fas fa-ban text-4xl text-white"></i>
-                            </div>
-                        )}
-                    </div>
-                    <h2 className="text-2xl font-black mt-4 text-gray-900 dark:text-white flex items-center gap-2">
-                        {selectedUser.name}
-                        {selectedUser.isVerified && <i className="fas fa-check-circle text-blue-500 text-lg" title="Verified"></i>}
-                        {selectedUser.isSupport && <i className="fas fa-check-circle text-game-primary text-lg" title="Support Team"></i>}
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-300 font-bold font-mono">@{selectedUser.username}</p>
-                    <div className="grid grid-cols-2 gap-4 w-full mt-6">
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl text-center">
-                            <div className="text-xs text-gray-400 uppercase font-bold">Role</div>
-                            <div className="text-xl font-black text-gray-800 dark:text-white uppercase">{selectedUser.role || 'User'}</div>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl text-center">
-                            <div className="text-xs text-gray-400 uppercase font-bold">Points</div>
-                            <div className="text-xl font-black text-somali-blue dark:text-blue-400">{selectedUser.points}</div>
-                        </div>
-                    </div>
-                </div>
-                <div className="space-y-3">
-                    <Button fullWidth onClick={() => toggleVerification(selectedUser.uid, selectedUser.isVerified)} variant="outline">
-                        {selectedUser.isVerified ? 'Remove Verification' : 'Verify User'}
-                    </Button>
-                    {/* Support Badge Toggle */}
-                    <Button fullWidth onClick={() => toggleSupport(selectedUser.uid, selectedUser.isSupport)} className="bg-orange-100 hover:bg-orange-200 text-orange-600 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800">
-                        {selectedUser.isSupport ? 'Revoke Support Badge' : 'Grant Support Badge'}
-                    </Button>
-                    <Button fullWidth onClick={() => toggleCustomAvatarPrivilege(selectedUser.uid, selectedUser.allowCustomAvatar)} className="bg-purple-600 hover:bg-purple-700 border-purple-800">
-                        {selectedUser.allowCustomAvatar ? 'Revoke Custom Avatar' : 'Allow Custom Avatar'}
-                    </Button>
-                    <div className="flex gap-2">
-                        <Button fullWidth onClick={() => toggleRole(selectedUser.uid, selectedUser.role)} variant={selectedUser.role === 'admin' ? 'secondary' : 'primary'}>
-                            {selectedUser.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
-                        </Button>
-                        <Button fullWidth onClick={() => toggleBan(selectedUser.uid, selectedUser.banned)} className={selectedUser.banned ? "bg-green-600" : "bg-orange-500"}>
-                            {selectedUser.banned ? 'Unban' : 'Ban'}
-                        </Button>
-                    </div>
-                    <Button fullWidth onClick={() => deleteUser(selectedUser.uid)} variant="danger">Delete Data</Button>
-                </div>
-            </Modal>
-        )}
-
-        {/* Edit Question Modal */}
+        {/* Modals: Preserving Logic */}
         {editingQuestion && (
             <Modal isOpen={true} title="Edit Question" onClose={() => setEditingQuestion(null)}>
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                     <Input 
                         label="Question Text" 
                         value={editingQuestion.question} 
                         onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
+                        className="!bg-slate-900 !border-slate-700 !text-white"
                     />
-                    
-                    <div>
-                        <label className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wide block mb-2">Options</label>
-                        <div className="space-y-2">
-                            {editingQuestion.options.map((opt, idx) => (
-                                <div key={idx} className="flex gap-2 items-center">
-                                    <div 
-                                        onClick={() => setEditingQuestion({...editingQuestion, answer: idx})}
-                                        className={`w-8 h-8 rounded flex items-center justify-center font-bold cursor-pointer border-2 ${idx === editingQuestion.answer ? 'bg-green-50 border-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 border-transparent text-gray-500 dark:text-gray-400'}`}
-                                    >
-                                        {String.fromCharCode(65+idx)}
-                                    </div>
-                                    <input 
-                                        value={opt}
-                                        onChange={(e) => {
-                                            const newOpts = [...editingQuestion.options];
-                                            newOpts[idx] = e.target.value;
-                                            setEditingQuestion({...editingQuestion, options: newOpts});
-                                        }}
-                                        className="flex-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-medium focus:outline-none focus:border-game-primary"
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Options</label>
+                        {editingQuestion.options.map((opt, idx) => (
+                            <div key={idx} className="flex gap-2">
+                                <button 
+                                  onClick={() => setEditingQuestion({...editingQuestion, answer: idx})}
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all ${editingQuestion.answer === idx ? 'bg-cyan-500 text-white' : 'bg-slate-700 text-slate-400'}`}
+                                >
+                                  {String.fromCharCode(65+idx)}
+                                </button>
+                                <input 
+                                    value={opt}
+                                    onChange={(e) => {
+                                        const newOpts = [...editingQuestion.options];
+                                        newOpts[idx] = e.target.value;
+                                        setEditingQuestion({...editingQuestion, options: newOpts});
+                                    }}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white font-bold"
+                                />
+                            </div>
+                        ))}
                     </div>
-
                     <div className="pt-4 flex gap-3">
-                         <Button fullWidth variant="outline" onClick={() => setEditingQuestion(null)}>Cancel</Button>
-                         <Button fullWidth onClick={handleUpdateQuestion}>Save Changes</Button>
+                         <Button fullWidth variant="outline" onClick={() => setEditingQuestion(null)} className="!border-slate-700 !text-slate-500">Cancel</Button>
+                         <Button fullWidth onClick={handleUpdateQuestion} className="!bg-cyan-500">Save Changes</Button>
                     </div>
                 </div>
             </Modal>
