@@ -53,7 +53,7 @@ const AboutPage: React.FC = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">Our Mission</h2>
                 </div>
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
-                    To gamify education and make learning accessible, engaging, and competitive for every Somali student, bridging the gap between traditional learning and modern technology.
+                    To gamify education and make learning accessible, engaging, and competitive for every Somali student.
                 </p>
             </Card>
 
