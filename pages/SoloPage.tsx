@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, get, onValue, off, push, set, serverTimestamp } from 'firebase/database';
@@ -403,7 +402,7 @@ const SoloPage: React.FC = () => {
                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black shrink-0 transition-colors ${circleClasses}`}>
                                 {String.fromCharCode(65 + idx)}
                             </div>
-                            <span className="leading-tight">{opt}</span>
+                            <span className="leading-tight flex-1 break-words">{opt}</span>
                             
                             {selected !== null && idx === currentQ.answer && (
                                 <i className="fas fa-check-circle absolute right-4 text-white text-xl animate__animated animate__zoomIn"></i>

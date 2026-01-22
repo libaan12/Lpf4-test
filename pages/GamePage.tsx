@@ -1099,10 +1099,10 @@ const GamePage: React.FC = () => {
                         >
                             <div className={`relative p-1 rounded-2xl border-2 transition-all duration-300 ${style.containerClass} ${style.glowClass}`}>
                                 <div className="flex items-center gap-3 bg-transparent p-2 rounded-xl">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm transition-colors ${style.letterBoxClass}`}>
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm shrink-0 transition-colors ${style.letterBoxClass}`}>
                                         {String.fromCharCode(65 + idx)}
                                     </div>
-                                    <span className={`font-bold text-left text-sm leading-tight ${selectedOption === idx || (showFeedback && showFeedback.answer === idx) ? 'text-white' : 'text-slate-300'}`}>
+                                    <span className={`flex-1 font-bold text-left text-sm leading-snug break-words ${selectedOption === idx || (showFeedback && showFeedback.answer === idx) ? 'text-white' : 'text-slate-300'}`}>
                                         {opt}
                                     </span>
                                 </div>
