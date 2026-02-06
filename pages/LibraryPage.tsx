@@ -17,6 +17,7 @@ const LibraryPage: React.FC = () => {
   
   // PDF Viewer State
   const [viewingPdf, setViewingPdf] = useState<StudyMaterial | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   // 1. Fetch Subjects
   useEffect(() => {
@@ -45,6 +46,43 @@ const LibraryPage: React.FC = () => {
       return () => off(matRef);
   }, []);
 
+  // 3. Handle PDF Blob Creation
+  useEffect(() => {
+      if (viewingPdf) {
+          try {
+              // If it's already a blob or http url (for future compatibility), use it.
+              // Otherwise, assume it's a Base64 Data URI from our DB.
+              if (viewingPdf.fileURL.startsWith('http') || viewingPdf.fileURL.startsWith('blob:')) {
+                  setPdfUrl(viewingPdf.fileURL);
+              } else if (viewingPdf.fileURL.startsWith('data:application/pdf;base64,')) {
+                  // Convert Base64 to Blob
+                  const base64 = viewingPdf.fileURL.split(',')[1];
+                  const binaryStr = atob(base64);
+                  const len = binaryStr.length;
+                  const bytes = new Uint8Array(len);
+                  for (let i = 0; i < len; i++) {
+                      bytes[i] = binaryStr.charCodeAt(i);
+                  }
+                  const blob = new Blob([bytes], { type: 'application/pdf' });
+                  const url = URL.createObjectURL(blob);
+                  setPdfUrl(url);
+              } else {
+                  // Fallback for weird formats
+                  setPdfUrl(viewingPdf.fileURL);
+              }
+          } catch (e) {
+              console.error("Error creating PDF URL", e);
+              setPdfUrl(null);
+          }
+      } else {
+          // Cleanup Blob URL to prevent memory leaks
+          if (pdfUrl && pdfUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(pdfUrl);
+          }
+          setPdfUrl(null);
+      }
+  }, [viewingPdf]);
+
   // Updated Filter Logic: Subject + Search
   const filteredMaterials = useMemo(() => {
       return materials.filter(m => {
@@ -54,14 +92,52 @@ const LibraryPage: React.FC = () => {
       });
   }, [materials, selectedSubject, searchQuery]);
 
-  const handleDownload = (url: string, filename: string) => {
+  const handleDownload = (material: StudyMaterial) => {
+      // Create link for download
       const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      link.download = material.fileName.endsWith('.pdf') ? material.fileName : `${material.fileName}.pdf`;
+
+      try {
+          if (material.fileURL.startsWith('data:application/pdf;base64,')) {
+                const base64 = material.fileURL.split(',')[1];
+                const binaryStr = atob(base64);
+                const len = binaryStr.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                link.href = blobUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+          } else {
+                link.href = material.fileURL;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+          }
+      } catch (e) {
+          console.error("Download failed", e);
+          // Fallback
+          link.href = material.fileURL;
+          link.target = '_blank';
+          link.click();
+      }
+  };
+
+  const handleDownloadCurrent = () => {
+      if (viewingPdf && pdfUrl) {
+          const link = document.createElement('a');
+          link.href = pdfUrl;
+          link.download = viewingPdf.fileName.endsWith('.pdf') ? viewingPdf.fileName : `${viewingPdf.fileName}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      }
   };
 
   return (
@@ -188,7 +264,7 @@ const LibraryPage: React.FC = () => {
                                   </div>
                               </div>
 
-                              {/* Actions - Slide up on hover desktop, always visible mobile */}
+                              {/* Actions */}
                               <div className="flex gap-2 mt-5 pl-3">
                                   <button 
                                       onClick={() => setViewingPdf(item)}
@@ -197,8 +273,9 @@ const LibraryPage: React.FC = () => {
                                       <i className="fas fa-eye"></i> View
                                   </button>
                                   <button 
-                                      onClick={() => handleDownload(item.fileURL, item.fileName)}
+                                      onClick={() => handleDownload(item)}
                                       className="w-10 h-10 rounded-xl bg-slate-700/50 hover:bg-slate-600 text-slate-300 flex items-center justify-center border border-slate-600 transition-all active:scale-95"
+                                      title="Download PDF"
                                   >
                                       <i className="fas fa-download"></i>
                                   </button>
@@ -219,26 +296,54 @@ const LibraryPage: React.FC = () => {
                           <i className="fas fa-file-pdf"></i>
                       </div>
                       <div className="min-w-0">
-                          <h3 className="font-bold text-white text-sm truncate max-w-[200px]">{viewingPdf.fileName}</h3>
-                          <p className="text-[9px] text-slate-400 font-mono uppercase">{viewingPdf.fileSize} • Read Only</p>
+                          <h3 className="font-bold text-white text-sm truncate max-w-[150px] md:max-w-xs">{viewingPdf.fileName}</h3>
+                          <p className="text-[9px] text-slate-400 font-mono uppercase">{viewingPdf.fileSize} • Preview</p>
                       </div>
                   </div>
-                  <button 
-                    onClick={() => setViewingPdf(null)} 
-                    className="w-9 h-9 rounded-full bg-slate-700 hover:bg-red-500 hover:text-white text-slate-400 flex items-center justify-center transition-colors"
-                  >
-                      <i className="fas fa-times"></i>
-                  </button>
-              </div>
-              <div className="flex-1 w-full h-full bg-slate-900 relative">
-                  <iframe 
-                      src={viewingPdf.fileURL} 
-                      className="w-full h-full border-none"
-                      title="PDF Viewer"
-                  />
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-700 opacity-20 z-0">
-                      <i className="fas fa-spinner fa-spin text-4xl"></i>
+                  <div className="flex gap-3">
+                      <button 
+                        onClick={handleDownloadCurrent} 
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors hidden md:flex items-center gap-2"
+                      >
+                          <i className="fas fa-download"></i> Download
+                      </button>
+                      <button 
+                        onClick={() => setViewingPdf(null)} 
+                        className="w-9 h-9 rounded-full bg-slate-700 hover:bg-red-500 hover:text-white text-slate-400 flex items-center justify-center transition-colors"
+                      >
+                          <i className="fas fa-times"></i>
+                      </button>
                   </div>
+              </div>
+              
+              <div className="flex-1 w-full h-full bg-slate-900 relative flex flex-col items-center justify-center p-2">
+                  {pdfUrl ? (
+                      <object 
+                        data={pdfUrl} 
+                        type="application/pdf" 
+                        className="w-full h-full rounded-xl border border-slate-700 shadow-2xl"
+                      >
+                          {/* Fallback for browsers that don't support Object/Embed PDF viewing (Mobile often falls here) */}
+                          <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                              <i className="fas fa-file-pdf text-6xl text-slate-700 mb-4"></i>
+                              <h3 className="text-xl font-bold text-white mb-2">Preview Not Available</h3>
+                              <p className="text-slate-400 text-sm mb-6 max-w-md">
+                                  Your browser does not support embedded PDF viewing. Please download the file to view it.
+                              </p>
+                              <button 
+                                onClick={handleDownloadCurrent}
+                                className="bg-game-primary text-white px-6 py-3 rounded-xl font-black text-sm shadow-lg hover:scale-105 transition-transform"
+                              >
+                                  <i className="fas fa-download mr-2"></i> Download PDF
+                              </button>
+                          </div>
+                      </object>
+                  ) : (
+                      <div className="flex flex-col items-center justify-center">
+                          <i className="fas fa-spinner fa-spin text-4xl text-cyan-500 mb-4"></i>
+                          <p className="text-slate-400 font-bold">Loading Document...</p>
+                      </div>
+                  )}
               </div>
           </div>
       )}
