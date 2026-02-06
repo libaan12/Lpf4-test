@@ -247,10 +247,8 @@ const AppContent: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full blur-2xl opacity-40 animate-pulse"></div>
                 
                 {/* Logo Box */}
-                <div className="relative w-32 h-32 bg-[#0f172a] rounded-full shadow-2xl flex items-center justify-center border border-cyan-500/30 ring-4 ring-black/50 backdrop-blur-md overflow-hidden">
-                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0f172a] to-[#1e293b]">
-                         <i className="fas fa-graduation-cap text-5xl text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)] animate-bounce"></i>
-                     </div>
+                <div className="relative w-32 h-32 bg-[#0f172a] rounded-full shadow-2xl flex items-center justify-center border border-cyan-500/30 ring-4 ring-black/50 backdrop-blur-md overflow-hidden p-4">
+                     <img src="/logo.png" alt="LP-F4 Logo" className="w-full h-full object-contain animate-bounce" />
                 </div>
             </div>
 

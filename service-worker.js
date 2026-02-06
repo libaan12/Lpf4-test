@@ -1,15 +1,15 @@
 
 /* eslint-disable no-restricted-globals */
 
-const CACHE_NAME = 'lp-f4-cache-v5';
+const CACHE_NAME = 'lp-f4-cache-v6';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/logo.png',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css',
-  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap',
-  'https://cdn-icons-png.flaticon.com/512/807/807262.png'
+  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap'
 ];
 
 // Install a service worker
@@ -32,7 +32,6 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   
   // Handle Navigation Requests (SPA Support)
-  // If the user navigates to /lobby or /profile, serve index.html from cache
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -51,24 +50,20 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
         
-        // Filter out unwanted schemes
         if (request.url.startsWith('chrome-extension')) {
             return fetch(request);
         }
 
         return fetch(request).then(
           (response) => {
-            // Check for valid response
             if(!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
 
-            // Don't cache API calls to Firebase/Google
             if (request.url.includes('firebase') || request.url.includes('googleapis') || request.url.includes('firestore')) {
                 return response;
             }
 
-            // Clone and cache
             const responseToCache = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {
