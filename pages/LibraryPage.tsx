@@ -5,6 +5,7 @@ import { ref, onValue, off } from 'firebase/database';
 import { db } from '../firebase';
 import { Subject, StudyMaterial } from '../types';
 import { Card } from '../components/UI';
+import { showToast } from '../services/alert';
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -46,28 +47,15 @@ const LibraryPage: React.FC = () => {
       return () => off(matRef);
   }, []);
 
-  // 3. Handle PDF Blob Creation
+  // 3. Handle PDF Blob Creation for Viewer
   useEffect(() => {
       if (viewingPdf) {
           try {
-              // If it's already a blob or http url (for future compatibility), use it.
-              // Otherwise, assume it's a Base64 Data URI from our DB.
-              if (viewingPdf.fileURL.startsWith('http') || viewingPdf.fileURL.startsWith('blob:')) {
-                  setPdfUrl(viewingPdf.fileURL);
-              } else if (viewingPdf.fileURL.startsWith('data:application/pdf;base64,')) {
-                  // Convert Base64 to Blob
-                  const base64 = viewingPdf.fileURL.split(',')[1];
-                  const binaryStr = atob(base64);
-                  const len = binaryStr.length;
-                  const bytes = new Uint8Array(len);
-                  for (let i = 0; i < len; i++) {
-                      bytes[i] = binaryStr.charCodeAt(i);
-                  }
-                  const blob = new Blob([bytes], { type: 'application/pdf' });
+              if (viewingPdf.fileURL.startsWith('data:')) {
+                  const blob = dataURItoBlob(viewingPdf.fileURL);
                   const url = URL.createObjectURL(blob);
                   setPdfUrl(url);
               } else {
-                  // Fallback for weird formats
                   setPdfUrl(viewingPdf.fileURL);
               }
           } catch (e) {
@@ -83,6 +71,19 @@ const LibraryPage: React.FC = () => {
       }
   }, [viewingPdf]);
 
+  // Helper to convert Base64 Data URI to Blob
+  const dataURItoBlob = (dataURI: string) => {
+      const split = dataURI.split(',');
+      const byteString = atob(split[1]);
+      const mimeString = split[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: mimeString });
+  };
+
   // Updated Filter Logic: Subject + Search
   const filteredMaterials = useMemo(() => {
       return materials.filter(m => {
@@ -93,26 +94,20 @@ const LibraryPage: React.FC = () => {
   }, [materials, selectedSubject, searchQuery]);
 
   const handleDownload = (material: StudyMaterial) => {
-      // Create link for download
-      const link = document.createElement('a');
-      link.download = material.fileName.endsWith('.pdf') ? material.fileName : `${material.fileName}.pdf`;
-
       try {
-          if (material.fileURL.startsWith('data:application/pdf;base64,')) {
-                const base64 = material.fileURL.split(',')[1];
-                const binaryStr = atob(base64);
-                const len = binaryStr.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryStr.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: 'application/pdf' });
+          const link = document.createElement('a');
+          link.download = material.fileName.endsWith('.pdf') ? material.fileName : `${material.fileName}.pdf`;
+
+          if (material.fileURL.startsWith('data:')) {
+                const blob = dataURItoBlob(material.fileURL);
                 const blobUrl = URL.createObjectURL(blob);
                 link.href = blobUrl;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                // EXTENDED TIMEOUT: 2 minutes to ensure mobile download manager picks it up
+                // before the URL is revoked.
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
           } else {
                 link.href = material.fileURL;
                 link.target = '_blank';
@@ -120,23 +115,16 @@ const LibraryPage: React.FC = () => {
                 link.click();
                 document.body.removeChild(link);
           }
+          showToast("Download started...", "success");
       } catch (e) {
           console.error("Download failed", e);
-          // Fallback
-          link.href = material.fileURL;
-          link.target = '_blank';
-          link.click();
+          showToast("Download failed", "error");
       }
   };
 
   const handleDownloadCurrent = () => {
-      if (viewingPdf && pdfUrl) {
-          const link = document.createElement('a');
-          link.href = pdfUrl;
-          link.download = viewingPdf.fileName.endsWith('.pdf') ? viewingPdf.fileName : `${viewingPdf.fileName}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+      if (viewingPdf) {
+          handleDownload(viewingPdf);
       }
   };
 
