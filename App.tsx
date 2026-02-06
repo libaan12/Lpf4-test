@@ -248,7 +248,7 @@ const AppContent: React.FC = () => {
                 
                 {/* Logo Box */}
                 <div className="relative w-32 h-32 bg-[#0f172a] rounded-full shadow-2xl flex items-center justify-center border border-cyan-500/30 ring-4 ring-black/50 backdrop-blur-md overflow-hidden p-4">
-                     <img src="/logo.png" alt="LP-F4 Logo" className="w-full h-full object-contain animate-bounce" />
+                     <img src="https://files.catbox.moe/1picoz.png" alt="LP-F4 Logo" className="w-full h-full object-contain animate-bounce" />
                 </div>
             </div>
 

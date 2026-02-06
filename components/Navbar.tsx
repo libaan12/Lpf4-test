@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
             <div className="flex flex-col gap-2">
                 <div className="px-4 mb-8 flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')}>
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform overflow-hidden ring-2 ring-cyan-400/50 p-1.5">
-                         <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                         <img src="https://files.catbox.moe/1picoz.png" alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <span className="font-black text-2xl tracking-tighter hidden lg:block text-white italic">LP-F4</span>
                 </div>

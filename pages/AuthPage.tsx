@@ -246,7 +246,7 @@ const AuthPage: React.FC = () => {
              <div className="w-24 h-24 mx-auto mb-4 relative group">
                 <div className="absolute inset-0 bg-gradient-to-tr from-game-primary to-red-500 rounded-3xl rotate-6 blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
                 <div className="relative w-full h-full bg-white dark:bg-slate-800 rounded-3xl border border-white/50 dark:border-slate-600 flex items-center justify-center shadow-xl overflow-hidden p-4">
-                    <img src="/logo.png" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
+                    <img src="https://files.catbox.moe/1picoz.png" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
                 </div>
              </div>
              <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight relative inline-block">

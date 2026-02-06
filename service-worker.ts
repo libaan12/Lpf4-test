@@ -1,15 +1,17 @@
+
 /// <reference lib="webworker" />
 
 /* eslint-disable no-restricted-globals */
 
-// Export empty type to treat this file as a module and prevent global scope collisions
+// Export empty type to treat this file as a module
 export type {};
 
-const CACHE_NAME = 'lp-f4-cache-v3';
+const CACHE_NAME = 'lp-f4-cache-v7';
 const urlsToCache = [
-  './',
-  './index.html',
+  '/',
+  '/index.html',
   '/logo.png',
+  '/manifest.json',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css',
@@ -18,12 +20,14 @@ const urlsToCache = [
 
 // Install a service worker
 self.addEventListener('install', (event: any) => {
-  // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
+      })
+      .catch((err) => {
+        console.error('Cache open failed:', err);
       })
   );
   (self as any).skipWaiting();
@@ -31,38 +35,59 @@ self.addEventListener('install', (event: any) => {
 
 // Cache and return requests
 self.addEventListener('fetch', (event: any) => {
-  // Skip cross-origin requests like Firebase or Google Analytics from strict caching if needed
-  // But for CDN assets we want to try cache first
-  
+  const request = event.request;
+
+  // 1. Navigation Fallback (For SPA / React Router)
+  // If the user navigates to /lobby, /profile etc while offline, return index.html
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return caches.match('/index.html');
+      })
+    );
+    return;
+  }
+
+  // 2. Asset Caching Strategy (Stale-While-Revalidate logic for app shell, Network-First for others)
   event.respondWith(
-    caches.match(event.request)
+    caches.match(request)
       .then((response) => {
-        // Cache hit - return response
+        // Return cached response immediately if found
         if (response) {
           return response;
         }
-        return fetch(event.request).then(
+
+        // Otherwise fetch from network
+        return fetch(request).then(
           (response) => {
-            // Check if we received a valid response
+            // Check if valid response
             if(!response || response.status !== 200 || response.type !== 'basic') {
               return response;
             }
 
-            // Clone the response
-            const responseToCache = response.clone();
+            // Don't cache API calls to Firebase/Google/Data
+            if (
+                request.url.includes('firebase') || 
+                request.url.includes('googleapis') || 
+                request.url.includes('firestore') ||
+                request.url.startsWith('chrome-extension')
+            ) {
+                return response;
+            }
 
+            // Cache new assets dynamically
+            const responseToCache = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {
-                // Only cache if it matches our allowed list or is same origin
-                // This is a simple strategy, can be refined
-                if (event.request.url.startsWith(self.location.origin)) {
-                    cache.put(event.request, responseToCache);
-                }
+                cache.put(request, responseToCache);
               });
 
             return response;
           }
-        );
+        ).catch(() => {
+            // If offline and image missing, could return a placeholder here
+            return new Response("Offline", { status: 503, statusText: "Offline" });
+        });
       })
   );
 });
