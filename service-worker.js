@@ -1,14 +1,16 @@
+
 /* eslint-disable no-restricted-globals */
 
-const CACHE_NAME = 'lp-f4-cache-v3';
+const CACHE_NAME = 'lp-f4-cache-v4';
+// IMPORTANT: All URLs here must be valid and accessible (200 OK) or the Service Worker will fail to install.
 const urlsToCache = [
-  './',
-  './index.html',
-  '/logo.png',
+  '/',
+  '/index.html',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css',
-  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap'
+  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap',
+  'https://cdn-icons-png.flaticon.com/512/807/807262.png'
 ];
 
 // Install a service worker
@@ -18,7 +20,11 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
+        // cache.addAll is atomic, if any request fails, the whole install fails.
         return cache.addAll(urlsToCache);
+      })
+      .catch((err) => {
+          console.error('Cache install failed:', err);
       })
   );
   self.skipWaiting();
@@ -40,15 +46,18 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
+            // Don't cache API calls to Firebase/Google or data URLs
+            const url = event.request.url;
+            if (url.includes('firebase') || url.includes('googleapis') || url.startsWith('data:')) {
+                return response;
+            }
+
             // Clone the response
             const responseToCache = response.clone();
 
             caches.open(CACHE_NAME)
               .then((cache) => {
-                // Only cache if it matches our allowed list or is same origin
-                if (event.request.url.startsWith(self.location.origin)) {
-                    cache.put(event.request, responseToCache);
-                }
+                cache.put(event.request, responseToCache);
               });
 
             return response;
