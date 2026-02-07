@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, onValue, update, onDisconnect, get, set, remove, serverTimestamp, push, onChildAdded, off, query, limitToLast } from 'firebase/database';
@@ -381,7 +380,7 @@ const GamePage: React.FC = () => {
   };
 
   // B. WebRTC Signaling Logic
-  // IMPORTANT: This effect initializes the connection IMMEDIATELY (Receive Only)
+  // IMPORTANT: This effect initializes the connection IMMEDIATELY (Receive Only if no mic)
   useEffect(() => {
       if (isSpectator || !user || !rightProfile || !matchId) return;
 
@@ -390,9 +389,12 @@ const GamePage: React.FC = () => {
           const pc = new RTCPeerConnection(iceServers);
           peerConnectionRef.current = pc;
 
-          // Add Local Stream IF AVAILABLE (Might be null initially)
+          // Add Local Stream IF AVAILABLE
           if (localStreamRef.current) {
               localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+          } else {
+              // FIX: Add recvonly transceiver so we can receive audio even if we don't send
+              pc.addTransceiver('audio', { direction: 'recvonly' });
           }
 
           // Handle Remote Stream
@@ -507,19 +509,34 @@ const GamePage: React.FC = () => {
   useEffect(() => {
       if (hasMicPermission && peerConnectionRef.current && localStreamRef.current) {
           const pc = peerConnectionRef.current;
-          
-          // 1. Add Tracks if not already added
           let tracksAdded = false;
-          localStreamRef.current.getTracks().forEach(track => {
-              const senders = pc.getSenders();
-              const alreadyHas = senders.find(s => s.track === track);
-              if (!alreadyHas) {
-                  pc.addTrack(track, localStreamRef.current!);
-                  tracksAdded = true;
+          
+          const audioTrack = localStreamRef.current.getAudioTracks()[0];
+          
+          if (audioTrack) {
+              const transceivers = pc.getTransceivers();
+              // Try to find the audio transceiver
+              const transceiver = transceivers.find(t => t.receiver.track.kind === 'audio');
+              
+              if (transceiver) {
+                  // Reuse existing transceiver if we were recvonly
+                  if (transceiver.sender.track !== audioTrack) {
+                      transceiver.sender.replaceTrack(audioTrack).catch(e => console.error("Replace track failed", e));
+                      transceiver.direction = 'sendrecv';
+                      tracksAdded = true;
+                  }
+              } else {
+                  // Standard addTrack if no transceiver found
+                  const senders = pc.getSenders();
+                  const alreadyHas = senders.find(s => s.track === audioTrack);
+                  if (!alreadyHas) {
+                      pc.addTrack(audioTrack, localStreamRef.current!);
+                      tracksAdded = true;
+                  }
               }
-          });
+          }
 
-          // 2. Trigger Renegotiation (Send new Offer) if we added new tracks
+          // Trigger Renegotiation (Send new Offer) if we updated capabilities
           if (tracksAdded) {
               const renegotiate = async () => {
                   try {
