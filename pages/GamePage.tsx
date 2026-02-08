@@ -877,6 +877,24 @@ const GamePage: React.FC = () => {
   const isLeftSpeaking = match.players?.[leftProfile.uid]?.isSpeaking || false;
   const isRightSpeaking = match.players?.[rightProfile.uid]?.isSpeaking || false;
 
+  // --- RESULT SCREEN LOGIC ---
+  const myScore = safeScores[leftProfile.uid] || 0;
+  const oppScore = safeScores[rightProfile.uid] || 0;
+  
+  // Calculate stats
+  // Score = correct * POINTS_PER_QUESTION
+  const myCorrect = Math.floor(myScore / POINTS_PER_QUESTION);
+  const oppCorrect = Math.floor(oppScore / POINTS_PER_QUESTION);
+  
+  // Total possible correct answers so far
+  const totalQs = questions.length; 
+  
+  const myWrong = Math.max(0, match.currentQ + 1 - myCorrect); // Approximation based on progress
+  const oppWrong = Math.max(0, match.currentQ + 1 - oppCorrect);
+
+  const myStats = { correct: myCorrect, wrong: totalQs - myCorrect, score: myScore };
+  const oppStats = { correct: oppCorrect, wrong: totalQs - oppCorrect, score: oppScore };
+
   return (
     <div className="min-h-screen bg-[#050b14] font-sans overflow-hidden relative flex flex-col items-center select-none">
         
@@ -940,43 +958,152 @@ const GamePage: React.FC = () => {
             </div>
         )}
 
-        {/* RESULT / GAME OVER */}
+        {/* RESULT / GAME OVER - REDESIGNED */}
         {isGameOver && (
-           <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-6">
-              <div className="w-full max-w-lg animate__animated animate__zoomIn">
-                  <Card className="!p-0 overflow-hidden border-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] bg-slate-800 rounded-[2.5rem]">
-                      <div className={`py-10 px-6 relative text-center overflow-hidden ${winnerUid === user?.uid ? 'bg-gradient-to-br from-yellow-400 via-orange-500 to-red-600' : winnerUid === 'draw' ? 'bg-slate-700' : 'bg-gradient-to-br from-slate-700 to-slate-900'}`}>
-                          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                          <div className="relative z-10">
-                              <h1 className="text-5xl md:text-6xl font-black text-white uppercase italic tracking-tighter drop-shadow-lg leading-none">
-                                  {winnerUid === user?.uid ? 'VICTORY' : winnerUid === 'draw' ? 'DRAW' : 'DEFEAT'}
-                              </h1>
-                              <p className="text-white/80 font-bold mt-2 text-sm uppercase tracking-widest">{subjectName}</p>
+           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl p-4 animate__animated animate__fadeIn">
+              <div className="relative w-full max-w-2xl bg-[#0f172a] border border-slate-700/50 rounded-[2.5rem] shadow-2xl overflow-hidden animate__animated animate__zoomInUp">
+                  
+                  {/* Background Accents */}
+                  <div className={`absolute top-0 left-0 right-0 h-1/2 opacity-20 pointer-events-none ${winnerUid === user?.uid ? 'bg-gradient-to-b from-yellow-500 to-transparent' : winnerUid === 'draw' ? 'bg-gradient-to-b from-slate-500 to-transparent' : 'bg-gradient-to-b from-red-600 to-transparent'}`}></div>
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+
+                  {/* Header Status */}
+                  <div className="relative pt-8 pb-4 text-center z-10">
+                      <h1 className={`text-6xl font-black italic tracking-tighter uppercase drop-shadow-[0_0_20px_rgba(0,0,0,0.5)] ${winnerUid === user?.uid ? 'text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-orange-500' : winnerUid === 'draw' ? 'text-slate-300' : 'text-red-500'}`}>
+                          {winnerUid === user?.uid ? 'VICTORY' : winnerUid === 'draw' ? 'DRAW' : 'DEFEAT'}
+                      </h1>
+                      <div className="text-white/60 font-black text-xs uppercase tracking-[0.4em] mt-2">{subjectName || 'Battle Arena'}</div>
+                  </div>
+
+                  {/* Main Players Display */}
+                  <div className="grid grid-cols-3 items-end px-6 py-6 relative z-10">
+                      
+                      {/* Left Player (You) */}
+                      <div className={`flex flex-col items-center ${winnerUid === user?.uid ? 'scale-110 -translate-y-4 z-20' : 'opacity-80 scale-90'}`}>
+                          <div className="relative">
+                              {winnerUid === user?.uid && (
+                                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 animate__animated animate__bounceInDown">
+                                      <img src="https://cdn-icons-png.flaticon.com/512/2583/2583344.png" className="w-12 h-12 drop-shadow-lg" alt="Crown" />
+                                  </div>
+                              )}
+                              <Avatar 
+                                src={leftProfile.avatar} 
+                                size="xl" 
+                                className={`border-4 shadow-2xl ${winnerUid === user?.uid ? 'border-yellow-400 ring-4 ring-yellow-400/20' : 'border-slate-600'}`}
+                              />
+                              <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap ${winnerUid === user?.uid ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
+                                  {winnerUid === user?.uid ? 'Winner' : 'Player'}
+                              </div>
+                          </div>
+                          <div className="mt-5 text-center">
+                              <div className="text-white font-black text-lg leading-none flex items-center justify-center gap-1">
+                                {leftProfile.name}
+                                {leftProfile.isVerified && <VerificationBadge size="xs" className="text-cyan-400" />}
+                              </div>
+                              <div className="text-slate-500 text-xs font-bold mt-1">@{leftProfile.username || 'guest'}</div>
                           </div>
                       </div>
-                      <div className="p-8">
-                          <div className="flex justify-between items-center mb-10 gap-4">
-                              <div className="flex-1 flex flex-col items-center">
-                                  <Avatar src={leftProfile.avatar} size="lg" className={`border-4 ${winnerUid === leftProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/20' : 'border-slate-700'}`} />
-                                  <div className="text-center mt-2">
-                                      <div className="font-black text-white uppercase text-xs">You</div>
-                                      <div className="text-3xl font-black text-cyan-400">{safeScores[leftProfile.uid] ?? 0}</div>
+
+                      {/* VS Divider */}
+                      <div className="flex flex-col items-center justify-center pb-12">
+                          <span className="text-4xl font-black text-slate-700 italic opacity-50">VS</span>
+                      </div>
+
+                      {/* Right Player (Opponent) */}
+                      <div className={`flex flex-col items-center ${winnerUid === rightProfile.uid ? 'scale-110 -translate-y-4 z-20' : 'opacity-80 scale-90'}`}>
+                          <div className="relative">
+                              {winnerUid === rightProfile.uid && (
+                                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 animate__animated animate__bounceInDown">
+                                      <img src="https://cdn-icons-png.flaticon.com/512/2583/2583344.png" className="w-12 h-12 drop-shadow-lg" alt="Crown" />
+                                  </div>
+                              )}
+                              <Avatar 
+                                src={rightProfile.avatar} 
+                                size="xl" 
+                                className={`border-4 shadow-2xl ${winnerUid === rightProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/20' : 'border-slate-600'}`}
+                              />
+                              <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap ${winnerUid === rightProfile.uid ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
+                                  {winnerUid === rightProfile.uid ? 'Winner' : 'Player'}
+                              </div>
+                          </div>
+                          <div className="mt-5 text-center">
+                              <div className="text-white font-black text-lg leading-none flex items-center justify-center gap-1">
+                                {rightProfile.name}
+                                {rightProfile.isVerified && <VerificationBadge size="xs" className="text-orange-500" />}
+                              </div>
+                              <div className="text-slate-500 text-xs font-bold mt-1">@{rightProfile.username || 'opponent'}</div>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className="bg-slate-900/50 backdrop-blur-sm border-t border-slate-800 p-6">
+                      <div className="grid grid-cols-2 gap-8 max-w-md mx-auto">
+                          
+                          {/* My Stats */}
+                          <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded-xl border border-slate-700/50">
+                                  <div className="flex items-center gap-2">
+                                      <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" className="w-5 h-5" alt="Correct" />
+                                      <span className="text-xs font-bold text-slate-400">Correct</span>
+                                  </div>
+                                  <span className="text-green-400 font-black">{myStats.correct}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded-xl border border-slate-700/50">
+                                  <div className="flex items-center gap-2">
+                                      <img src="https://cdn-icons-png.flaticon.com/512/190/190406.png" className="w-5 h-5" alt="Wrong" />
+                                      <span className="text-xs font-bold text-slate-400">Wrong</span>
+                                  </div>
+                                  <span className="text-red-400 font-black">{myStats.wrong}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-game-primary/10 p-2 rounded-xl border border-game-primary/20 mt-2">
+                                  <div className="flex items-center gap-2">
+                                      <img src="https://cdn-icons-png.flaticon.com/512/2331/2331970.png" className="w-5 h-5" alt="Score" />
+                                      <span className="text-xs font-bold text-game-primary">Total Score</span>
+                                  </div>
+                                  <span className="text-white font-black text-lg">{myStats.score}</span>
+                              </div>
+                          </div>
+
+                          {/* Opponent Stats */}
+                          <div className="space-y-3 opacity-80">
+                              <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded-xl border border-slate-700/50">
+                                  <span className="text-green-400 font-black">{oppStats.correct}</span>
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-400">Correct</span>
+                                      <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" className="w-5 h-5" alt="Correct" />
                                   </div>
                               </div>
-                              <div className="text-slate-600 font-black text-2xl italic px-4">VS</div>
-                              <div className="flex-1 flex flex-col items-center">
-                                  <Avatar src={rightProfile.avatar} size="lg" className={`border-4 ${winnerUid === rightProfile.uid ? 'border-yellow-400 ring-4 ring-yellow-400/20' : 'border-slate-700'}`} />
-                                  <div className="text-center mt-2">
-                                      <div className="font-black text-white uppercase text-xs">{rightProfile.name.split(' ')[0]}</div>
-                                      <div className="text-3xl font-black text-orange-500">{safeScores[rightProfile.uid] ?? 0}</div>
+                              <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded-xl border border-slate-700/50">
+                                  <span className="text-red-400 font-black">{oppStats.wrong}</span>
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-400">Wrong</span>
+                                      <img src="https://cdn-icons-png.flaticon.com/512/190/190406.png" className="w-5 h-5" alt="Wrong" />
+                                  </div>
+                              </div>
+                              <div className="flex justify-between items-center bg-slate-700/30 p-2 rounded-xl border border-slate-600/30 mt-2">
+                                  <span className="text-slate-300 font-black text-lg">{oppStats.score}</span>
+                                  <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-400">Score</span>
+                                      <img src="https://cdn-icons-png.flaticon.com/512/864/864837.png" className="w-5 h-5 grayscale opacity-50" alt="Score" />
                                   </div>
                               </div>
                           </div>
-                          <Button onClick={handleLeave} size="lg" fullWidth className="py-5 shadow-xl !rounded-2xl text-lg shadow-orange-500/20">
-                              CONTINUE <i className="fas fa-arrow-right ml-2"></i>
-                          </Button>
+
                       </div>
-                  </Card>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-6 pt-4 flex gap-4">
+                      <Button 
+                        onClick={handleLeave} 
+                        fullWidth 
+                        size="lg" 
+                        className={`shadow-xl text-lg ${winnerUid === user?.uid ? 'bg-gradient-to-r from-yellow-500 to-orange-600 border-orange-700' : 'bg-slate-700 border-slate-800 hover:bg-slate-600'}`}
+                      >
+                          {winnerUid === user?.uid ? 'CLAIM VICTORY' : 'CONTINUE'}
+                      </Button>
+                  </div>
               </div>
            </div>
         )}
