@@ -88,7 +88,19 @@ const AppContent: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. Setup Presence Listener (Separated to prevent loops)
+  // Background Library Sync (On App Launch)
+  useEffect(() => {
+    if (!user) return;
+    const libraryRef = ref(db, 'studyMaterials');
+    // Sync library data to cache immediately
+    onValue(libraryRef, (snapshot) => {
+        if (snapshot.exists()) {
+            localStorage.setItem('library_cache', JSON.stringify(snapshot.val()));
+        }
+    });
+  }, [user]);
+
+  // Presence Listener
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -97,12 +109,10 @@ const AppContent: React.FC = () => {
 
     const unsubscribeConnected = onValue(connectedRef, (snap) => {
         if (snap.val() === true) {
-            // Use onDisconnect to handle closing tab/app
             onDisconnect(presenceRef).update({
                 isOnline: false,
                 lastSeen: serverTimestamp()
             }).then(() => {
-                // Set online status
                 update(presenceRef, {
                     isOnline: true,
                     lastSeen: serverTimestamp()
@@ -113,17 +123,13 @@ const AppContent: React.FC = () => {
 
     return () => {
         unsubscribeConnected();
-        // NOTE: We do NOT manually set isOnline: false here.
-        // Doing so causes "offline" flickers during navigation or component re-renders.
-        // We rely solely on onDisconnect() for actual disconnections.
     };
   }, [user?.uid]);
 
-  // 3. Setup User Profile Listener & Duplicate Check
+  // Setup User Profile Listener
   useEffect(() => {
     if (!user) return;
 
-    // Load initial cache
     const cachedProfile = localStorage.getItem('userProfile');
     if (cachedProfile) {
         setProfile(JSON.parse(cachedProfile));
@@ -134,12 +140,11 @@ const AppContent: React.FC = () => {
     const unsubscribeUser = onValue(userRef, async (snapshot) => {
       const data = snapshot.val();
       
-      // --- REAL-TIME BAN ENFORCEMENT ---
       if (data && data.banned) {
         signOut(auth).then(() => {
            setUser(null);
            setProfile(null);
-           localStorage.removeItem('userProfile'); // Clear Profile Cache
+           localStorage.removeItem('userProfile'); 
            navigate('/auth');
            showAlert('⛔ ACCESS DENIED', 'Your account has been permanently suspended by an administrator.', 'error');
         });
@@ -165,14 +170,14 @@ const AppContent: React.FC = () => {
     };
   }, [user]);
 
-  // 4. Navigation Logic (Runs when profile or location changes)
+  // Navigation Logic
   useEffect(() => {
       if (profile?.activeMatch && !location.pathname.includes('/game') && !profile.isSupport) {
           navigate(`/game/${profile.activeMatch}`);
       }
   }, [profile?.activeMatch, profile?.isSupport, location.pathname, navigate]);
 
-  // 5. GLOBAL CHAT NOTIFICATION LISTENER
+  // Chat Notification Listener
   useEffect(() => {
       if (!user || !profile?.friends) return;
 
@@ -191,11 +196,8 @@ const AppContent: React.FC = () => {
               const count = snapshot.val() || 0;
               const prev = prevCounts[chatId] || 0;
 
-              // If count increased (new message) AND not initial load
               if (!isInitial && count > prev) {
-                  // Check if user is currently inside this chat
                   const currentPath = locationRef.current.pathname;
-                  // If NOT in the chat screen for this friend, play sound
                   if (!currentPath.includes(`/chat/${fid}`)) {
                       playSound('message');
                   }
@@ -210,7 +212,7 @@ const AppContent: React.FC = () => {
       });
 
       return () => listeners.forEach(unsub => unsub());
-  }, [user, profile?.friends]); // Only re-run if friends list changes
+  }, [user, profile?.friends]); 
 
   // Handle Verification Celebration
   useEffect(() => {
@@ -236,23 +238,17 @@ const AppContent: React.FC = () => {
   if (loading) {
     return (
       <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050b14] overflow-hidden">
-        {/* Ambient Background */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[128px] animate-pulse"></div>
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[128px] animate-pulse delay-1000"></div>
         
         <div className="relative z-10 flex flex-col items-center">
-            {/* Logo Container */}
             <div className="relative mb-8">
-                {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full blur-2xl opacity-40 animate-pulse"></div>
-                
-                {/* Logo Box */}
                 <div className="relative w-32 h-32 bg-[#0f172a] rounded-full shadow-2xl flex items-center justify-center border border-cyan-500/30 ring-4 ring-black/50 backdrop-blur-md overflow-hidden p-4">
                      <img src="https://files.catbox.moe/1picoz.png" alt="LP-F4 Logo" className="w-full h-full object-contain animate-bounce" />
                 </div>
             </div>
 
-            {/* Typography */}
             <div className="text-center mb-8">
                 <h1 className="text-5xl font-black text-white tracking-tighter mb-1 flex items-center justify-center gap-1">
                     LP<span className="text-cyan-400">F4</span>
@@ -260,7 +256,6 @@ const AppContent: React.FC = () => {
                 <p className="text-[10px] font-bold text-cyan-500/70 uppercase tracking-[0.5em] animate-pulse">Battle Arena</p>
             </div>
             
-            {/* Loading Bar */}
             <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 animate-[loading_1s_ease-in-out_infinite] w-1/2"></div>
             </div>
@@ -282,27 +277,19 @@ const AppContent: React.FC = () => {
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
       <ThemeContext.Provider value={{ theme: 'dark', setTheme: () => {} }}>
-        {/* GLOBAL GAMING BACKGROUND */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-[#050b14]">
-            {/* Base Layer */}
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
-            
-            {/* Primary Gradient Mesh (Cyan/Blue) - Top Left */}
             <div className="absolute top-0 left-0 w-[120vw] h-[120vw] sm:w-[80vw] sm:h-[80vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-transparent to-transparent blur-3xl transform -translate-x-1/3 -translate-y-1/3" />
-            
-            {/* Accent Gradient Mesh (Orange) - Bottom Right */}
             <div className="absolute bottom-0 right-0 w-[120vw] h-[120vw] sm:w-[80vw] sm:h-[80vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-900/20 via-transparent to-transparent blur-3xl transform translate-x-1/3 translate-y-1/3" />
         </div>
 
         <div className="w-full h-[100dvh] font-sans flex flex-col md:flex-row overflow-hidden relative z-10 text-white">
-            {/* Desktop Navigation */}
             {user && showNavbar && (
                 <div className="hidden md:block w-24 lg:w-72 shrink-0 z-20 h-full p-4">
                     <Navbar orientation="vertical" />
                 </div>
             )}
 
-            {/* Content Area */}
             <div className="flex-1 flex flex-col h-full relative overflow-hidden">
                 <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth relative custom-scrollbar">
                   <Routes>
@@ -324,16 +311,10 @@ const AppContent: React.FC = () => {
                   </Routes>
                 </div>
                 
-                {/* LP Assistant */}
                 {showAssistant && <LPAssistant />}
-                
-                {/* Username Prompt for Guests */}
                 {user && <UsernamePrompt />}
-                
-                {/* PWA Install Banner */}
                 <PWAInstallPrompt />
 
-                {/* Verification Success Modal */}
                 <Modal isOpen={showVerificationModal} onClose={handleDismissVerification}>
                     <div className="flex flex-col items-center text-center p-4">
                         <div className="w-20 h-20 bg-blue-900/30 rounded-full flex items-center justify-center mb-4 animate__animated animate__bounceIn">
@@ -349,7 +330,6 @@ const AppContent: React.FC = () => {
                     </div>
                 </Modal>
 
-                {/* Mobile Bottom Navigation */}
                 {user && showNavbar && (
                     <div className="md:hidden z-20 p-4 absolute bottom-0 w-full pointer-events-none">
                          <div className="pointer-events-auto">

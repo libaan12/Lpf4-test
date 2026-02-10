@@ -114,6 +114,7 @@ export interface StudyMaterial {
   id: string;
   fileName: string; // Display name
   subjectName: string; // Links to Subject ID or Name
+  category: 'exams' | 'subjects'; // New category field
   fileURL: string;
   fileSize: string; // e.g. "2.4 MB"
   uploadDate: number;

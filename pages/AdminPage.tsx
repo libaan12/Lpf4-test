@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { ref, push, set, get, remove, onValue, off, update } from 'firebase/database';
+// Fixed: Added serverTimestamp to firebase/database imports
+import { ref, push, set, get, remove, onValue, off, update, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
 import { Button, Input, Card, Modal } from '../components/UI';
 import { Question, Subject, Chapter, StudyMaterial } from '../types';
@@ -31,11 +31,10 @@ export const AdminPage: React.FC = () => {
   const [correctAnswer, setCorrectAnswer] = useState(0);
   
   // PDF Upload Form State
-  const [pdfSource, setPdfSource] = useState<'link' | 'upload'>('link');
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfExternalUrl, setPdfExternalUrl] = useState('');
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfSubject, setPdfSubject] = useState('');
+  const [pdfCategory, setPdfCategory] = useState<'exams' | 'subjects'>('subjects');
   
   const [loading, setLoading] = useState(false);
 
@@ -102,7 +101,8 @@ export const AdminPage: React.FC = () => {
       const unsub = onValue(matRef, (snapshot) => {
           if (snapshot.exists()) {
               const data = snapshot.val();
-              setStudyMaterials(Object.values(data));
+              const list = Object.keys(data).map(k => ({ ...data[k], id: k }));
+              setStudyMaterials(list);
           } else {
               setStudyMaterials([]);
           }
@@ -434,369 +434,407 @@ export const AdminPage: React.FC = () => {
   const handlePdfUpload = async (e: React.FormEvent) => {
       e.preventDefault();
       
-      if (!pdfTitle || !pdfSubject) {
-          showAlert("Missing Info", "Please provide a title and subject.", "warning");
+      if (!pdfTitle || !pdfSubject || !pdfExternalUrl.trim()) {
+          showAlert("Missing Info", "Please provide a title, subject, and URL.", "warning");
           return;
       }
 
       setLoading(true);
       
       try {
-          if (pdfSource === 'link') {
-              if (!pdfExternalUrl.trim()) {
-                  showAlert("Missing Info", "Please provide a valid PDF link.", "warning");
-                  setLoading(false);
-                  return;
-              }
-              const newRef = push(ref(db, 'studyMaterials'));
-              await set(newRef, {
-                  id: newRef.key,
-                  fileName: pdfTitle,
-                  subjectName: pdfSubject,
-                  fileURL: pdfExternalUrl.trim(),
-                  fileSize: "External",
-                  uploadDate: Date.now()
-              });
-              
-              setPdfExternalUrl('');
-              setPdfTitle('');
-              setPdfSubject('');
-              showAlert("Success", "Resource Link Saved!", "success");
-              setLoading(false);
-          } else {
-              if (!pdfFile) {
-                  showAlert("Missing Info", "Please select a file to upload.", "warning");
-                  setLoading(false);
-                  return;
-              }
-              if (pdfFile.size > 5 * 1024 * 1024) { 
-                  showAlert("Too Large", "File exceeds 5MB. Use 'Link' instead.", "error");
-                  setLoading(false);
-                  return;
-              }
-
-              const reader = new FileReader();
-              reader.onload = async () => {
-                  const base64Data = reader.result as string;
-                  const newRef = push(ref(db, 'studyMaterials'));
-                  await set(newRef, {
-                      id: newRef.key,
-                      fileName: pdfTitle,
-                      subjectName: pdfSubject,
-                      fileURL: base64Data,
-                      fileSize: (pdfFile.size / (1024 * 1024)).toFixed(2) + ' MB',
-                      uploadDate: Date.now()
-                  });
-
-                  setPdfFile(null);
-                  setPdfTitle('');
-                  setPdfSubject('');
-                  showAlert("Success", "PDF Uploaded!", "success");
-                  setLoading(false);
-              };
-              reader.readAsDataURL(pdfFile);
-          }
+          const newRef = push(ref(db, 'studyMaterials'));
+          await set(newRef, {
+              id: newRef.key,
+              fileName: pdfTitle.trim(),
+              subjectName: pdfSubject.trim(),
+              category: pdfCategory,
+              fileURL: pdfExternalUrl.trim(),
+              fileSize: "Cloud Link",
+              // Fixed: Using serverTimestamp() which is now imported
+              uploadDate: serverTimestamp()
+          });
+          
+          setPdfExternalUrl('');
+          setPdfTitle('');
+          setPdfSubject('');
+          showAlert("Success", "Resource deployed successfully!", "success");
       } catch(e) {
           console.error(e);
-          showAlert("Error", "Action failed.", "error");
+          showAlert("Error", "Deployment failed.", "error");
+      } finally {
           setLoading(false);
       }
   };
 
   const handleDeletePdf = async (item: StudyMaterial) => {
-      const confirm = await showConfirm("Delete PDF?", "This file will be permanently removed.");
+      const confirm = await showConfirm("Delete Resource?", "This will permanently remove it from the Library.");
       if (!confirm) return;
       try {
           await remove(ref(db, `studyMaterials/${item.id}`));
-          showToast("PDF Deleted", "success");
+          showToast("Deleted", "success");
       } catch(e) {
           showAlert("Error", "Failed to delete PDF.", "error");
       }
   };
 
   return (
-    <div className="min-h-screen p-4 pb-20 pt-20 transition-colors max-w-4xl mx-auto w-full">
+    <div className="min-h-screen bg-[#050b14] text-white p-4 pb-24 pt-20 transition-colors max-w-4xl mx-auto w-full relative">
+      
+      {/* Background Ambient Effects */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-900/10 rounded-full blur-[128px] animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-900/10 rounded-full blur-[128px] animate-pulse delay-1000"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-[linear-gradient(to_bottom,transparent_0%,#0f172a_100%),linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:40px_40px] [transform:perspective(500px)_rotateX(60deg)_translateY(100px)] opacity-30 origin-bottom"></div>
+      </div>
+
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-4 py-3 transition-colors duration-300">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a]/80 backdrop-blur-xl border-b border-white/5 shadow-xl flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-game-primary dark:hover:text-blue-400 transition-colors shadow-sm">
+            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-cyan-400 transition-colors shadow-lg active:scale-90">
                 <i className="fas fa-arrow-left"></i>
             </button>
-            <h1 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white uppercase tracking-tight">Admin Panel</h1>
+            <h1 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tighter">Command Center</h1>
+        </div>
+        <div className="bg-slate-800/50 px-3 py-1 rounded-full border border-white/5 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-[10px] font-black uppercase text-slate-400">Live Sync</span>
         </div>
       </div>
 
-      <div className="flex gap-4 mb-6">
-          <button 
-            onClick={() => setActiveTab('quizzes')} 
-            className={`flex-1 py-3 rounded-2xl font-black uppercase text-xs tracking-wider transition-all ${activeTab === 'quizzes' ? 'bg-game-primary text-white shadow-lg' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}
-          >
-            <i className="fas fa-list-ul mr-2"></i> Quiz Manager
-          </button>
-          <button 
-            onClick={() => setActiveTab('pdfs')} 
-            className={`flex-1 py-3 rounded-2xl font-black uppercase text-xs tracking-wider transition-all ${activeTab === 'pdfs' ? 'bg-game-primary text-white shadow-lg' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}
-          >
-            <i className="fas fa-file-pdf mr-2"></i> PDF Manager
-          </button>
-      </div>
-
-      {activeTab === 'quizzes' ? (
-        <div className="grid gap-6 animate__animated animate__fadeIn">
-            <Card className="border-l-8 border-game-primary">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <div className="flex justify-between items-center mb-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-200 uppercase tracking-wide">Subject</label>
-                        <div className="flex gap-2">
-                             {selectedSubject && (
-                                <button onClick={handleDeleteSubject} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded transition-colors">Delete</button>
-                             )}
-                            <button onClick={() => setModalType('subject')} className="text-[10px] uppercase font-bold text-game-primary hover:text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded transition-colors">+ New</button>
-                        </div>
-                    </div>
-                    <div className="relative">
-                        <select 
-                            value={selectedSubject} 
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            className="w-full p-3 bg-slate-100 text-gray-900 dark:bg-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 rounded-xl appearance-none font-bold focus:ring-4 focus:ring-game-primary/20 focus:border-game-primary transition-all cursor-pointer"
-                        >
-                            <option value="">Select Subject</option>
-                            {subjects.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
-                        <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400"></i>
-                    </div>
-                </div>
-
-                <div className={`${!selectedSubject ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <div className="flex justify-between items-center mb-2">
-                        <label className="text-sm font-bold text-gray-900 dark:text-gray-200 uppercase tracking-wide">Chapter</label>
-                        <div className="flex gap-2">
-                             {selectedChapter && (
-                                <button onClick={handleDeleteChapter} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded transition-colors">Delete</button>
-                             )}
-                            <button onClick={() => setModalType('chapter')} className="text-[10px] uppercase font-bold text-game-primary hover:text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded transition-colors">+ New</button>
-                        </div>
-                    </div>
-                    <div className="relative">
-                        <select 
-                            value={selectedChapter} 
-                            onChange={(e) => setSelectedChapter(e.target.value)}
-                            className="w-full p-3 bg-slate-100 text-gray-900 dark:bg-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 rounded-xl appearance-none font-bold focus:ring-4 focus:ring-game-primary/20 focus:border-game-primary transition-all cursor-pointer"
-                            disabled={!selectedSubject || chapters.length === 0}
-                        >
-                            {chapters.length === 0 && <option value="">No chapters</option>}
-                            {chapters.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                        <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400"></i>
-                    </div>
-                </div>
-            </div>
-        </Card>
-
-        <Card className={`${!selectedChapter ? 'opacity-50 pointer-events-none grayscale' : ''} transition-all`}>
-          <div className="flex items-center justify-between mb-6 border-b border-gray-100 dark:border-gray-700 pb-4 flex-wrap gap-3">
-            <h2 className="text-lg md:text-xl font-bold dark:text-white flex items-center gap-2">
-                <i className={`fas ${inputMode === 'manual' ? 'fa-plus' : inputMode === 'parser' ? 'fa-magic' : 'fa-file-excel'} text-game-primary`}></i>
-                {inputMode === 'manual' ? 'Add Question' : inputMode === 'parser' ? 'Text Parser' : 'Bulk Upload'}
-            </h2>
-            <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1 gap-1">
-                <button onClick={() => setInputMode('manual')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'manual' ? 'bg-white dark:bg-gray-700 shadow text-game-primary dark:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Manual</button>
-                <button onClick={() => setInputMode('parser')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'parser' ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Parser</button>
-                <button onClick={() => setInputMode('bulk')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'bulk' ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Excel</button>
-            </div>
+      <div className="relative z-10">
+          <div className="flex bg-[#1e293b]/50 backdrop-blur-md rounded-2xl p-1 gap-1 mb-6 border border-white/5 shadow-inner">
+              <button 
+                onClick={() => setActiveTab('quizzes')} 
+                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'quizzes' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <i className="fas fa-database mr-2"></i> Quiz Bank
+              </button>
+              <button 
+                onClick={() => setActiveTab('pdfs')} 
+                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'pdfs' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <i className="fas fa-file-pdf mr-2"></i> Library
+              </button>
           </div>
-          
-          {inputMode === 'manual' && (
-            <form onSubmit={handleAddQuestion} className="space-y-4">
-                <Input label="Question Text" value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="Type question here..." />
-                
-                <div>
-                    <label className="block text-xs font-bold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Options</label>
-                    <div className="space-y-3">
-                        {options.map((opt, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                                <div 
-                                    className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold cursor-pointer transition-all border-2 ${idx === correctAnswer ? 'bg-green-50 border-green-600 text-white shadow-lg scale-105' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`} 
-                                    onClick={() => setCorrectAnswer(idx)}
-                                >
-                                    {String.fromCharCode(65 + idx)}
-                                </div>
-                                <div className="flex-1 relative">
-                                    <input 
-                                        className={`w-full p-3 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white border-2 rounded-xl transition-all font-medium focus:outline-none ${idx === correctAnswer ? 'border-green-500 dark:border-green-600 ring-2 ring-green-500/20' : 'border-slate-200 dark:border-slate-700 focus:border-game-primary'}`}
-                                        value={opt}
-                                        onChange={(e) => handleOptionChange(idx, e.target.value)}
-                                        placeholder={`Option ${idx + 1}`}
-                                    />
-                                    {options.length > 2 && (
-                                        <button type="button" onClick={() => handleRemoveOption(idx)} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-300 hover:text-red-500 transition-colors">
-                                            <i className="fas fa-times"></i>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    {options.length < 6 && (
-                        <button type="button" onClick={handleAddOption} className="mt-4 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-game-primary dark:text-blue-400 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
-                            <i className="fas fa-plus"></i> Add Option
-                        </button>
-                    )}
-                </div>
-                <Button type="submit" fullWidth isLoading={loading} className="mt-2"><i className="fas fa-save mr-2"></i> Save Question</Button>
-            </form>
-          )}
 
-          {inputMode === 'parser' && (
-              <div className="space-y-4">
-                  <textarea 
-                    className="w-full h-48 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono text-sm resize-none"
-                    placeholder="1. Question text? a) Option 1 Answer: a"
-                    value={rawText}
-                    onChange={(e) => setRawText(e.target.value)}
-                  ></textarea>
-                  <Button fullWidth onClick={handleTextParse} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 text-white">
-                      <i className="fas fa-magic mr-2"></i> Parse & Upload
-                  </Button>
-              </div>
-          )}
-
-          {inputMode === 'bulk' && (
-             <div className="space-y-6">
-                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                     <p className="text-xs text-blue-700 dark:text-blue-200/80 mb-3">Upload Excel with: Question, Option A, B, C, D, Correct (1-4).</p>
-                     <button onClick={handleDownloadTemplate} className="bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-300 px-3 py-2 rounded-lg font-bold text-xs shadow-sm border border-blue-100">
-                        <i className="fas fa-download mr-1"></i> Template
-                     </button>
-                 </div>
-                 <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative group">
-                     <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} disabled={loading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                     <i className="fas fa-file-excel text-5xl text-green-500 mb-3"></i>
-                     <p className="font-bold dark:text-white">Drop Excel File Here</p>
-                 </div>
-             </div>
-          )}
-        </Card>
-
-        <Card>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold dark:text-white">Question Bank</h2>
-            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs font-bold border border-slate-200 dark:border-slate-700">{questions.length} Items</span>
-          </div>
-          
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-            {questions.length === 0 ? (
-                <div className="text-center py-16 opacity-50 font-bold">No questions yet</div>
-            ) : (
-                questions.map((q) => (
-                <div key={q.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 relative group shadow-sm">
-                    <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-50 text-red-400 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><i className="fas fa-trash"></i></button>
-                    <div className="pr-10"><p className="font-bold text-gray-800 dark:text-white text-sm mb-3">{q.question}</p></div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    {q.options.map((opt, i) => (
-                        <div key={i} className={`p-2 rounded-lg border flex items-center gap-2 ${i === q.answer ? 'bg-green-50 border-green-200 text-green-700 font-bold' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>
-                           <span className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${i === q.answer ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + i)}</span> 
-                           {opt}
-                        </div>
-                    ))}
-                    </div>
-                </div>
-                ))
-            )}
-          </div>
-        </Card>
-        </div>
-      ) : (
-        <div className="grid gap-6 animate__animated animate__fadeIn">
-            {/* PDF UPLOAD CARD */}
-            <Card>
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
-                        <i className="fas fa-file-export text-game-primary"></i> Add Resource
-                    </h2>
-                    <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
-                        <button onClick={() => setPdfSource('link')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${pdfSource === 'link' ? 'bg-white dark:bg-gray-700 text-game-primary shadow-sm' : 'text-slate-500'}`}>Link</button>
-                        <button onClick={() => setPdfSource('upload')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${pdfSource === 'upload' ? 'bg-white dark:bg-gray-700 text-game-primary shadow-sm' : 'text-slate-500'}`}>File</button>
-                    </div>
-                </div>
-                <form onSubmit={handlePdfUpload} className="space-y-4">
-                    <Input label="Display Title" value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Chapter 1 Notes" />
-                    
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 ml-1">Subject</label>
-                        <select 
-                            value={pdfSubject} 
-                            onChange={(e) => setPdfSubject(e.target.value)}
-                            className="w-full p-3 bg-slate-100 text-gray-900 dark:bg-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold cursor-pointer"
-                        >
-                            <option value="">Select Subject</option>
-                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
-
-                    {pdfSource === 'link' ? (
-                        <Input label="PDF URL (External Link)" value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://..." />
-                    ) : (
+          {activeTab === 'quizzes' ? (
+            <div className="space-y-6 animate__animated animate__fadeIn">
+                {/* Selector Section */}
+                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-6 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-game-primary opacity-50"></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 ml-1">PDF File (Max 5MB)</label>
-                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors relative">
-                                <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                {pdfFile ? <div className="text-green-500 font-bold"><i className="fas fa-check-circle"></i> {pdfFile.name}</div> : <div className="text-gray-400 font-bold text-sm"><i className="fas fa-cloud-upload-alt text-2xl mb-1"></i><p>Select PDF File</p></div>}
+                            <div className="flex justify-between items-center mb-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Current Subject</label>
+                                <div className="flex gap-2">
+                                     {selectedSubject && (
+                                        <button onClick={handleDeleteSubject} className="text-[10px] font-black text-red-500 bg-red-900/10 px-2.5 py-1 rounded-lg border border-red-500/20 active:scale-95 transition-all">DELETE</button>
+                                     )}
+                                    <button onClick={() => setModalType('subject')} className="text-[10px] font-black text-game-primary bg-game-primary/10 px-2.5 py-1 rounded-lg border border-game-primary/20 active:scale-95 transition-all">+ NEW</button>
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <select 
+                                    value={selectedSubject} 
+                                    onChange={(e) => setSelectedSubject(e.target.value)}
+                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                >
+                                    <option value="">-- Choose Subject --</option>
+                                    {subjects.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                                <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-slate-600"></i>
                             </div>
                         </div>
-                    )}
 
-                    <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject}>
-                        <i className="fas fa-save mr-2"></i> Save Resource
-                    </Button>
-                </form>
-            </Card>
+                        <div className={`${!selectedSubject ? 'opacity-30 pointer-events-none' : ''}`}>
+                            <div className="flex justify-between items-center mb-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Specific Chapter</label>
+                                <div className="flex gap-2">
+                                     {selectedChapter && (
+                                        <button onClick={handleDeleteChapter} className="text-[10px] font-black text-red-500 bg-red-900/10 px-2.5 py-1 rounded-lg border border-red-500/20 active:scale-95 transition-all">DELETE</button>
+                                     )}
+                                    <button onClick={() => setModalType('chapter')} className="text-[10px] font-black text-game-primary bg-game-primary/10 px-2.5 py-1 rounded-lg border border-game-primary/20 active:scale-95 transition-all">+ NEW</button>
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <select 
+                                    value={selectedChapter} 
+                                    onChange={(e) => setSelectedChapter(e.target.value)}
+                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                    disabled={!selectedSubject || chapters.length === 0}
+                                >
+                                    {chapters.length === 0 && <option value="">No chapters available</option>}
+                                    {chapters.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-slate-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
 
-            <Card>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-bold dark:text-white">Resources List</h2>
-                </div>
-                <div className="space-y-3">
-                    {studyMaterials.length === 0 ? (
-                        <div className="text-center py-10 opacity-50 font-bold">No resources added.</div>
+                {/* Input Card */}
+                <Card className={`!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl relative ${!selectedChapter ? 'opacity-30 pointer-events-none grayscale' : ''} transition-all`}>
+                  <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
+                        <i className={`fas ${inputMode === 'manual' ? 'fa-plus-circle' : inputMode === 'parser' ? 'fa-magic' : 'fa-file-excel'} text-game-primary`}></i>
+                        {inputMode === 'manual' ? 'Manual Input' : inputMode === 'parser' ? 'Text Parser' : 'Excel Batch'}
+                    </h2>
+                    <div className="flex bg-slate-900 rounded-xl p-1 shadow-inner border border-white/5">
+                        <button onClick={() => setInputMode('manual')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'manual' ? 'bg-game-primary text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Manual</button>
+                        <button onClick={() => setInputMode('parser')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'parser' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Parse</button>
+                        <button onClick={() => setInputMode('bulk')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'bulk' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Excel</button>
+                    </div>
+                  </div>
+                  
+                  {inputMode === 'manual' && (
+                    <form onSubmit={handleAddQuestion} className="space-y-6">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Question Content</label>
+                            <Input value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="Type the question here..." className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 block">Answer Options (Click letter to mark correct)</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {options.map((opt, idx) => (
+                                    <div key={idx} className="flex items-center gap-3 group">
+                                        <button 
+                                            type="button"
+                                            className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center font-black transition-all border-2 ${idx === correctAnswer ? 'bg-green-500 border-green-400 text-slate-900 shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500'}`} 
+                                            onClick={() => setCorrectAnswer(idx)}
+                                        >
+                                            {String.fromCharCode(65 + idx)}
+                                        </button>
+                                        <div className="flex-1 relative">
+                                            <input 
+                                                className={`w-full p-4 bg-[#050b14]/50 text-white border-2 rounded-2xl transition-all font-bold focus:outline-none ${idx === correctAnswer ? 'border-green-500' : 'border-slate-800 focus:border-game-primary'}`}
+                                                value={opt}
+                                                onChange={(e) => handleOptionChange(idx, e.target.value)}
+                                                placeholder={`Option ${idx + 1}`}
+                                            />
+                                            {options.length > 2 && (
+                                                <button type="button" onClick={() => handleRemoveOption(idx)} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-700 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                                    <i className="fas fa-times-circle"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {options.length < 6 && (
+                                <button type="button" onClick={handleAddOption} className="text-[10px] font-black bg-slate-800/50 hover:bg-slate-800 text-game-primary uppercase tracking-[0.2em] px-5 py-3 rounded-xl border-2 border-dashed border-slate-700 transition-all active:scale-95">
+                                    <i className="fas fa-plus-circle mr-1"></i> Add Option
+                                </button>
+                            )}
+                        </div>
+                        <Button type="submit" fullWidth isLoading={loading} className="!py-5 !text-lg !rounded-2xl">
+                             UPLOAD QUESTION
+                        </Button>
+                    </form>
+                  )}
+
+                  {inputMode === 'parser' && (
+                      <div className="space-y-4">
+                          <div className="p-4 bg-purple-900/10 border border-purple-500/20 rounded-2xl text-[10px] font-bold text-purple-400 uppercase tracking-widest leading-relaxed">
+                              Format: 1. Question? a) Op 1 b) Op 2 Ans: a
+                          </div>
+                          <textarea 
+                            className="w-full h-48 p-5 rounded-2xl border-2 border-slate-800 bg-[#050b14]/50 text-white focus:outline-none focus:border-purple-500 font-mono text-sm resize-none shadow-inner"
+                            placeholder="Paste your questions here..."
+                            value={rawText}
+                            onChange={(e) => setRawText(e.target.value)}
+                          ></textarea>
+                          <Button fullWidth onClick={handleTextParse} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 !py-5 !rounded-2xl shadow-lg shadow-purple-500/20">
+                              <i className="fas fa-magic mr-2"></i> DEPLOY PARSER
+                          </Button>
+                      </div>
+                  )}
+
+                  {inputMode === 'bulk' && (
+                     <div className="space-y-6">
+                         <div className="bg-green-900/10 border border-green-500/20 p-5 rounded-2xl flex justify-between items-center">
+                             <div className="text-[10px] font-bold text-green-400 uppercase tracking-widest">Use official Excel layout for deployment</div>
+                             <button onClick={handleDownloadTemplate} className="bg-white text-slate-950 px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg active:scale-90 transition-all">
+                                <i className="fas fa-download mr-1"></i> Template
+                             </button>
+                         </div>
+                         <div className="border-4 border-dashed border-slate-800 rounded-[2rem] p-12 text-center hover:bg-slate-800/20 hover:border-green-500/50 transition-all relative group cursor-pointer shadow-inner">
+                             <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} disabled={loading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                             <i className="fas fa-file-excel text-6xl text-green-500 mb-4 group-hover:scale-110 transition-transform"></i>
+                             <p className="font-black text-white uppercase tracking-tighter text-xl">Drop Batch File</p>
+                             <p className="text-slate-500 text-xs mt-2">Maximum 500 questions per batch</p>
+                         </div>
+                     </div>
+                  )}
+                </Card>
+
+                {/* List Card */}
+                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                  <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                    <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter flex items-center gap-3">
+                        <i className="fas fa-list text-game-primary"></i> 
+                        Sync History
+                    </h2>
+                    <span className="bg-slate-900 text-game-primary px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-game-primary/20">{questions.length} Questions</span>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-3 custom-scrollbar">
+                    {questions.length === 0 ? (
+                        <div className="text-center py-24 opacity-30 flex flex-col items-center gap-4">
+                            <i className="fas fa-database text-6xl"></i>
+                            <p className="font-black uppercase tracking-[0.3em]">No Data Synced</p>
+                        </div>
                     ) : (
-                        studyMaterials.map(item => {
-                            const isExternal = item.fileSize === 'External';
-                            return (
-                                <div key={item.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${isExternal ? 'bg-blue-100 text-blue-500' : 'bg-red-100 text-red-500'}`}>
-                                            <i className={`fas ${isExternal ? 'fa-link' : 'fa-file-pdf'}`}></i>
+                        questions.map((q, qidx) => (
+                        <div key={q.id} className="bg-slate-900/60 p-6 rounded-[2rem] border border-slate-800 relative group hover:border-slate-600 transition-all shadow-xl">
+                            <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                                <i className="fas fa-trash-alt"></i>
+                            </button>
+                            <div className="flex items-start gap-4 mb-6">
+                                <span className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-black text-slate-500 text-sm border border-white/5 shrink-0">#{qidx+1}</span>
+                                <div className="pr-12"><p className="font-bold text-white text-lg leading-snug">{q.question}</p></div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            {q.options.map((opt, i) => (
+                                <div key={i} className={`p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${i === q.answer ? 'bg-green-500/10 border-green-500 text-white font-black' : 'bg-slate-800/50 border-slate-700 text-slate-400'}`}>
+                                   <span className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-black ${i === q.answer ? 'bg-green-500 text-slate-900' : 'bg-slate-700 text-slate-400'}`}>{String.fromCharCode(65 + i)}</span> 
+                                   <span className="truncate">{opt}</span>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                        ))
+                    )}
+                  </div>
+                </Card>
+            </div>
+          ) : (
+            <div className="space-y-6 animate__animated animate__fadeIn">
+                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
+                            <i className="fas fa-file-upload text-game-primary"></i> 
+                            Deploy Resource
+                        </h2>
+                    </div>
+                    <form onSubmit={handlePdfUpload} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Resource Label</label>
+                                <Input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Physics Formula Sheet" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Subject Name</label>
+                                <select 
+                                    value={pdfSubject} 
+                                    onChange={(e) => setPdfSubject(e.target.value)}
+                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                >
+                                    <option value="">Select Subject</option>
+                                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Category</label>
+                            <div className="flex gap-4">
+                                <button 
+                                    type="button"
+                                    onClick={() => setPdfCategory('exams')}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border-2 transition-all ${pdfCategory === 'exams' ? 'bg-game-primary/10 border-game-primary text-game-primary' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+                                >
+                                    National Exams
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setPdfCategory('subjects')}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border-2 transition-all ${pdfCategory === 'subjects' ? 'bg-game-primary/10 border-game-primary text-game-primary' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
+                                >
+                                    Subject PDFs
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Direct Access URL (Catbox/Cloud)</label>
+                            <Input value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://files.catbox.moe/xxxxxx.pdf" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                        </div>
+
+                        <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject || !pdfExternalUrl} className="!py-5 !rounded-2xl shadow-xl">
+                            <i className="fas fa-save mr-2"></i> DEPLOY TO LIBRARY
+                        </Button>
+                    </form>
+                </Card>
+
+                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                    <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                        <i className="fas fa-book-open text-game-primary"></i> 
+                        Live Resources
+                    </h2>
+                    <div className="space-y-4">
+                        {studyMaterials.length === 0 ? (
+                            <div className="text-center py-20 opacity-30 flex flex-col items-center gap-4">
+                                <i className="fas fa-folder-open text-6xl"></i>
+                                <p className="font-black uppercase tracking-[0.3em]">No Content Available</p>
+                            </div>
+                        ) : (
+                            studyMaterials.map(item => (
+                                <div key={item.id} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl group hover:border-slate-600 transition-all">
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg border border-white/5 bg-cyan-900/20 text-cyan-400`}>
+                                            <i className={`fas fa-link`}></i>
                                         </div>
                                         <div className="truncate">
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate">{item.fileName}</h4>
-                                            <div className="text-[10px] text-slate-500 font-bold uppercase">{item.fileSize}</div>
+                                            <h4 className="font-black text-white text-base truncate uppercase">{item.fileName}</h4>
+                                            <div className="flex gap-2 items-center mt-1">
+                                                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{item.subjectName}</span>
+                                                <span className="text-slate-700">•</span>
+                                                <span className="text-[9px] text-game-primary font-black uppercase">{item.category === 'exams' ? 'National Exam' : 'Subject PDF'}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleDeletePdf(item)} className="w-8 h-8 rounded-lg bg-slate-100 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-trash text-xs"></i></button>
-                                    </div>
+                                    <button onClick={() => handleDeletePdf(item)} className="w-10 h-10 rounded-xl bg-red-900/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90 border border-red-500/10">
+                                        <i className="fas fa-trash text-sm"></i>
+                                    </button>
                                 </div>
-                            );
-                        })
-                    )}
-                </div>
-            </Card>
-        </div>
-      )}
+                            ))
+                        )}
+                    </div>
+                </Card>
+            </div>
+          )}
+      </div>
 
-      <Modal isOpen={!!modalType} title={`Create ${modalType === 'subject' ? 'Subject' : 'Chapter'}`}>
-          <div className="space-y-4 pt-2">
-              <Input label="Name" value={newItemName} onChange={(e) => { setNewItemName(e.target.value); if (!newItemId) setNewItemId(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')); }} autoFocus placeholder="e.g. Mathematics" />
-              <Input label="ID (Auto-generated)" value={newItemId} onChange={(e) => setNewItemId(e.target.value)} placeholder="e.g. mathematics" />
-              <div className="flex gap-3 pt-4">
-                  <Button variant="outline" fullWidth onClick={() => setModalType(null)}>Cancel</Button>
-                  <Button fullWidth onClick={handleCreateItem}>Create Item</Button>
+      <Modal isOpen={!!modalType} title={`Add New ${modalType === 'subject' ? 'Subject' : 'Chapter'}`} onClose={() => setModalType(null)}>
+          <div className="space-y-6 pt-4 pb-2">
+              <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Display Label</label>
+                  <Input 
+                    value={newItemName} 
+                    onChange={(e) => { setNewItemName(e.target.value); if (!newItemId) setNewItemId(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')); }} 
+                    autoFocus 
+                    placeholder="e.g. Mathematics" 
+                    className="!bg-slate-800 !border-slate-700 !text-white"
+                  />
+              </div>
+              <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Database Reference (Slug)</label>
+                  <Input 
+                    value={newItemId} 
+                    onChange={(e) => setNewItemId(e.target.value)} 
+                    placeholder="e.g. math_2026" 
+                    className="!bg-slate-800 !border-slate-700 !text-white"
+                  />
+              </div>
+              <div className="flex gap-4 pt-4">
+                  <Button variant="outline" fullWidth onClick={() => setModalType(null)} className="!border-slate-700 !text-slate-400">Abort</Button>
+                  <Button fullWidth onClick={handleCreateItem}>Commit Change</Button>
               </div>
           </div>
       </Modal>
