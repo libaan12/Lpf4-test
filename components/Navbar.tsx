@@ -1,4 +1,3 @@
-
 import React, { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../contexts';
@@ -15,7 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
   const navItems = [
     { path: '/', icon: 'fa-home', label: 'Home' },
     { path: '/lobby', icon: 'fa-gamepad', label: 'Battle' },
-    { path: '/social', icon: 'fa-user-friends', label: 'Social', isNew: true },
+    { path: '/social', icon: 'fa-user-friends', label: 'Social', isNew: false },
     { path: '/library', icon: 'fa-book-open', label: 'Library' },
     { path: '/leaderboard', icon: 'fa-trophy', label: 'Rank' },
     { path: '/profile', icon: 'fa-user', label: 'Me' },

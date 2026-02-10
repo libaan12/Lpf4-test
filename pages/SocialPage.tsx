@@ -201,200 +201,218 @@ const SocialPage: React.FC = () => {
 
   const getLevel = (points: number = 0) => Math.floor(points / 10) + 1;
 
-  return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-900 pb-24 pt-4 px-4 flex flex-col font-sans transition-colors">
-        
-        {/* 1. Search Bar */}
-        <div className="relative mb-6">
-            <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
-            <input 
-                className="w-full bg-white dark:bg-slate-800 py-4 pl-14 pr-4 rounded-[1.5rem] shadow-sm border-none outline-none font-bold text-slate-700 dark:text-white placeholder-slate-400 text-sm transition-all focus:ring-2 focus:ring-game-primary/20"
-                placeholder="Search players..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
-        </div>
+  const formatLastSeen = (ts: number) => {
+      if (!ts) return '';
+      const now = Date.now();
+      const diff = now - ts;
+      const day = 24 * 60 * 60 * 1000;
+      
+      const date = new Date(ts);
+      if (diff < day) {
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      if (diff < day * 2) return 'Yesterday';
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
 
-        {/* 2. Tabs (Pills) - 3D Effect */}
-        <div className="flex items-center gap-3 mb-6 overflow-x-auto no-scrollbar pb-2 pt-1 px-1">
-            <button 
-                onClick={() => setActiveTab('friends')}
-                className={`btn-3d px-6 py-3 rounded-full font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
-                    activeTab === 'friends' 
-                    ? 'bg-[#ea580c] text-white' 
-                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                }`}
-                style={{ 
-                    boxShadow: activeTab === 'friends' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
-                }}
-            >
-                Friends 
-                {friends.length > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] leading-none ${activeTab === 'friends' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                        {friends.length}
-                    </span>
-                )}
-            </button>
-            
-            <button 
-                onClick={() => setActiveTab('requests')}
-                className={`btn-3d px-6 py-3 rounded-full font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
-                    activeTab === 'requests' 
-                    ? 'bg-[#ea580c] text-white' 
-                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                }`}
-                style={{ 
-                    boxShadow: activeTab === 'requests' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
-                }}
-            >
-                Requests
-                {requests.length > 0 && (
-                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] leading-none ${activeTab === 'requests' ? 'bg-white text-[#ea580c]' : 'bg-red-500 text-white'}`}>
-                        {requests.length}
-                    </span>
-                )}
-            </button>
-            
-            <button 
-                onClick={() => setActiveTab('explore')}
-                className={`btn-3d px-6 py-3 rounded-full font-black text-sm transition-all whitespace-nowrap ${
-                    activeTab === 'explore' 
-                    ? 'bg-[#ea580c] text-white' 
-                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                }`}
-                style={{ 
-                    boxShadow: activeTab === 'explore' ? '0px 4px 0px 0px #9a3412' : '0px 4px 0px 0px rgba(0,0,0,0.1)' 
-                }}
-            >
-                Explore
-            </button>
+  return (
+    <div className="min-h-screen bg-white dark:bg-slate-900 pb-24 flex flex-col font-sans transition-colors overflow-x-hidden">
+        
+        {/* 1. Header Area with Search */}
+        <div className="px-4 pt-6 pb-2 sticky top-0 bg-white dark:bg-slate-900 z-30">
+            <div className="relative mb-6">
+                <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                <input 
+                    className="w-full bg-slate-100 dark:bg-slate-800 py-3.5 pl-14 pr-4 rounded-2xl border-none outline-none font-bold text-slate-700 dark:text-white placeholder-slate-400 text-sm transition-all focus:ring-2 focus:ring-game-primary/20"
+                    placeholder="Search players or chats..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            {/* 2. Tabs (Pills) - WhatsApp Style Indicators */}
+            <div className="flex items-center gap-1 mb-2">
+                <button 
+                    onClick={() => setActiveTab('friends')}
+                    className={`flex-1 py-3 text-center text-sm font-black uppercase tracking-widest transition-all relative ${
+                        activeTab === 'friends' 
+                        ? 'text-[#ea580c]' 
+                        : 'text-slate-400'
+                    }`}
+                >
+                    Chats
+                    {friends.length > 0 && activeTab !== 'friends' && (
+                        <span className="ml-1 text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded-full text-slate-500">
+                            {friends.length}
+                        </span>
+                    )}
+                    {activeTab === 'friends' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#ea580c] rounded-t-full"></div>}
+                </button>
+                
+                <button 
+                    onClick={() => setActiveTab('requests')}
+                    className={`flex-1 py-3 text-center text-sm font-black uppercase tracking-widest transition-all relative ${
+                        activeTab === 'requests' 
+                        ? 'text-[#ea580c]' 
+                        : 'text-slate-400'
+                    }`}
+                >
+                    Requests
+                    {requests.length > 0 && (
+                        <span className="ml-1 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                            {requests.length}
+                        </span>
+                    )}
+                    {activeTab === 'requests' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#ea580c] rounded-t-full"></div>}
+                </button>
+                
+                <button 
+                    onClick={() => setActiveTab('explore')}
+                    className={`flex-1 py-3 text-center text-sm font-black uppercase tracking-widest transition-all relative ${
+                        activeTab === 'explore' 
+                        ? 'text-[#ea580c]' 
+                        : 'text-slate-400'
+                    }`}
+                >
+                    Explore
+                    {activeTab === 'explore' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#ea580c] rounded-t-full"></div>}
+                </button>
+            </div>
         </div>
 
         {/* 3. Content List - Swipeable Container */}
         <div 
-            className="flex-1 space-y-3 min-h-[300px]"
+            className="flex-1 min-h-[300px]"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
             
-            {/* --- FRIENDS TAB --- */}
+            {/* --- FRIENDS (CHATS) TAB --- */}
             {activeTab === 'friends' && (
-                <>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {sortedFriends.length === 0 ? (
-                        <div className="text-center py-10 opacity-50">
-                            <p className="font-bold text-slate-400">No friends found.</p>
+                        <div className="text-center py-20 opacity-50">
+                            <i className="fas fa-comment-dots text-4xl mb-4 text-slate-300"></i>
+                            <p className="font-bold text-slate-400">No chats yet</p>
                         </div>
                     ) : (
                         sortedFriends.map(f => {
-                            // FIX: Safely access metadata via optional chaining to resolve property access error on potential fallback
                             const meta = chatMetadata[f.uid];
                             const lastMsg = meta?.lastMessage 
                                 ? (meta.lastMessage === 'CHALLENGE_INVITE' ? '🎮 Game Invite' : meta.lastMessage) 
                                 : 'Start chatting';
                             const isMe = meta?.lastMessageSender === user?.uid;
+                            const unreadCount = meta?.unreadCount || 0;
                             
                             return (
                                 <div 
                                     key={f.uid} 
                                     onClick={() => navigate(`/chat/${f.uid}`)}
-                                    className="bg-white dark:bg-slate-800 p-4 rounded-[1.8rem] shadow-sm flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-all relative overflow-hidden group"
+                                    className="px-4 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/60 transition-all relative overflow-hidden group"
                                 >
-                                    {/* Avatar + Online Dot */}
+                                    {/* Avatar */}
                                     <div className="relative shrink-0">
                                         <Avatar src={f.avatar} seed={f.uid} size="md" isOnline={f.isOnline} />
                                     </div>
 
-                                    {/* Info */}
+                                    {/* Info Middle */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-black text-slate-800 dark:text-white text-base truncate mb-0.5 flex items-center gap-1">
-                                            {f.name}
-                                            {f.isVerified && <VerificationBadge size="xs" className="text-blue-500" />}
-                                            {f.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
-                                        </div>
-                                        <div className={`text-xs truncate font-bold ${meta && meta.unreadCount > 0 ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
-                                            {isMe ? `You: ${lastMsg}` : lastMsg}
-                                        </div>
-                                    </div>
-
-                                    {/* Right Side: Level Badge (No Chat Icon) */}
-                                    <div className="shrink-0 flex items-center gap-3">
-                                        {meta && meta.unreadCount > 0 && (
-                                            <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] text-white font-black animate-pulse">
-                                                {meta.unreadCount}
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <div className="font-black text-slate-900 dark:text-white text-base truncate flex items-center gap-1.5">
+                                                {f.name}
+                                                {f.isVerified && <VerificationBadge size="xs" className="text-blue-500" />}
+                                                {f.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                                             </div>
-                                        )}
-                                        <div className="bg-[#fbbf24] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-sm tracking-wide">
-                                            Lv.{getLevel(f.points)}
+                                            <div className={`text-[10px] font-bold ${unreadCount > 0 ? 'text-[#ea580c]' : 'text-slate-400'}`}>
+                                                {formatLastSeen(meta?.lastTimestamp)}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center">
+                                            <div className={`text-sm truncate flex items-center gap-1 ${unreadCount > 0 ? 'font-black text-slate-900 dark:text-slate-100' : 'font-medium text-slate-500 dark:text-slate-400'}`}>
+                                                {isMe && <i className={`fas fa-check-double text-[10px] mr-0.5 ${meta?.lastMessageStatus === 'read' ? 'text-blue-500' : 'text-slate-400'}`}></i>}
+                                                <span className="truncate">{lastMsg}</span>
+                                            </div>
+                                            
+                                            {unreadCount > 0 && (
+                                                <div className="w-5 h-5 bg-[#ea580c] rounded-full flex items-center justify-center text-[10px] text-white font-black ml-2 shadow-sm animate__animated animate__bounceIn">
+                                                    {unreadCount}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             );
                         })
                     )}
-                </>
+                </div>
             )}
 
             {/* --- EXPLORE TAB --- */}
             {activeTab === 'explore' && (
-                <>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {exploreList.slice(0, 50).map(u => {
                         const hasRequested = (u as any).friendRequests?.[user?.uid || ''];
                         return (
                             <div 
                                 key={u.uid} 
                                 onClick={() => setSelectedUser(u)}
-                                className="bg-white dark:bg-slate-800 p-4 rounded-[1.8rem] shadow-sm flex items-center justify-between gap-4 cursor-pointer active:scale-[0.98] transition-all"
+                                className="px-4 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 active:bg-slate-100 dark:active:bg-slate-800/60 transition-all relative overflow-hidden group"
                             >
-                                <div className="flex items-center gap-4 min-w-0">
-                                    <div className="relative shrink-0">
-                                        <Avatar src={u.avatar} seed={u.uid} size="md" isOnline={u.isOnline} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="font-black text-slate-800 dark:text-white text-sm truncate flex items-center gap-1">
+                                {/* Avatar */}
+                                <div className="relative shrink-0">
+                                    <Avatar src={u.avatar} seed={u.uid} size="md" isOnline={u.isOnline} />
+                                </div>
+
+                                {/* Info Middle */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-center mb-0.5">
+                                        <div className="font-black text-slate-900 dark:text-white text-base truncate flex items-center gap-1.5">
                                             {u.name}
                                             {u.isVerified && <VerificationBadge size="xs" className="text-blue-500" />}
                                             {u.isSupport && <i className="fas fa-check-circle text-game-primary text-xs"></i>}
                                         </div>
-                                        <div className="text-xs text-slate-400 font-bold truncate">@{u.username || 'user'}</div>
+                                        <div className="bg-[#fbbf24] text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
+                                            Lv.{getLevel(u.points)}
+                                        </div>
                                     </div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 font-bold truncate">@{u.username || 'user'}</div>
                                 </div>
 
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <div className="bg-[#fbbf24] text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-sm">
-                                        Lv.{getLevel(u.points)}
-                                    </div>
-                                    
+                                {/* Action End */}
+                                <div className="shrink-0 flex items-center justify-center min-w-[60px]">
                                     {hasRequested ? (
-                                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-400">
-                                            <i className="fas fa-check text-xs"></i>
+                                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-slate-700">
+                                            <i className="fas fa-check text-sm"></i>
                                         </div>
                                     ) : (
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); sendRequest(u.uid); }}
-                                            className="btn-3d bg-[#8b5cf6] text-white px-3 py-2 rounded-full text-xs font-black flex items-center gap-1 transition-all"
+                                            className="btn-3d bg-[#8b5cf6] text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all"
                                             style={{ boxShadow: '0px 3px 0px 0px #6d28d9' }}
                                         >
-                                            <i className="fas fa-user-plus text-[10px]"></i> Add
+                                            Add
                                         </button>
                                     )}
                                 </div>
                             </div>
                         );
                     })}
-                </>
+                </div>
             )}
 
             {/* --- REQUESTS TAB --- */}
             {activeTab === 'requests' && (
-                <>
+                <div className="px-4 py-2 space-y-3">
                     {requests.length === 0 ? (
-                        <div className="text-center py-10 opacity-50">
-                            <p className="font-bold text-slate-400">No pending requests.</p>
+                        <div className="text-center py-20 opacity-50">
+                            <i className="fas fa-user-clock text-4xl mb-4 text-slate-300"></i>
+                            <p className="font-bold text-slate-400">No pending requests</p>
                         </div>
                     ) : (
                         requests.map(r => (
-                            <div key={r.uid} className="bg-white dark:bg-slate-800 p-4 rounded-[1.8rem] shadow-sm flex flex-col gap-4 animate__animated animate__fadeIn">
+                            <div key={r.uid} className="bg-white dark:bg-slate-800 p-4 rounded-[1.8rem] shadow-sm flex flex-col gap-4 animate__animated animate__fadeIn border border-slate-100 dark:border-slate-800">
                                 <div className="flex items-center gap-4">
                                     <Avatar src={r.user.avatar} seed={r.user.uid} size="md" />
                                     <div className="min-w-0 flex-1">
@@ -409,7 +427,7 @@ const SocialPage: React.FC = () => {
                                         Lv.{getLevel(r.user.points)}
                                     </div>
                                 </div>
-                                <div className="flex gap-3 flex-wrap">
+                                <div className="flex gap-3">
                                     <button 
                                         onClick={async () => {
                                             await update(ref(db), { 
@@ -419,14 +437,14 @@ const SocialPage: React.FC = () => {
                                             });
                                             showToast("Friend Added!", "success");
                                         }} 
-                                        className="btn-3d flex-1 min-w-[80px] bg-game-primary text-white py-3 rounded-xl text-xs font-black uppercase"
+                                        className="btn-3d flex-1 bg-[#ea580c] text-white py-3 rounded-2xl text-xs font-black uppercase"
                                         style={{ boxShadow: '0px 4px 0px 0px #c2410c' }}
                                     >
                                         Accept
                                     </button>
                                     <button 
                                         onClick={() => remove(ref(db, `users/${user?.uid}/friendRequests/${r.uid}`))} 
-                                        className="btn-3d flex-1 min-w-[80px] bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 py-3 rounded-xl text-xs font-black uppercase"
+                                        className="btn-3d flex-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 py-3 rounded-2xl text-xs font-black uppercase"
                                         style={{ boxShadow: '0px 4px 0px 0px rgba(0,0,0,0.2)' }}
                                     >
                                         Reject
@@ -435,7 +453,7 @@ const SocialPage: React.FC = () => {
                             </div>
                         ))
                     )}
-                </>
+                </div>
             )}
         </div>
 

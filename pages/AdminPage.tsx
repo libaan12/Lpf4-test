@@ -31,7 +31,9 @@ export const AdminPage: React.FC = () => {
   const [correctAnswer, setCorrectAnswer] = useState(0);
   
   // PDF Upload Form State
+  const [pdfSource, setPdfSource] = useState<'link' | 'upload'>('link');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfExternalUrl, setPdfExternalUrl] = useState('');
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfSubject, setPdfSubject] = useState('');
   
@@ -134,7 +136,7 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleAddOption = () => {
-      if(options.length >= 6) return; // Max 6
+      if(options.length >= 6) return; 
       setOptions([...options, '']);
   };
 
@@ -278,7 +280,6 @@ export const AdminPage: React.FC = () => {
         let currentQ: any = null;
 
         lines.forEach(line => {
-            // Check for Question (e.g., "1. What is..." or "1) What is...")
             const questionMatch = line.match(/^(\d+)[\.\)]\s+(.+)/);
             if (questionMatch) {
                 if (currentQ && currentQ.options.length >= 2) {
@@ -287,29 +288,25 @@ export const AdminPage: React.FC = () => {
                 currentQ = {
                     question: questionMatch[2],
                     options: [],
-                    answer: 0 // Default
+                    answer: 0 
                 };
                 return;
             }
 
-            // Check for Option (e.g., "a) Option text" or "A. Option text")
             const optionMatch = line.match(/^([a-dA-D])[\.\)]\s+(.+)/);
             if (currentQ && optionMatch) {
                 currentQ.options.push(optionMatch[2]);
                 return;
             }
 
-            // Check for Answer (e.g., "Answer: B" or "Ans: a" or "Correct: c")
             const answerMatch = line.match(/^(?:Answer|Ans|Correct)\s*[:\-]?\s*([a-dA-D])/i);
             if (currentQ && answerMatch) {
                 const charCode = answerMatch[1].toLowerCase().charCodeAt(0);
-                // 'a' is 97. so 97-97 = 0.
                 currentQ.answer = Math.max(0, charCode - 97);
                 return;
             }
         });
 
-        // Push last one
         if (currentQ && currentQ.options.length >= 2) {
             parsedQuestions.push(currentQ);
         }
@@ -327,7 +324,6 @@ export const AdminPage: React.FC = () => {
                 updates[`questions/${selectedChapter}/${newRefKey}`] = {
                     question: q.question,
                     options: q.options,
-                    // Ensure answer index is within bounds of extracted options
                     answer: Math.min(q.answer, q.options.length - 1),
                     subject: selectedChapter,
                     createdAt: Date.now()
@@ -347,7 +343,7 @@ export const AdminPage: React.FC = () => {
 
     } catch (e) {
         console.error(e);
-        showAlert("Parser Error", "Failed to parse text. Ensure format is: \n1. Question\na) Option\nAnswer: a", "error");
+        showAlert("Parser Error", "Failed to parse text.", "error");
     } finally {
         setLoading(false);
     }
@@ -435,55 +431,74 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  // PDF HANDLING - DIRECT TO REALTIME DB (Base64)
   const handlePdfUpload = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!pdfFile || !pdfTitle || !pdfSubject) {
-          showAlert("Missing Info", "Please provide a file, title, and subject.", "warning");
-          return;
-      }
       
-      // Limit to 5MB for Realtime DB stability (default is often 10MB per write, 5MB is safer)
-      if (pdfFile.size > 5 * 1024 * 1024) { 
-          showAlert("Too Large", "For Database Storage, files must be under 5MB.", "error");
+      if (!pdfTitle || !pdfSubject) {
+          showAlert("Missing Info", "Please provide a title and subject.", "warning");
           return;
       }
 
       setLoading(true);
+      
       try {
-          const reader = new FileReader();
-          
-          reader.onload = async () => {
-              const base64Data = reader.result as string;
-              
+          if (pdfSource === 'link') {
+              if (!pdfExternalUrl.trim()) {
+                  showAlert("Missing Info", "Please provide a valid PDF link.", "warning");
+                  setLoading(false);
+                  return;
+              }
               const newRef = push(ref(db, 'studyMaterials'));
               await set(newRef, {
                   id: newRef.key,
                   fileName: pdfTitle,
-                  subjectName: pdfSubject, // Store ID
-                  fileURL: base64Data, // Store Base64 directly
-                  fileSize: (pdfFile.size / (1024 * 1024)).toFixed(2) + ' MB',
+                  subjectName: pdfSubject,
+                  fileURL: pdfExternalUrl.trim(),
+                  fileSize: "External",
                   uploadDate: Date.now()
               });
-
-              setPdfFile(null);
+              
+              setPdfExternalUrl('');
               setPdfTitle('');
               setPdfSubject('');
-              showAlert("Success", "PDF Saved to Database!", "success");
+              showAlert("Success", "Resource Link Saved!", "success");
               setLoading(false);
-          };
+          } else {
+              if (!pdfFile) {
+                  showAlert("Missing Info", "Please select a file to upload.", "warning");
+                  setLoading(false);
+                  return;
+              }
+              if (pdfFile.size > 5 * 1024 * 1024) { 
+                  showAlert("Too Large", "File exceeds 5MB. Use 'Link' instead.", "error");
+                  setLoading(false);
+                  return;
+              }
 
-          reader.onerror = (error) => {
-              console.error(error);
-              showAlert("Error", "Failed to read file.", "error");
-              setLoading(false);
-          };
+              const reader = new FileReader();
+              reader.onload = async () => {
+                  const base64Data = reader.result as string;
+                  const newRef = push(ref(db, 'studyMaterials'));
+                  await set(newRef, {
+                      id: newRef.key,
+                      fileName: pdfTitle,
+                      subjectName: pdfSubject,
+                      fileURL: base64Data,
+                      fileSize: (pdfFile.size / (1024 * 1024)).toFixed(2) + ' MB',
+                      uploadDate: Date.now()
+                  });
 
-          reader.readAsDataURL(pdfFile);
-
+                  setPdfFile(null);
+                  setPdfTitle('');
+                  setPdfSubject('');
+                  showAlert("Success", "PDF Uploaded!", "success");
+                  setLoading(false);
+              };
+              reader.readAsDataURL(pdfFile);
+          }
       } catch(e) {
           console.error(e);
-          showAlert("Error", "Failed to upload PDF.", "error");
+          showAlert("Error", "Action failed.", "error");
           setLoading(false);
       }
   };
@@ -491,9 +506,7 @@ export const AdminPage: React.FC = () => {
   const handleDeletePdf = async (item: StudyMaterial) => {
       const confirm = await showConfirm("Delete PDF?", "This file will be permanently removed.");
       if (!confirm) return;
-
       try {
-          // Just delete from DB
           await remove(ref(db, `studyMaterials/${item.id}`));
           showToast("PDF Deleted", "success");
       } catch(e) {
@@ -524,13 +537,12 @@ export const AdminPage: React.FC = () => {
             onClick={() => setActiveTab('pdfs')} 
             className={`flex-1 py-3 rounded-2xl font-black uppercase text-xs tracking-wider transition-all ${activeTab === 'pdfs' ? 'bg-game-primary text-white shadow-lg' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}
           >
-            <i className="fas fa-file-pdf mr-2"></i> PDF Uploads
+            <i className="fas fa-file-pdf mr-2"></i> PDF Manager
           </button>
       </div>
 
       {activeTab === 'quizzes' ? (
         <div className="grid gap-6 animate__animated animate__fadeIn">
-            {/* ... Existing Quiz Manager UI ... */}
             <Card className="border-l-8 border-game-primary">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -593,18 +605,9 @@ export const AdminPage: React.FC = () => {
                 {inputMode === 'manual' ? 'Add Question' : inputMode === 'parser' ? 'Text Parser' : 'Bulk Upload'}
             </h2>
             <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1 gap-1">
-                <button 
-                    onClick={() => setInputMode('manual')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'manual' ? 'bg-white dark:bg-gray-700 shadow text-game-primary dark:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                >Manual</button>
-                <button 
-                    onClick={() => setInputMode('parser')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'parser' ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                >Parser</button>
-                <button 
-                    onClick={() => setInputMode('bulk')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'bulk' ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                >Excel</button>
+                <button onClick={() => setInputMode('manual')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'manual' ? 'bg-white dark:bg-gray-700 shadow text-game-primary dark:text-white' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Manual</button>
+                <button onClick={() => setInputMode('parser')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'parser' ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-300' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Parser</button>
+                <button onClick={() => setInputMode('bulk')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === 'bulk' ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>Excel</button>
             </div>
           </div>
           
@@ -618,7 +621,7 @@ export const AdminPage: React.FC = () => {
                         {options.map((opt, idx) => (
                             <div key={idx} className="flex items-center gap-2">
                                 <div 
-                                    className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold cursor-pointer transition-all border-2 ${idx === correctAnswer ? 'bg-green-500 border-green-600 text-white shadow-lg scale-105' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`} 
+                                    className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold cursor-pointer transition-all border-2 ${idx === correctAnswer ? 'bg-green-50 border-green-600 text-white shadow-lg scale-105' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}`} 
                                     onClick={() => setCorrectAnswer(idx)}
                                 >
                                     {String.fromCharCode(65 + idx)}
@@ -651,25 +654,13 @@ export const AdminPage: React.FC = () => {
 
           {inputMode === 'parser' && (
               <div className="space-y-4">
-                  <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50">
-                     <h3 className="font-bold text-purple-800 dark:text-purple-300 mb-1 text-sm"><i className="fas fa-bolt mr-2"></i>Smart Parser</h3>
-                     <p className="text-xs text-purple-700 dark:text-purple-300/80 mb-3">
-                        Paste your text below. Format: Question, Options (a,b,c...), Answer.
-                     </p>
-                     <div className="bg-white/60 dark:bg-black/40 p-3 rounded-lg text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-purple-200 dark:border-purple-800/50 overflow-x-auto whitespace-pre">
-                        1. Question text?<br/>
-                        a) Option 1<br/>
-                        b) Option 2<br/>
-                        Answer: a
-                     </div>
-                  </div>
                   <textarea 
-                    className="w-full h-48 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 font-mono text-sm resize-none"
-                    placeholder="Paste here..."
+                    className="w-full h-48 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono text-sm resize-none"
+                    placeholder="1. Question text? a) Option 1 Answer: a"
                     value={rawText}
                     onChange={(e) => setRawText(e.target.value)}
                   ></textarea>
-                  <Button fullWidth onClick={handleTextParse} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 text-white shadow-purple-500/30">
+                  <Button fullWidth onClick={handleTextParse} isLoading={loading} className="!bg-purple-600 hover:!bg-purple-700 text-white">
                       <i className="fas fa-magic mr-2"></i> Parse & Upload
                   </Button>
               </div>
@@ -678,20 +669,15 @@ export const AdminPage: React.FC = () => {
           {inputMode === 'bulk' && (
              <div className="space-y-6">
                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50">
-                     <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2 text-sm">Instructions</h3>
-                     <p className="text-xs text-blue-700 dark:text-blue-200/80 mb-3">Upload an Excel file (.xlsx) with columns: Question, Option A, Option B, Option C, Option D, Correct Answer (1-4).</p>
-                     <button onClick={handleDownloadTemplate} className="bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-300 px-3 py-2 rounded-lg font-bold text-xs shadow-sm border border-blue-100 dark:border-gray-700 hover:shadow-md transition-all">
-                        <i className="fas fa-download mr-1"></i> Download Template
+                     <p className="text-xs text-blue-700 dark:text-blue-200/80 mb-3">Upload Excel with: Question, Option A, B, C, D, Correct (1-4).</p>
+                     <button onClick={handleDownloadTemplate} className="bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-300 px-3 py-2 rounded-lg font-bold text-xs shadow-sm border border-blue-100">
+                        <i className="fas fa-download mr-1"></i> Template
                      </button>
                  </div>
                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative group">
                      <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} disabled={loading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                     <div className="group-hover:scale-110 transition-transform duration-300 inline-block">
-                        <i className="fas fa-file-excel text-5xl text-green-500 mb-3 drop-shadow-md"></i>
-                     </div>
+                     <i className="fas fa-file-excel text-5xl text-green-500 mb-3"></i>
                      <p className="font-bold dark:text-white">Drop Excel File Here</p>
-                     <p className="text-xs text-gray-400 mt-1">or click to browse</p>
-                     {loading && <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center rounded-xl z-20"><i className="fas fa-spinner fa-spin text-3xl text-game-primary"></i></div>}
                  </div>
              </div>
           )}
@@ -700,30 +686,21 @@ export const AdminPage: React.FC = () => {
         <Card>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold dark:text-white">Question Bank</h2>
-            <div className="flex items-center gap-2">
-                 <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs font-bold border border-slate-200 dark:border-slate-700">{questions.length} Items</span>
-                 <button onClick={fetchQuestions} className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-game-primary dark:text-blue-400 flex items-center justify-center transition-colors"><i className="fas fa-sync-alt"></i></button>
-            </div>
+            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs font-bold border border-slate-200 dark:border-slate-700">{questions.length} Items</span>
           </div>
           
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
             {questions.length === 0 ? (
-                <div className="text-center py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                    <i className="fas fa-clipboard-list text-4xl text-slate-300 dark:text-slate-600 mb-3"></i>
-                    <p className="text-slate-400 dark:text-slate-500 font-bold">No questions yet</p>
-                    <p className="text-xs text-slate-400 max-w-[200px] mt-1">Add questions manually, parse text, or upload excel.</p>
-                </div>
+                <div className="text-center py-16 opacity-50 font-bold">No questions yet</div>
             ) : (
                 questions.map((q) => (
-                <div key={q.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 relative group shadow-sm hover:shadow-md transition-all">
-                    <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"><i className="fas fa-trash"></i></button>
-                    <div className="pr-10">
-                         <p className="font-bold text-gray-800 dark:text-white text-sm mb-3">{q.question}</p>
-                    </div>
+                <div key={q.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 relative group shadow-sm">
+                    <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-50 text-red-400 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><i className="fas fa-trash"></i></button>
+                    <div className="pr-10"><p className="font-bold text-gray-800 dark:text-white text-sm mb-3">{q.question}</p></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     {q.options.map((opt, i) => (
-                        <div key={i} className={`p-2 rounded-lg border flex items-center gap-2 ${i === q.answer ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50 text-green-700 dark:text-green-400 font-bold' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}>
-                           <span className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${i === q.answer ? 'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>{String.fromCharCode(65 + i)}</span> 
+                        <div key={i} className={`p-2 rounded-lg border flex items-center gap-2 ${i === q.answer ? 'bg-green-50 border-green-200 text-green-700 font-bold' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>
+                           <span className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${i === q.answer ? 'bg-green-200 text-green-800' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + i)}</span> 
                            {opt}
                         </div>
                     ))}
@@ -740,102 +717,69 @@ export const AdminPage: React.FC = () => {
             <Card>
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
-                        <i className="fas fa-cloud-upload-alt text-game-primary"></i> Upload Material
+                        <i className="fas fa-file-export text-game-primary"></i> Add Resource
                     </h2>
+                    <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
+                        <button onClick={() => setPdfSource('link')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${pdfSource === 'link' ? 'bg-white dark:bg-gray-700 text-game-primary shadow-sm' : 'text-slate-500'}`}>Link</button>
+                        <button onClick={() => setPdfSource('upload')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${pdfSource === 'upload' ? 'bg-white dark:bg-gray-700 text-game-primary shadow-sm' : 'text-slate-500'}`}>File</button>
+                    </div>
                 </div>
                 <form onSubmit={handlePdfUpload} className="space-y-4">
-                    <Input 
-                        label="Display Title" 
-                        value={pdfTitle} 
-                        onChange={(e) => setPdfTitle(e.target.value)} 
-                        placeholder="e.g. Chapter 1 Notes" 
-                    />
+                    <Input label="Display Title" value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Chapter 1 Notes" />
                     
                     <div>
                         <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 ml-1">Subject</label>
-                        <div className="relative">
-                            <select 
-                                value={pdfSubject} 
-                                onChange={(e) => setPdfSubject(e.target.value)}
-                                className="w-full p-3 bg-slate-100 text-gray-900 dark:bg-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 rounded-xl appearance-none font-bold focus:ring-4 focus:ring-game-primary/20 focus:border-game-primary transition-all cursor-pointer"
-                            >
-                                <option value="">Select Subject</option>
-                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                            <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400"></i>
-                        </div>
+                        <select 
+                            value={pdfSubject} 
+                            onChange={(e) => setPdfSubject(e.target.value)}
+                            className="w-full p-3 bg-slate-100 text-gray-900 dark:bg-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold cursor-pointer"
+                        >
+                            <option value="">Select Subject</option>
+                            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 ml-1">PDF File (Max 5MB)</label>
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors relative cursor-pointer">
-                            <input 
-                                type="file" 
-                                accept="application/pdf" 
-                                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                            <div className="pointer-events-none">
-                                {pdfFile ? (
-                                    <div className="flex items-center justify-center gap-2 text-green-500">
-                                        <i className="fas fa-check-circle text-xl"></i>
-                                        <span className="font-bold">{pdfFile.name} ({(pdfFile.size/1024/1024).toFixed(1)}MB)</span>
-                                    </div>
-                                ) : (
-                                    <div className="text-gray-400">
-                                        <i className="fas fa-file-pdf text-3xl mb-2"></i>
-                                        <p className="text-sm font-bold">Click to Select PDF</p>
-                                    </div>
-                                )}
+                    {pdfSource === 'link' ? (
+                        <Input label="PDF URL (External Link)" value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://..." />
+                    ) : (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 ml-1">PDF File (Max 5MB)</label>
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors relative">
+                                <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                {pdfFile ? <div className="text-green-500 font-bold"><i className="fas fa-check-circle"></i> {pdfFile.name}</div> : <div className="text-gray-400 font-bold text-sm"><i className="fas fa-cloud-upload-alt text-2xl mb-1"></i><p>Select PDF File</p></div>}
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    <Button type="submit" fullWidth isLoading={loading} disabled={!pdfFile || !pdfTitle || !pdfSubject}>
-                        <i className="fas fa-upload mr-2"></i> Save to Database
+                    <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject}>
+                        <i className="fas fa-save mr-2"></i> Save Resource
                     </Button>
                 </form>
             </Card>
 
-            {/* PDF MANAGEMENT LIST */}
             <Card>
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-bold dark:text-white">Uploaded Files</h2>
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs font-bold border border-slate-200 dark:border-slate-700">{studyMaterials.length} Files</span>
+                    <h2 className="text-lg font-bold dark:text-white">Resources List</h2>
                 </div>
-                
                 <div className="space-y-3">
                     {studyMaterials.length === 0 ? (
-                        <div className="text-center py-10 opacity-50">
-                            <p>No study materials uploaded yet.</p>
-                        </div>
+                        <div className="text-center py-10 opacity-50 font-bold">No resources added.</div>
                     ) : (
                         studyMaterials.map(item => {
-                            const subName = subjects.find(s => s.id === item.subjectName)?.name || 'Unknown Subject';
+                            const isExternal = item.fileSize === 'External';
                             return (
-                                <div key={item.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between group shadow-sm hover:shadow-md transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-500 flex items-center justify-center text-xl">
-                                            <i className="fas fa-file-pdf"></i>
+                                <div key={item.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${isExternal ? 'bg-blue-100 text-blue-500' : 'bg-red-100 text-red-500'}`}>
+                                            <i className={`fas ${isExternal ? 'fa-link' : 'fa-file-pdf'}`}></i>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.fileName}</h4>
-                                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                                <span className="font-semibold text-game-primary">{subName}</span>
-                                                <span>•</span>
-                                                <span>{item.fileSize}</span>
-                                                <span>•</span>
-                                                <span>{new Date(item.uploadDate).toLocaleDateString()}</span>
-                                            </div>
+                                        <div className="truncate">
+                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate">{item.fileName}</h4>
+                                            <div className="text-[10px] text-slate-500 font-bold uppercase">{item.fileSize}</div>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <a href={item.fileURL} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 text-blue-500 flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all">
-                                            <i className="fas fa-eye"></i>
-                                        </a>
-                                        <button onClick={() => handleDeletePdf(item)} className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
-                                            <i className="fas fa-trash"></i>
-                                        </button>
+                                        <button onClick={() => handleDeletePdf(item)} className="w-8 h-8 rounded-lg bg-slate-100 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-trash text-xs"></i></button>
                                     </div>
                                 </div>
                             );
@@ -846,11 +790,10 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Reused Create Subject/Chapter Modal */}
       <Modal isOpen={!!modalType} title={`Create ${modalType === 'subject' ? 'Subject' : 'Chapter'}`}>
           <div className="space-y-4 pt-2">
               <Input label="Name" value={newItemName} onChange={(e) => { setNewItemName(e.target.value); if (!newItemId) setNewItemId(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')); }} autoFocus placeholder="e.g. Mathematics" />
-              <Input label="ID (Auto-generated)" value={newItemId} onChange={(e) => setNewItemId(e.target.value)} placeholder="e.g. mathematics" className="font-mono text-sm" />
+              <Input label="ID (Auto-generated)" value={newItemId} onChange={(e) => setNewItemId(e.target.value)} placeholder="e.g. mathematics" />
               <div className="flex gap-3 pt-4">
                   <Button variant="outline" fullWidth onClick={() => setModalType(null)}>Cancel</Button>
                   <Button fullWidth onClick={handleCreateItem}>Create Item</Button>
