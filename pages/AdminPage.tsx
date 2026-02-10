@@ -1,5 +1,5 @@
+
 import React, { useState, useEffect } from 'react';
-// Fixed: Added serverTimestamp to firebase/database imports
 import { ref, push, set, get, remove, onValue, off, update, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
 import { Button, Input, Card, Modal } from '../components/UI';
@@ -13,6 +13,7 @@ export const AdminPage: React.FC = () => {
   
   // View State
   const [activeTab, setActiveTab] = useState<'quizzes' | 'pdfs'>('quizzes');
+  const [libSubTab, setLibSubTab] = useState<'files' | 'metadata'>('files');
 
   // Selection State
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -24,17 +25,25 @@ export const AdminPage: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
   
+  // Library Meta State
+  const [libCategories, setLibCategories] = useState<string[]>([]);
+  const [libSubjects, setLibSubjects] = useState<string[]>([]);
+  
   // Quiz Form State
   const [inputMode, setInputMode] = useState<'manual' | 'bulk' | 'parser'>('manual');
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '', '', '']); 
   const [correctAnswer, setCorrectAnswer] = useState(0);
   
+  // FIX: Added missing editingQuestion state to manage quiz editing modal
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  
   // PDF Upload Form State
   const [pdfExternalUrl, setPdfExternalUrl] = useState('');
   const [pdfTitle, setPdfTitle] = useState('');
   const [pdfSubject, setPdfSubject] = useState('');
-  const [pdfCategory, setPdfCategory] = useState<'exams' | 'subjects'>('subjects');
+  const [pdfCategory, setPdfCategory] = useState('');
+  const [pdfKeywords, setPdfKeywords] = useState('');
   
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +51,7 @@ export const AdminPage: React.FC = () => {
   const [rawText, setRawText] = useState('');
 
   // Modals
-  const [modalType, setModalType] = useState<'subject' | 'chapter' | null>(null);
+  const [modalType, setModalType] = useState<'subject' | 'chapter' | 'lib_cat' | 'lib_sub' | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [newItemId, setNewItemId] = useState('');
 
@@ -95,7 +104,7 @@ export const AdminPage: React.FC = () => {
       fetchQuestions();
   }, [selectedChapter]);
 
-  // 4. Fetch Study Materials
+  // 4. Fetch Study Materials & Library Settings
   useEffect(() => {
       const matRef = ref(db, 'studyMaterials');
       const unsub = onValue(matRef, (snapshot) => {
@@ -107,7 +116,24 @@ export const AdminPage: React.FC = () => {
               setStudyMaterials([]);
           }
       });
-      return () => off(matRef);
+
+      const libSettingsRef = ref(db, 'settings/library');
+      const unsubLib = onValue(libSettingsRef, (snap) => {
+          if (snap.exists()) {
+              const data = snap.val();
+              setLibCategories(Object.values(data.categories || {}));
+              setLibSubjects(Object.values(data.subjects || {}));
+          } else {
+              // Defaults if nothing exists
+              setLibCategories(['General', 'National Exams', 'Past Papers']);
+              setLibSubjects(['Mathematics', 'Physics', 'Biology', 'Chemistry', 'English', 'Somali']);
+          }
+      });
+
+      return () => {
+          off(matRef);
+          off(libSettingsRef);
+      };
   }, []);
 
   const fetchQuestions = async () => {
@@ -362,18 +388,41 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // FIX: Added missing handleUpdateQuestion function to persist quiz changes
+  const handleUpdateQuestion = async () => {
+    if (!editingQuestion || !selectedChapter) return;
+    setLoading(true);
+    try {
+      const path = `questions/${selectedChapter}/${editingQuestion.id}`;
+      await update(ref(db, path), {
+        question: editingQuestion.question,
+        options: editingQuestion.options,
+        answer: editingQuestion.answer
+      });
+      setEditingQuestion(null);
+      fetchQuestions();
+      showToast("Updated successfully", "success");
+    } catch(e) {
+      console.error(e);
+      showAlert("Error", "Failed to update question.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateItem = async () => {
-      if (!newItemName.trim() || !newItemId.trim()) return;
-      const cleanId = newItemId.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      if (!newItemName.trim()) return;
       
       try {
           if (modalType === 'subject') {
+              const cleanId = newItemId || newItemName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
               await set(ref(db, `subjects/${cleanId}`), {
                   id: cleanId,
                   name: newItemName
               });
               setSelectedSubject(cleanId);
           } else if (modalType === 'chapter') {
+              const cleanId = newItemId || newItemName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
               const fullChapterId = `${selectedSubject}_${cleanId}`;
               await set(ref(db, `chapters/${selectedSubject}/${fullChapterId}`), {
                   id: fullChapterId,
@@ -381,11 +430,18 @@ export const AdminPage: React.FC = () => {
                   subjectId: selectedSubject
               });
               setSelectedChapter(fullChapterId);
+          } else if (modalType === 'lib_cat') {
+              const newKey = push(ref(db, 'settings/library/categories')).key;
+              await set(ref(db, `settings/library/categories/${newKey}`), newItemName);
+          } else if (modalType === 'lib_sub') {
+              const newKey = push(ref(db, 'settings/library/subjects')).key;
+              await set(ref(db, `settings/library/subjects/${newKey}`), newItemName);
           }
+          
           setNewItemName('');
           setNewItemId('');
           setModalType(null);
-          showAlert("Success", "Item created successfully!", "success");
+          showAlert("Success", "Label added successfully!", "success");
       } catch (e) {
           showAlert("Error", "Error creating item", "error");
       }
@@ -434,8 +490,8 @@ export const AdminPage: React.FC = () => {
   const handlePdfUpload = async (e: React.FormEvent) => {
       e.preventDefault();
       
-      if (!pdfTitle || !pdfSubject || !pdfExternalUrl.trim()) {
-          showAlert("Missing Info", "Please provide a title, subject, and URL.", "warning");
+      if (!pdfTitle || !pdfSubject || !pdfCategory || !pdfExternalUrl.trim()) {
+          showAlert("Missing Info", "Please provide a title, subject, category, and URL.", "warning");
           return;
       }
 
@@ -448,15 +504,17 @@ export const AdminPage: React.FC = () => {
               fileName: pdfTitle.trim(),
               subjectName: pdfSubject.trim(),
               category: pdfCategory,
+              keywords: pdfKeywords.trim(),
               fileURL: pdfExternalUrl.trim(),
               fileSize: "Cloud Link",
-              // Fixed: Using serverTimestamp() which is now imported
               uploadDate: serverTimestamp()
           });
           
           setPdfExternalUrl('');
           setPdfTitle('');
           setPdfSubject('');
+          setPdfCategory('');
+          setPdfKeywords('');
           showAlert("Success", "Resource deployed successfully!", "success");
       } catch(e) {
           console.error(e);
@@ -474,6 +532,21 @@ export const AdminPage: React.FC = () => {
           showToast("Deleted", "success");
       } catch(e) {
           showAlert("Error", "Failed to delete PDF.", "error");
+      }
+  };
+
+  const handleDeleteLibMeta = async (type: 'categories' | 'subjects', val: string) => {
+      const confirm = await showConfirm("Delete Label?", `Are you sure you want to remove "${val}"?`);
+      if (!confirm) return;
+      
+      const snap = await get(ref(db, `settings/library/${type}`));
+      if (snap.exists()) {
+          const data = snap.val();
+          const keyToDelete = Object.keys(data).find(k => data[k] === val);
+          if (keyToDelete) {
+              await remove(ref(db, `settings/library/${type}/${keyToDelete}`));
+              showToast("Label removed", "success");
+          }
       }
   };
 
@@ -692,9 +765,15 @@ export const AdminPage: React.FC = () => {
                     ) : (
                         questions.map((q, qidx) => (
                         <div key={q.id} className="bg-slate-900/60 p-6 rounded-[2rem] border border-slate-800 relative group hover:border-slate-600 transition-all shadow-xl">
-                            <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                                <i className="fas fa-trash-alt"></i>
-                            </button>
+                            {/* FIX: Added missing Edit button to trigger the editing modal */}
+                            <div className="absolute top-4 right-4 flex gap-2">
+                                <button onClick={() => setEditingQuestion(q)} className="w-10 h-10 rounded-xl bg-game-primary/10 text-game-primary hover:bg-game-primary hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                                    <i className="fas fa-edit"></i>
+                                </button>
+                                <button onClick={() => handleDeleteQuestion(q.id)} className="w-10 h-10 rounded-xl bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                                    <i className="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
                             <div className="flex items-start gap-4 mb-6">
                                 <span className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-black text-slate-500 text-sm border border-white/5 shrink-0">#{qidx+1}</span>
                                 <div className="pr-12"><p className="font-bold text-white text-lg leading-snug">{q.question}</p></div>
@@ -715,129 +794,200 @@ export const AdminPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-6 animate__animated animate__fadeIn">
-                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
-                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
-                        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
-                            <i className="fas fa-file-upload text-game-primary"></i> 
-                            Deploy Resource
+                {/* Lib Sub-tabs */}
+                <div className="flex gap-2 mb-4 bg-slate-800/40 p-1 rounded-xl">
+                    <button onClick={() => setLibSubTab('files')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'files' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Manage Files</button>
+                    <button onClick={() => setLibSubTab('metadata')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'metadata' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Edit Labels</button>
+                </div>
+
+                {libSubTab === 'files' ? (
+                  <>
+                    <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
+                                <i className="fas fa-file-upload text-game-primary"></i> 
+                                Deploy Resource
+                            </h2>
+                        </div>
+                        <form onSubmit={handlePdfUpload} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Resource Label (Title)</label>
+                                    <Input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Physics Formula Sheet" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Subject Label</label>
+                                    <select 
+                                        value={pdfSubject} 
+                                        onChange={(e) => setPdfSubject(e.target.value)}
+                                        className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                    >
+                                        <option value="">Select Subject</option>
+                                        {libSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Category Label</label>
+                                    <select 
+                                        value={pdfCategory} 
+                                        onChange={(e) => setPdfCategory(e.target.value)}
+                                        className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                    >
+                                        <option value="">Select Category</option>
+                                        {libCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Keywords (comma separated)</label>
+                                    <Input value={pdfKeywords} onChange={(e) => setPdfKeywords(e.target.value)} placeholder="form4, exam, guide" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Direct Access URL (Catbox/Cloud)</label>
+                                <Input value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://files.catbox.moe/xxxxxx.pdf" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                            </div>
+
+                            <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject || !pdfCategory || !pdfExternalUrl} className="!py-5 !rounded-2xl shadow-xl">
+                                <i className="fas fa-save mr-2"></i> DEPLOY TO LIBRARY
+                            </Button>
+                        </form>
+                    </Card>
+
+                    <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                        <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                            <i className="fas fa-book-open text-game-primary"></i> 
+                            Live Resources Preview
                         </h2>
-                    </div>
-                    <form onSubmit={handlePdfUpload} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Resource Label</label>
-                                <Input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Physics Formula Sheet" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Subject Name</label>
-                                <select 
-                                    value={pdfSubject} 
-                                    onChange={(e) => setPdfSubject(e.target.value)}
-                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
-                                >
-                                    <option value="">Select Subject</option>
-                                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Category</label>
-                            <div className="flex gap-4">
-                                <button 
-                                    type="button"
-                                    onClick={() => setPdfCategory('exams')}
-                                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border-2 transition-all ${pdfCategory === 'exams' ? 'bg-game-primary/10 border-game-primary text-game-primary' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
-                                >
-                                    National Exams
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => setPdfCategory('subjects')}
-                                    className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border-2 transition-all ${pdfCategory === 'subjects' ? 'bg-game-primary/10 border-game-primary text-game-primary' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}
-                                >
-                                    Subject PDFs
-                                </button>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Direct Access URL (Catbox/Cloud)</label>
-                            <Input value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://files.catbox.moe/xxxxxx.pdf" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
-                        </div>
-
-                        <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject || !pdfExternalUrl} className="!py-5 !rounded-2xl shadow-xl">
-                            <i className="fas fa-save mr-2"></i> DEPLOY TO LIBRARY
-                        </Button>
-                    </form>
-                </Card>
-
-                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
-                    <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
-                        <i className="fas fa-book-open text-game-primary"></i> 
-                        Live Resources
-                    </h2>
-                    <div className="space-y-4">
-                        {studyMaterials.length === 0 ? (
-                            <div className="text-center py-20 opacity-30 flex flex-col items-center gap-4">
-                                <i className="fas fa-folder-open text-6xl"></i>
-                                <p className="font-black uppercase tracking-[0.3em]">No Content Available</p>
-                            </div>
-                        ) : (
-                            studyMaterials.map(item => (
-                                <div key={item.id} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl group hover:border-slate-600 transition-all">
-                                    <div className="flex items-center gap-4 min-w-0">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg border border-white/5 bg-cyan-900/20 text-cyan-400`}>
-                                            <i className={`fas fa-link`}></i>
-                                        </div>
-                                        <div className="truncate">
-                                            <h4 className="font-black text-white text-base truncate uppercase">{item.fileName}</h4>
-                                            <div className="flex gap-2 items-center mt-1">
-                                                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{item.subjectName}</span>
-                                                <span className="text-slate-700">•</span>
-                                                <span className="text-[9px] text-game-primary font-black uppercase">{item.category === 'exams' ? 'National Exam' : 'Subject PDF'}</span>
+                        <div className="space-y-4">
+                            {studyMaterials.length === 0 ? (
+                                <div className="text-center py-20 opacity-30 flex flex-col items-center gap-4">
+                                    <i className="fas fa-folder-open text-6xl"></i>
+                                    <p className="font-black uppercase tracking-[0.3em]">No Content Available</p>
+                                </div>
+                            ) : (
+                                studyMaterials.map(item => (
+                                    <div key={item.id} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl group hover:border-slate-600 transition-all">
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg border border-white/5 bg-cyan-900/20 text-cyan-400`}>
+                                                <i className={`fas fa-file-pdf`}></i>
+                                            </div>
+                                            <div className="truncate">
+                                                <h4 className="font-black text-white text-base truncate uppercase">{item.fileName}</h4>
+                                                <div className="flex gap-2 items-center mt-1">
+                                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{item.subjectName}</span>
+                                                    <span className="text-slate-700">•</span>
+                                                    <span className="text-[9px] text-game-primary font-black uppercase">{item.category}</span>
+                                                </div>
                                             </div>
                                         </div>
+                                        <button onClick={() => handleDeletePdf(item)} className="w-10 h-10 rounded-xl bg-red-900/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90 border border-red-500/10">
+                                            <i className="fas fa-trash text-sm"></i>
+                                        </button>
                                     </div>
-                                    <button onClick={() => handleDeletePdf(item)} className="w-10 h-10 rounded-xl bg-red-900/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90 border border-red-500/10">
-                                        <i className="fas fa-trash text-sm"></i>
-                                    </button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </Card>
+                                ))
+                            )}
+                        </div>
+                    </Card>
+                  </>
+                ) : (
+                  <div className="space-y-6 animate__animated animate__fadeIn">
+                      <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                          <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                            <h3 className="text-xl font-black uppercase italic tracking-tighter text-white">Categories</h3>
+                            <button onClick={() => setModalType('lib_cat')} className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-lg">+ ADD</button>
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                              {libCategories.map(cat => (
+                                  <div key={cat} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 shadow-sm">
+                                      <span className="text-sm font-bold">{cat}</span>
+                                      <button onClick={() => handleDeleteLibMeta('categories', cat)} className="text-red-400 hover:text-red-500 transition-colors text-xs"><i className="fas fa-times"></i></button>
+                                  </div>
+                              ))}
+                          </div>
+                      </Card>
+
+                      <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                          <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                            <h3 className="text-xl font-black uppercase italic tracking-tighter text-white">Subjects (Labels)</h3>
+                            <button onClick={() => setModalType('lib_sub')} className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-lg">+ ADD</button>
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                              {libSubjects.map(sub => (
+                                  <div key={sub} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 shadow-sm">
+                                      <span className="text-sm font-bold">{sub}</span>
+                                      <button onClick={() => handleDeleteLibMeta('subjects', sub)} className="text-red-400 hover:text-red-500 transition-colors text-xs"><i className="fas fa-times"></i></button>
+                                  </div>
+                              ))}
+                          </div>
+                      </Card>
+                  </div>
+                )}
             </div>
           )}
       </div>
 
-      <Modal isOpen={!!modalType} title={`Add New ${modalType === 'subject' ? 'Subject' : 'Chapter'}`} onClose={() => setModalType(null)}>
+      <Modal isOpen={!!modalType} title={`Add New Label`} onClose={() => setModalType(null)}>
           <div className="space-y-6 pt-4 pb-2">
               <div>
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Display Label</label>
                   <Input 
                     value={newItemName} 
-                    onChange={(e) => { setNewItemName(e.target.value); if (!newItemId) setNewItemId(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')); }} 
+                    onChange={(e) => { setNewItemName(e.target.value); }} 
                     autoFocus 
-                    placeholder="e.g. Mathematics" 
-                    className="!bg-slate-800 !border-slate-700 !text-white"
-                  />
-              </div>
-              <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Database Reference (Slug)</label>
-                  <Input 
-                    value={newItemId} 
-                    onChange={(e) => setNewItemId(e.target.value)} 
-                    placeholder="e.g. math_2026" 
+                    placeholder="Enter name..." 
                     className="!bg-slate-800 !border-slate-700 !text-white"
                   />
               </div>
               <div className="flex gap-4 pt-4">
-                  <Button variant="outline" fullWidth onClick={() => setModalType(null)} className="!border-slate-700 !text-slate-400">Abort</Button>
-                  <Button fullWidth onClick={handleCreateItem}>Commit Change</Button>
+                  <button onClick={() => setModalType(null)} className="flex-1 py-3 bg-slate-700 rounded-xl text-xs font-black uppercase">Cancel</button>
+                  <button onClick={handleCreateItem} className="flex-1 py-3 bg-game-primary text-slate-900 rounded-xl text-xs font-black uppercase">Save</button>
               </div>
           </div>
       </Modal>
+
+      {/* FIX: editingQuestion modal is now correctly linked to component state */}
+      {editingQuestion && (
+        <Modal isOpen={true} title="Secure Editor" onClose={() => setEditingQuestion(null)}>
+            <div className="space-y-6 pt-2 pb-2">
+                <Input 
+                    label="Question Content" 
+                    value={editingQuestion.question} 
+                    onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
+                    className="!bg-[#0f172a] !border-slate-800 !text-white !p-5 !rounded-2xl"
+                />
+                <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Options (Tap letter to set correct)</label>
+                    {editingQuestion.options.map((opt, idx) => (
+                        <div key={idx} className="flex gap-3">
+                            <button 
+                                onClick={() => setEditingQuestion({...editingQuestion, answer: idx})}
+                                className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-all border-2 ${editingQuestion.answer === idx ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/30' : 'bg-[#0f172a] border-slate-800 text-slate-600'}`}
+                            >
+                                {String.fromCharCode(65+idx)}
+                            </button>
+                            <input 
+                                value={opt}
+                                onChange={(e) => {
+                                    const newOpts = [...editingQuestion.options];
+                                    newOpts[idx] = e.target.value;
+                                    setEditingQuestion({...editingQuestion, options: newOpts});
+                                }}
+                                className="flex-1 bg-[#0f172a] border-2 border-slate-800 rounded-xl px-5 py-3 text-white font-bold focus:border-game-primary outline-none transition-colors"
+                            />
+                        </div>
+                    ))}
+                </div>
+                <div className="pt-6 flex gap-4">
+                        <Button fullWidth variant="outline" onClick={() => setEditingQuestion(null)} className="!border-slate-800 !text-slate-500 !rounded-2xl">Cancel</Button>
+                        <Button fullWidth onClick={handleUpdateQuestion} className="!bg-game-primary !text-slate-950 !rounded-2xl shadow-xl shadow-game-primary/20">Sync Changes</Button>
+                </div>
+            </div>
+        </Modal>
+      )}
     </div>
   );
 };

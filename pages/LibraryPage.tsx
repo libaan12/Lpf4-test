@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '../firebase';
@@ -9,6 +9,7 @@ import { playSound } from '../services/audioService';
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
+  const filterPanelRef = useRef<HTMLDivElement>(null);
   
   // Instant initialization from cache to prevent "long loading" blank states
   const [materials, setMaterials] = useState<StudyMaterial[]>(() => {
@@ -22,8 +23,15 @@ const LibraryPage: React.FC = () => {
       return [];
   });
 
-  const [activeCategory, setActiveCategory] = useState<'all' | 'exams' | 'subjects'>('all');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeSubject, setActiveSubject] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  // Meta options from DB
+  const [libCategories, setLibCategories] = useState<string[]>([]);
+  const [libSubjects, setLibSubjects] = useState<string[]>([]);
+  
   const [selectedPdf, setSelectedPdf] = useState<StudyMaterial | null>(null);
   const [loading, setLoading] = useState(!localStorage.getItem('library_cache'));
 
@@ -32,8 +40,31 @@ const LibraryPage: React.FC = () => {
   const [iframeError, setIframeError] = useState(false);
   const [readerKey, setReaderKey] = useState(0); 
 
+  // Click Outside logic
   useEffect(() => {
-    // Real-time Firebase Sync in background
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isFilterOpen]);
+
+  useEffect(() => {
+    // 1. Meta Settings Listener
+    const libSettingsRef = ref(db, 'settings/library');
+    onValue(libSettingsRef, (snap) => {
+        if (snap.exists()) {
+            const data = snap.val();
+            setLibCategories(Object.values(data.categories || {}));
+            setLibSubjects(Object.values(data.subjects || {}));
+        }
+    });
+
+    // 2. Real-time Firebase Sync in background
     const matRef = ref(db, 'studyMaterials');
     const unsub = onValue(matRef, (snapshot) => {
         if (snapshot.exists()) {
@@ -46,14 +77,24 @@ const LibraryPage: React.FC = () => {
         }
         setLoading(false);
     });
-    return () => off(matRef);
+    return () => {
+        off(matRef);
+        off(libSettingsRef);
+    };
   }, []);
 
   const filteredMaterials = materials.filter(m => {
       const matchesCategory = activeCategory === 'all' || m.category === activeCategory;
-      const matchesSearch = m.fileName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           m.subjectName.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
+      const matchesSubject = activeSubject === 'all' || m.subjectName === activeSubject;
+      
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        m.fileName.toLowerCase().includes(searchLower) || 
+        m.subjectName.toLowerCase().includes(searchLower) ||
+        (m.keywords && m.keywords.toLowerCase().includes(searchLower)) ||
+        m.category.toLowerCase().includes(searchLower);
+
+      return matchesCategory && matchesSubject && matchesSearch;
   });
 
   const openReader = (item: StudyMaterial) => {
@@ -62,16 +103,6 @@ const LibraryPage: React.FC = () => {
       setIframeLoading(true);
       setIframeError(false);
       setReaderKey(prev => prev + 1);
-      
-      // Snappier timeout for slow connections (Reduced from 12s to 6s)
-      const timer = setTimeout(() => {
-          setIframeLoading(current => {
-              if (current) setIframeError(true);
-              return false;
-          });
-      }, 6000);
-
-      return () => clearTimeout(timer);
   };
 
   const closeReader = () => {
@@ -84,18 +115,9 @@ const LibraryPage: React.FC = () => {
       setIframeError(false);
       setIframeLoading(true);
       setReaderKey(prev => prev + 1);
-      
-      // Snappier timeout (Reduced from 12s to 6s)
-      const timer = setTimeout(() => {
-          setIframeLoading(current => {
-              if (current) setIframeError(true);
-              return false;
-          });
-      }, 6000);
   };
 
   if (selectedPdf) {
-      // Re-implementing the Google Docs Viewer Wrapper
       const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(selectedPdf.fileURL)}&embedded=true`;
 
       return (
@@ -122,7 +144,6 @@ const LibraryPage: React.FC = () => {
 
               {/* Reader Body */}
               <div className="flex-1 relative bg-slate-900 overflow-hidden">
-                  {/* Syncing Overlay */}
                   {iframeLoading && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#050b14]/90 backdrop-blur-md">
                            <div className="w-12 h-12 border-4 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
@@ -130,7 +151,6 @@ const LibraryPage: React.FC = () => {
                       </div>
                   )}
 
-                  {/* Bad Internet / Dead Link Fallback */}
                   {iframeError ? (
                       <div className="absolute inset-0 flex flex-col items-center justify-center z-30 p-10 text-center bg-[#050b14]">
                            <div className="w-20 h-20 bg-red-900/10 rounded-[2rem] flex items-center justify-center mb-8 border-2 border-red-500/20 animate__animated animate__shakeX">
@@ -180,7 +200,7 @@ const LibraryPage: React.FC = () => {
       <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-indigo-900/10 to-transparent pointer-events-none"></div>
 
       {/* HEADER SECTION */}
-      <div className="pt-8 px-6 pb-6 relative z-10 sticky top-0 bg-[#050b14]/90 backdrop-blur-xl border-b border-white/5 shadow-2xl">
+      <div className="pt-8 px-6 pb-6 relative z-30 sticky top-0 bg-[#050b14]/95 backdrop-blur-2xl border-b border-white/5 shadow-2xl">
           <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-4">
                   <button 
@@ -194,41 +214,116 @@ const LibraryPage: React.FC = () => {
                     <span className="text-[10px] text-cyan-500 font-black uppercase tracking-[0.3em]">Knowledge Bank</span>
                   </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.2)]">
-                <i className="fas fa-book-reader text-xl"></i>
+              <div className="flex gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+                    <i className="fas fa-book-reader text-xl"></i>
+                  </div>
               </div>
           </div>
 
-          {/* Search Box */}
-          <div className="relative mb-8 group">
-              <div className="absolute inset-0 bg-cyan-500/5 rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-              <i className="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 z-10 transition-colors group-focus-within:text-cyan-400"></i>
-              <input 
-                type="text" 
-                placeholder="Search PDF Title or Subject..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#0f172a] border-2 border-slate-800 rounded-2xl py-4.5 pl-14 pr-6 text-white font-bold text-sm focus:border-cyan-500/50 outline-none transition-all shadow-inner relative z-0"
-              />
+          {/* Search Box - Premium High-Fidelity CSS */}
+          <div className="relative group">
+              {/* Outer Glow Overlay */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-game-primary/20 via-cyan-500/10 to-blue-500/20 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-all duration-700 pointer-events-none"></div>
+              
+              <div className="relative flex items-center bg-[#0f172a] border-2 border-slate-800/80 rounded-[2rem] px-5 py-4.5 transition-all duration-300 focus-within:border-game-primary/60 focus-within:shadow-[0_0_30px_rgba(249,115,22,0.15)] focus-within:bg-[#121a2d]">
+                  <i className="fas fa-search text-slate-500 group-focus-within:text-game-primary transition-colors text-lg mr-4"></i>
+                  <input 
+                    type="text" 
+                    placeholder="Search Title, Category, or Keywords..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="flex-1 bg-transparent border-none text-white font-bold text-sm outline-none placeholder:text-slate-600 focus:placeholder:text-slate-500 transition-all"
+                  />
+                  {searchTerm && (
+                      <button 
+                        onClick={() => setSearchTerm('')}
+                        className="ml-2 w-8 h-8 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center hover:text-white hover:bg-slate-700 transition-all active:scale-90"
+                      >
+                          <i className="fas fa-times text-xs"></i>
+                      </button>
+                  )}
+              </div>
           </div>
 
-          {/* Precision Categories */}
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 px-1">
-              {[
-                  { id: 'all', label: 'All Files', icon: 'fa-globe' },
-                  { id: 'exams', label: 'National Exams', icon: 'fa-medal' },
-                  { id: 'subjects', label: 'Subject PDFs', icon: 'fa-book' }
-              ].map(cat => (
-                  <button 
-                    key={cat.id}
-                    onClick={() => { setActiveCategory(cat.id as any); playSound('click'); }}
-                    className={`px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] whitespace-nowrap transition-all border-2 flex items-center gap-3 shrink-0 shadow-xl ${activeCategory === cat.id ? 'bg-cyan-500 border-white/20 text-[#050b14] shadow-cyan-500/20 scale-105' : 'bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700'}`}
-                  >
-                      <i className={`fas ${cat.icon}`}></i>
-                      {cat.label}
-                  </button>
-              ))}
+          {/* Refine Section Header */}
+          <div className="flex items-center justify-between mt-6 px-1">
+              <div className="flex items-center gap-3 flex-1">
+                  <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest whitespace-nowrap">Refine Archives</span>
+                  <div className="h-px w-full bg-slate-800/50"></div>
+              </div>
+              <button 
+                onClick={() => { setIsFilterOpen(!isFilterOpen); playSound('click'); }}
+                className={`ml-4 flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all shadow-xl active:scale-95 ${isFilterOpen ? 'bg-game-primary border-white/20 text-slate-950 scale-105 shadow-game-primary/20' : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+              >
+                <i className={`fas ${isFilterOpen ? 'fa-times' : 'fa-sliders-h'} text-xs`}></i>
+                <span className="text-[10px] font-black uppercase tracking-wider">{isFilterOpen ? 'Close' : 'Filters'}</span>
+              </button>
           </div>
+
+          {/* Advanced Filter Panel - Slide Down with Outside Click Support */}
+          {isFilterOpen && (
+              <div 
+                ref={filterPanelRef}
+                className="mt-5 animate__animated animate__fadeInDown p-6 bg-slate-900/95 backdrop-blur-xl rounded-[2.5rem] border border-slate-800 shadow-2xl space-y-7 ring-1 ring-white/5 relative overflow-hidden"
+              >
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-game-primary/5 blur-3xl rounded-full"></div>
+                  
+                  {/* Category Pills */}
+                  <div>
+                      <div className="flex items-center gap-2 mb-4 ml-1">
+                         <i className="fas fa-layer-group text-game-primary text-[10px]"></i>
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Category</h4>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                          <button 
+                            onClick={() => { setActiveCategory('all'); playSound('click'); }}
+                            className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${activeCategory === 'all' ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/20' : 'bg-slate-800/50 border-slate-800 text-slate-500'}`}
+                          >All Records</button>
+                          {libCategories.map(cat => (
+                              <button 
+                                key={cat}
+                                onClick={() => { setActiveCategory(cat); playSound('click'); }}
+                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${activeCategory === cat ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/20' : 'bg-slate-800/50 border-slate-800 text-slate-500'}`}
+                              >{cat}</button>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Subject Dropdown - Enhanced Theme Styled */}
+                  <div>
+                      <div className="flex items-center gap-2 mb-4 ml-1">
+                         <i className="fas fa-tags text-game-primary text-[10px]"></i>
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter by Subject</h4>
+                      </div>
+                      <div className="relative group">
+                          <select 
+                            value={activeSubject}
+                            onChange={(e) => { setActiveSubject(e.target.value); playSound('click'); }}
+                            className="w-full p-4.5 bg-[#050b14] border-2 border-slate-800 rounded-2xl text-white font-black text-xs uppercase tracking-widest appearance-none outline-none focus:border-game-primary/50 transition-all shadow-inner cursor-pointer"
+                          >
+                            <option value="all">All Available Subjects</option>
+                            {libSubjects.map(sub => (
+                                <option key={sub} value={sub}>{sub}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 transition-colors group-hover:text-game-primary">
+                             <i className="fas fa-chevron-down"></i>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                      <button 
+                        onClick={() => { setActiveCategory('all'); setActiveSubject('all'); setSearchTerm(''); playSound('click'); }}
+                        className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] hover:text-white transition-colors"
+                      >
+                        Reset All
+                      </button>
+                      <span className="text-[9px] font-black text-game-primary uppercase tracking-widest">{filteredMaterials.length} Results</span>
+                  </div>
+              </div>
+          )}
       </div>
 
       {/* DOCUMENT LIST */}
@@ -236,51 +331,50 @@ const LibraryPage: React.FC = () => {
           {loading && materials.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-32">
                   <div className="w-12 h-12 border-4 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin mb-6"></div>
-                  <p className="font-black text-[10px] uppercase tracking-[0.4em] text-slate-500 animate-pulse">Loading...</p>
+                  <p className="font-black text-[10px] uppercase tracking-[0.4em] text-slate-500 animate-pulse">Scanning Archive...</p>
               </div>
           ) : filteredMaterials.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-32 text-center opacity-40">
                   <div className="w-24 h-24 bg-slate-800/50 rounded-[2.5rem] flex items-center justify-center text-slate-600 mb-6 border border-slate-700/50">
                       <i className="fas fa-folder-open text-4xl"></i>
                   </div>
-                  <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">No Results</h3>
-                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Adjust your filters or query</p>
+                  <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">No Records</h3>
+                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Adjust search or filters</p>
               </div>
           ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {filteredMaterials.map(item => {
-                      const isExam = item.category === 'exams';
-                      return (
-                          <div 
-                            key={item.id} 
-                            onClick={() => openReader(item)}
-                            className="bg-[#0f172a]/60 backdrop-blur-sm border-2 border-slate-800 hover:border-cyan-500/50 group transition-all cursor-pointer relative overflow-hidden rounded-[2rem] p-5 shadow-xl hover:shadow-cyan-500/5 active:scale-[0.98]"
-                          >
-                              {/* Background Visual Hint */}
-                              <div className={`absolute -right-4 -bottom-4 text-8xl opacity-[0.03] rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-0 ${isExam ? 'text-orange-500' : 'text-cyan-500'}`}>
-                                  <i className={`fas ${isExam ? 'fa-graduation-cap' : 'fa-file-pdf'}`}></i>
-                              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pb-10">
+                  {filteredMaterials.map(item => (
+                      <div 
+                        key={item.id} 
+                        onClick={() => openReader(item)}
+                        className="bg-[#0f172a]/60 backdrop-blur-sm border-2 border-slate-800 hover:border-game-primary/40 group transition-all cursor-pointer relative overflow-hidden rounded-[2.5rem] p-6 shadow-xl hover:shadow-game-primary/5 active:scale-[0.98]"
+                      >
+                          {/* Background Visual Hint */}
+                          <div className={`absolute -right-4 -bottom-4 text-8xl opacity-[0.03] rotate-12 transition-transform group-hover:scale-110 group-hover:rotate-0 text-cyan-500`}>
+                              <i className="fas fa-file-pdf"></i>
+                          </div>
 
-                              <div className="flex items-center gap-5 relative z-10">
-                                  <div className={`w-16 h-16 rounded-[1.2rem] flex items-center justify-center text-3xl shadow-2xl border border-white/5 transition-all group-hover:bg-cyan-500 group-hover:text-[#050b14] ${isExam ? 'bg-orange-500/10 text-orange-500' : 'bg-cyan-500/10 text-cyan-500'}`}>
-                                      <i className={`fas ${isExam ? 'fa-scroll' : 'fa-file-alt'}`}></i>
+                          <div className="flex items-center gap-6 relative z-10">
+                              <div className="w-18 h-18 rounded-[1.5rem] bg-game-primary/5 text-game-primary flex items-center justify-center text-3xl shadow-2xl border border-white/5 transition-all group-hover:bg-game-primary group-hover:text-slate-950">
+                                  <i className="fas fa-file-alt"></i>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                  <h4 className="text-white font-black text-base truncate leading-tight mb-3 group-hover:text-game-primary transition-colors uppercase italic tracking-tight">{item.fileName}</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                      <span className="text-[8px] font-black uppercase px-3 py-1.5 rounded-xl border tracking-widest bg-cyan-900/20 border-cyan-500/30 text-cyan-400">
+                                          {item.subjectName}
+                                      </span>
+                                      <span className="text-[8px] font-black uppercase px-3 py-1.5 rounded-xl border tracking-widest bg-orange-900/20 border-orange-500/30 text-orange-400">
+                                          {item.category}
+                                      </span>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                      <h4 className="text-white font-black text-base truncate leading-tight mb-2 group-hover:text-cyan-400 transition-colors uppercase italic">{item.fileName}</h4>
-                                      <div className="flex items-center gap-2">
-                                          <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-lg border tracking-widest ${isExam ? 'bg-orange-900/20 border-orange-500/30 text-orange-400' : 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400'}`}>
-                                              {item.subjectName}
-                                          </span>
-                                          <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em] ml-1">Cloud Access</span>
-                                      </div>
-                                  </div>
-                                  <div className="w-10 h-10 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-600 group-hover:bg-cyan-500 group-hover:text-[#050b14] group-hover:scale-110 transition-all border border-white/5">
-                                      <i className="fas fa-book-open text-xs"></i>
-                                  </div>
+                              </div>
+                              <div className="w-11 h-11 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-500 group-hover:bg-game-primary group-hover:text-slate-950 group-hover:scale-110 transition-all border border-white/5">
+                                  <i className="fas fa-book-open text-xs"></i>
                               </div>
                           </div>
-                      );
-                  })}
+                      </div>
+                  ))}
               </div>
           )}
       </div>
@@ -288,7 +382,7 @@ const LibraryPage: React.FC = () => {
       {/* Static Footer Indicator */}
       <div className="fixed bottom-24 left-0 right-0 flex justify-center pointer-events-none opacity-20">
           <div className="px-6 py-2 rounded-full border border-white/5 bg-slate-900/50 backdrop-blur-sm">
-             <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.5em]">End of Records</span>
+             <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.5em]">Secure Archive Connection</span>
           </div>
       </div>
     </div>
