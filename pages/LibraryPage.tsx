@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, onValue, off } from 'firebase/database';
@@ -42,6 +43,7 @@ const LibraryPage: React.FC = () => {
   const [readerKey, setReaderKey] = useState(0); 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Define filteredMaterials before hooks to avoid Temporal Dead Zone issues in dependency arrays
   const filteredMaterials = materials.filter(m => {
       const matchesCategory = activeCategory === 'all' || m.category === activeCategory;
       const matchesSubject = activeSubject === 'all' || m.subjectName === activeSubject;
@@ -56,22 +58,26 @@ const LibraryPage: React.FC = () => {
       return matchesCategory && matchesSubject && matchesSearch;
   });
 
-  // Improved Adsterra Integration with Duplication Prevention & Correct Cleanup
+  // Clean Adsterra Integration: Banner only, no auto-redirections, duplication-safe.
   useEffect(() => {
+    // Only load the banner if the library is enabled and a PDF isn't currently being viewed.
     if (isLibraryEnabled && !selectedPdf && adWrapperRef.current) {
         const adWrapper = adWrapperRef.current;
         const SCRIPT_URL = "https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js";
         
-        // Clear wrapper and re-inject elements
+        // Safety check to prevent duplicate injections on re-renders
+        if (adWrapper.querySelector('script')) return;
+        
+        // Clear wrapper for a fresh injection state
         adWrapper.innerHTML = '';
         
-        // Create container div with specific ID
+        // Create the specific container div required by the Adsterra script
         const container = document.createElement('div');
         container.id = 'container-b7749c6413cf35935cfa37b468c20ce2';
         container.className = "w-full flex justify-center";
         adWrapper.appendChild(container);
 
-        // Create script tag
+        // Inject the invocation script
         const script = document.createElement('script');
         script.src = SCRIPT_URL;
         script.async = true;
@@ -79,12 +85,13 @@ const LibraryPage: React.FC = () => {
         adWrapper.appendChild(script);
 
         return () => {
+            // Cleanup on hide (important for maintaining ad network policies and app stability)
             if (adWrapper) adWrapper.innerHTML = '';
         };
     }
-  }, [isLibraryEnabled, selectedPdf, filteredMaterials.length]);
+  }, [isLibraryEnabled, selectedPdf]); // Removed filteredMaterials.length to prevent flickering/re-triggers on typing
 
-  // Click Outside logic
+  // Click Outside logic for filter panel
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
@@ -150,7 +157,6 @@ const LibraryPage: React.FC = () => {
       setReaderKey(prev => prev + 1);
       playSound('click');
       
-      // Animation duration to match the visual feel
       setTimeout(() => setIsRefreshing(false), 1000);
   };
 
@@ -347,7 +353,7 @@ const LibraryPage: React.FC = () => {
                          <i className="fas fa-layer-group text-game-primary text-[10px]"></i>
                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Category</h4>
                       </div>
-                      <div className="flex wrap gap-2.5">
+                      <div className="flex flex-wrap gap-2.5">
                           <button 
                             onClick={() => { setActiveCategory('all'); playSound('click'); }}
                             className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${activeCategory === 'all' ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/20' : 'bg-slate-800/50 border-slate-800 text-slate-500'}`}
