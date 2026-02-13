@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, update } from 'firebase/database';
@@ -140,11 +141,22 @@ const HomePage: React.FC = () => {
                     <i className="fas fa-star text-purple-400 text-xs animate-pulse"></i>
                     <span className="text-white font-black text-sm">{profile?.points}</span>
                 </div>
-                {/* Only show Admin Icon for Admin Users */}
+                {/* Only show Admin specific buttons for Admin Users */}
                 {profile?.role === 'admin' && (
-                    <button onClick={(e) => { e.stopPropagation(); handleNav('/admin'); }} className="w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur-sm border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors shadow-lg active:scale-95">
-                        <i className="fas fa-cog"></i>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                window.open('https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js', '_blank'); 
+                            }} 
+                            className="px-3 py-2 rounded-xl bg-game-primary/20 border border-game-primary/30 text-game-primary text-[10px] font-black uppercase tracking-widest hover:bg-game-primary hover:text-white transition-all shadow-lg active:scale-95"
+                        >
+                            Go to
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleNav('/admin'); }} className="w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur-sm border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors shadow-lg active:scale-95">
+                            <i className="fas fa-cog"></i>
+                        </button>
+                    </div>
                 )}
             </div>
         </div>

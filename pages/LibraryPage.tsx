@@ -42,23 +42,27 @@ const LibraryPage: React.FC = () => {
   const [readerKey, setReaderKey] = useState(0); 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Adsterra Integration Effect
+  // Adsterra Integration with Duplication Prevention
   useEffect(() => {
-    // Only load script if library is enabled and not viewing a PDF
     if (isLibraryEnabled && !selectedPdf) {
-        const script = document.createElement('script');
-        script.src = "https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js";
-        script.async = true;
-        script.setAttribute('data-cfasync', 'false');
+        const SCRIPT_URL = "https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js";
         
-        // Append script to body
-        document.body.appendChild(script);
+        // Use a unique ID to track the script
+        const SCRIPT_ID = 'adsterra-banner-script';
+        let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement;
+
+        if (!script) {
+            script = document.createElement('script');
+            script.id = SCRIPT_ID;
+            script.src = SCRIPT_URL;
+            script.async = true;
+            script.setAttribute('data-cfasync', 'false');
+            document.body.appendChild(script);
+        }
 
         return () => {
-            // Cleanup on unmount
-            if (document.body.contains(script)) {
-                document.body.removeChild(script);
-            }
+            // We usually keep the script to avoid issues with re-injecting 
+            // unless the ad network specifically requires it.
         };
     }
   }, [isLibraryEnabled, selectedPdf]);
@@ -443,9 +447,17 @@ const LibraryPage: React.FC = () => {
               </div>
           )}
 
-          {/* Adsterra Integration Container */}
-          <div className="mt-8 mb-12 flex justify-center w-full min-h-[100px]">
-             <div id="container-b7749c6413cf35935cfa37b468c20ce2"></div>
+          {/* Adsterra Integrated Properly with 4:1 Ratio & Sponsor Label */}
+          <div className="mt-12 mb-8 flex flex-col items-center w-full max-w-xl mx-auto px-4 animate__animated animate__fadeIn">
+             <div className="w-full flex items-center gap-2 mb-3">
+                 <span className="text-[7px] font-black text-slate-600 uppercase tracking-[0.3em] whitespace-nowrap">Sponsored Resource</span>
+                 <div className="h-px w-full bg-slate-800/30"></div>
+             </div>
+             <div className="w-full bg-[#0f172a]/40 rounded-[1.5rem] border border-white/5 flex items-center justify-center overflow-hidden min-h-[90px] shadow-2xl relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent pointer-events-none"></div>
+                <div id="container-b7749c6413cf35935cfa37b468c20ce2" className="w-full flex justify-center scale-90 md:scale-100"></div>
+             </div>
+             <p className="text-[6px] text-slate-700 mt-2 font-bold uppercase">Supported by Adsterra Network</p>
           </div>
       </div>
 
