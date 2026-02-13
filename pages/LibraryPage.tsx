@@ -42,6 +42,27 @@ const LibraryPage: React.FC = () => {
   const [readerKey, setReaderKey] = useState(0); 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Adsterra Integration Effect
+  useEffect(() => {
+    // Only load script if library is enabled and not viewing a PDF
+    if (isLibraryEnabled && !selectedPdf) {
+        const script = document.createElement('script');
+        script.src = "https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js";
+        script.async = true;
+        script.setAttribute('data-cfasync', 'false');
+        
+        // Append script to body
+        document.body.appendChild(script);
+
+        return () => {
+            // Cleanup on unmount
+            if (document.body.contains(script)) {
+                document.body.removeChild(script);
+            }
+        };
+    }
+  }, [isLibraryEnabled, selectedPdf]);
+
   // Click Outside logic
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -421,6 +442,11 @@ const LibraryPage: React.FC = () => {
                   ))}
               </div>
           )}
+
+          {/* Adsterra Integration Container */}
+          <div className="mt-8 mb-12 flex justify-center w-full min-h-[100px]">
+             <div id="container-b7749c6413cf35935cfa37b468c20ce2"></div>
+          </div>
       </div>
 
       {/* Static Footer Indicator */}
