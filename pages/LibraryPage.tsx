@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, onValue, off } from 'firebase/database';
@@ -10,7 +9,6 @@ import { playSound } from '../services/audioService';
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
   const filterPanelRef = useRef<HTMLDivElement>(null);
-  const adWrapperRef = useRef<HTMLDivElement>(null);
   
   // Instant initialization from cache to prevent "long loading" blank states
   const [materials, setMaterials] = useState<StudyMaterial[]>(() => {
@@ -43,7 +41,6 @@ const LibraryPage: React.FC = () => {
   const [readerKey, setReaderKey] = useState(0); 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Define filteredMaterials before hooks to avoid Temporal Dead Zone issues in dependency arrays
   const filteredMaterials = materials.filter(m => {
       const matchesCategory = activeCategory === 'all' || m.category === activeCategory;
       const matchesSubject = activeSubject === 'all' || m.subjectName === activeSubject;
@@ -57,39 +54,6 @@ const LibraryPage: React.FC = () => {
 
       return matchesCategory && matchesSubject && matchesSearch;
   });
-
-  // Clean Adsterra Integration: Banner only, no auto-redirections, duplication-safe.
-  useEffect(() => {
-    // Only load the banner if the library is enabled and a PDF isn't currently being viewed.
-    if (isLibraryEnabled && !selectedPdf && adWrapperRef.current) {
-        const adWrapper = adWrapperRef.current;
-        const SCRIPT_URL = "https://pl28709979.effectivegatecpm.com/b7749c6413cf35935cfa37b468c20ce2/invoke.js";
-        
-        // Safety check to prevent duplicate injections on re-renders
-        if (adWrapper.querySelector('script')) return;
-        
-        // Clear wrapper for a fresh injection state
-        adWrapper.innerHTML = '';
-        
-        // Create the specific container div required by the Adsterra script
-        const container = document.createElement('div');
-        container.id = 'container-b7749c6413cf35935cfa37b468c20ce2';
-        container.className = "w-full flex justify-center";
-        adWrapper.appendChild(container);
-
-        // Inject the invocation script
-        const script = document.createElement('script');
-        script.src = SCRIPT_URL;
-        script.async = true;
-        script.setAttribute('data-cfasync', 'false');
-        adWrapper.appendChild(script);
-
-        return () => {
-            // Cleanup on hide (important for maintaining ad network policies and app stability)
-            if (adWrapper) adWrapper.innerHTML = '';
-        };
-    }
-  }, [isLibraryEnabled, selectedPdf]); // Removed filteredMaterials.length to prevent flickering/re-triggers on typing
 
   // Click Outside logic for filter panel
   useEffect(() => {
@@ -455,23 +419,6 @@ const LibraryPage: React.FC = () => {
                   ))}
               </div>
           )}
-
-          {/* Adsterra Integration with Duplication Prevention & 4:1 Ratio Container */}
-          <div className="mt-12 mb-8 flex flex-col items-center w-full max-w-xl mx-auto px-4 animate__animated animate__fadeIn">
-             <div className="w-full flex items-center gap-2 mb-3">
-                 <span className="text-[7px] font-black text-slate-600 uppercase tracking-[0.3em] whitespace-nowrap">Sponsored Resource</span>
-                 <div className="h-px w-full bg-slate-800/30"></div>
-             </div>
-             
-             {/* 4:1 Aspect Ratio Container Wrapper */}
-             <div className="w-full aspect-[4/1] bg-[#0f172a]/40 rounded-[1.5rem] border border-white/5 flex items-center justify-center overflow-hidden shadow-2xl relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent pointer-events-none"></div>
-                <div ref={adWrapperRef} className="w-full flex justify-center">
-                    {/* invoke.js will inject into container-b7749c6413cf35935cfa37b468c20ce2 inside here */}
-                </div>
-             </div>
-             <p className="text-[6px] text-slate-700 mt-2 font-bold uppercase">Supported by Adsterra Network</p>
-          </div>
       </div>
 
       {/* Static Footer Indicator */}

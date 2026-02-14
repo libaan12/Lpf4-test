@@ -143,16 +143,6 @@ const HomePage: React.FC = () => {
                 {/* Only show Admin specific buttons for Admin Users */}
                 {profile?.role === 'admin' && (
                     <div className="flex items-center gap-2">
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
-                                window.open('https://www.effectivegatecpm.com/zk6cfndg?key=718a758cc877fb4255e851fa8c9305e0', '_blank'); 
-                            }} 
-                            className="px-4 py-2 rounded-xl bg-orange-500 text-slate-950 text-[10px] font-black uppercase tracking-widest hover:bg-orange-400 transition-all shadow-lg active:scale-95 flex items-center gap-2"
-                        >
-                            <i className="fas fa-external-link-alt"></i>
-                            Go to
-                        </button>
                         <button onClick={(e) => { e.stopPropagation(); handleNav('/admin'); }} className="w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur-sm border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors shadow-lg active:scale-95">
                             <i className="fas fa-cog"></i>
                         </button>
