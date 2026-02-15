@@ -8,13 +8,18 @@ export interface UserProfile {
   avatar: string; // URL
   gender?: 'male' | 'female';
   activeMatch?: string | null;
-  role?: 'user' | 'admin';
+  role?: 'user' | 'admin'; // Legacy single role
+  roles?: {
+    superAdmin?: boolean;
+    admin?: boolean;
+    support?: boolean;
+  };
   banned?: boolean;
   avatarUpdated?: boolean;
   usernameUpdated?: boolean; // Track if guest has set/skipped username
   isVerified?: boolean; // Blue tick
   verificationNotificationPending?: boolean; // Trigger for Congrats Modal
-  isSupport?: boolean; // Orange tick (Support Verified)
+  isSupport?: boolean; // Orange tick (Legacy Support Verified)
   allowCustomAvatar?: boolean; // Privilege to upload custom pics
   isGuest?: boolean;
   isOnline?: boolean;

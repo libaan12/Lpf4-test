@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserContext } from '../contexts';
@@ -20,9 +21,17 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
     { path: '/profile', icon: 'fa-user', label: 'Me' },
   ];
 
-  if (profile?.isSupport) {
+  // Add Support Dashboard if support role
+  if (profile?.isSupport || profile?.roles?.support) {
       if (!navItems.find(i => i.path === '/support')) {
           navItems.push({ path: '/support', icon: 'fa-headset', label: 'Support', isNew: false });
+      }
+  }
+
+  // Add Super Admin Dashboard if superAdmin role
+  if (profile?.roles?.superAdmin) {
+      if (!navItems.find(i => i.path === '/adminlp')) {
+          navItems.push({ path: '/adminlp', icon: 'fa-shield-alt', label: 'Super Admin', isNew: false });
       }
   }
 

@@ -1,13 +1,15 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { ref, update, onValue, off, set, remove, get, push, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
+import { UserContext } from '../contexts';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport } from '../types';
 import { Button, Card, Input, Modal, Avatar, VerificationBadge } from '../components/UI';
 import { showAlert, showToast, showConfirm, showPrompt } from '../services/alert';
 import { useNavigate } from 'react-router-dom';
 
 const SuperAdminPage: React.FC = () => {
+  const { profile: myProfile } = useContext(UserContext);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'users' | 'quizzes' | 'arena' | 'reports'>('home');
@@ -29,10 +31,20 @@ const SuperAdminPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null); // For Detailed User Modal
+  
+  // User Management
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [userPointsEdit, setUserPointsEdit] = useState<string>('');
+  const [editingRoles, setEditingRoles] = useState({ superAdmin: false, admin: false, support: false });
 
   // --- AUTHENTICATION ---
+  useEffect(() => {
+      // Auto-unlock if user is a Super Admin based on profile roles
+      if (myProfile?.roles?.superAdmin) {
+          setIsAuthenticated(true);
+      }
+  }, [myProfile]);
+
   const checkPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (pin === '1234') { 
@@ -79,30 +91,48 @@ const SuperAdminPage: React.FC = () => {
     }
   }, [selectedChapter]);
 
-  // --- COMPOTED METRICS ---
-  const stats = useMemo(() => {
-      const now = Date.now();
-      const day = 24 * 60 * 60 * 1000;
-      const newUsers = users.filter(u => (u.createdAt || 0) > now - day).length;
-      const activeMatches = matches.filter(m => m.status === 'active').length;
-      return {
-          totalUsers: users.length,
-          activeMatches,
-          newUsers,
-          reports: reports.length
-      };
-  }, [users, matches, reports]);
+  // --- USER SELECTION LOGIC ---
+  useEffect(() => {
+      if (selectedUser) {
+          // Sync local role state with selected user
+          setEditingRoles({
+              superAdmin: selectedUser.roles?.superAdmin || false,
+              admin: selectedUser.roles?.admin || (selectedUser.role === 'admin') || false,
+              support: selectedUser.roles?.support || selectedUser.isSupport || false
+          });
+      }
+  }, [selectedUser]);
 
   // --- ACTIONS ---
   const toggleUserProp = async (uid: string, prop: string, current: any) => {
     try {
       await update(ref(db, `users/${uid}`), { [prop]: !current });
-      // Update local state if selected
       if (selectedUser && selectedUser.uid === uid) {
           setSelectedUser({ ...selectedUser, [prop]: !current });
       }
       showToast(`User ${prop} updated`);
     } catch(e) { showAlert("Error", "Action failed", "error"); }
+  };
+
+  const saveUserRoles = async () => {
+      if (!selectedUser) return;
+      
+      const roles = editingRoles;
+      const updates: any = {};
+      
+      // Update Roles Object
+      updates[`users/${selectedUser.uid}/roles`] = roles;
+      
+      // Maintain Legacy Compatibility
+      updates[`users/${selectedUser.uid}/isSupport`] = roles.support;
+      updates[`users/${selectedUser.uid}/role`] = roles.admin ? 'admin' : 'user';
+      
+      try {
+          await update(ref(db), updates);
+          showToast("User roles updated", "success");
+      } catch(e) {
+          showAlert("Error", "Failed to update roles", "error");
+      }
   };
 
   const saveUserPoints = async () => {
@@ -149,7 +179,6 @@ const SuperAdminPage: React.FC = () => {
       setFabOpen(false);
       if (action === 'quiz') {
           setActiveTab('quizzes');
-          // Ideally open "Add Question" modal, but simply navigating is good for quick action
       } else if (action === 'user') {
           setActiveTab('users');
           document.getElementById('user-search')?.focus();
@@ -163,6 +192,20 @@ const SuperAdminPage: React.FC = () => {
     const term = searchTerm.toLowerCase();
     return users.filter(u => u.name?.toLowerCase().includes(term) || u.username?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term));
   }, [users, searchTerm]);
+
+  // --- COMPUTED METRICS ---
+  const stats = useMemo(() => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const newUsers = users.filter(u => (u.createdAt || 0) > now - day).length;
+      const activeMatches = matches.filter(m => m.status === 'active').length;
+      return {
+          totalUsers: users.length,
+          activeMatches,
+          newUsers,
+          reports: reports.length
+      };
+  }, [users, matches, reports]);
 
   // --- UI HELPERS ---
   const SidebarItem = ({ id, icon, active }: { id: string, icon: string, active: boolean }) => (
@@ -179,13 +222,11 @@ const SuperAdminPage: React.FC = () => {
       <div className="bg-[#1e293b] rounded-[2rem] p-5 relative overflow-hidden border border-slate-700/50 shadow-lg group hover:border-slate-600 transition-colors">
           <div className="flex justify-between items-start mb-2">
               <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</h3>
-              <div className={`w-8 h-8 rounded-lg bg-${chartColor === '#22d3ee' ? 'cyan' : chartColor === '#4ade80' ? 'green' : chartColor === '#fb923c' ? 'orange' : 'pink'}-500/10 flex items-center justify-center`} style={{color: chartColor}}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white`} style={{backgroundColor: chartColor}}>
                   <i className={`fas ${icon}`}></i>
               </div>
           </div>
           <div className="text-2xl font-black text-white mb-4">{value}</div>
-          
-          {/* SVG Chart Simulation */}
           <div className="absolute bottom-4 left-0 right-0 h-10 px-4 opacity-80">
              <svg viewBox="0 0 100 25" className="w-full h-full overflow-visible">
                  <path 
@@ -230,9 +271,9 @@ const SuperAdminPage: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0b1120] text-white font-sans overflow-hidden select-none">
         
-        {/* SIDEBAR */}
+        {/* SIDEBAR - Fixed Menu */}
         <div className="w-24 border-r border-slate-800 flex flex-col items-center py-8 z-20 bg-[#0b1120] hidden md:flex">
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center mb-10 shadow-lg shadow-cyan-500/20">
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center mb-10 shadow-lg shadow-cyan-500/20 cursor-pointer hover:scale-105 transition-transform" onClick={() => navigate('/')}>
                 <i className="fas fa-bolt text-xl text-white"></i>
             </div>
             
@@ -254,9 +295,14 @@ const SuperAdminPage: React.FC = () => {
             
             {/* HEADER */}
             <header className="px-8 py-6 flex justify-between items-center border-b border-slate-800/50 bg-[#0b1120]/95 backdrop-blur-sm z-10">
-                <div>
-                    <h1 className="text-2xl font-black text-white tracking-tight">ADMIN CONSOLE</h1>
-                    <p className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.3em]">LP-F4 Systems</p>
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/')} className="md:hidden w-10 h-10 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center">
+                        <i className="fas fa-arrow-left"></i>
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-black text-white tracking-tight">SUPER ADMIN</h1>
+                        <p className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.3em]">Central Command</p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-6">
                     <div className="relative cursor-pointer" onClick={() => setActiveTab('reports')}>
@@ -265,11 +311,11 @@ const SuperAdminPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="text-right hidden sm:block">
-                            <div className="text-white font-bold text-sm">Administrator</div>
-                            <div className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Level 99</div>
+                            <div className="text-white font-bold text-sm">Super Admin</div>
+                            <div className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Full Access</div>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-cyan-500/20 border-2 border-cyan-500 flex items-center justify-center overflow-hidden">
-                            <span className="font-black text-cyan-400 text-xs">LP</span>
+                        <div className="w-10 h-10 rounded-full bg-purple-500/20 border-2 border-purple-500 flex items-center justify-center overflow-hidden">
+                            <i className="fas fa-user-astronaut text-purple-400"></i>
                         </div>
                     </div>
                 </div>
@@ -290,51 +336,15 @@ const SuperAdminPage: React.FC = () => {
                             <StatCard title="Pending Reports" value={stats.reports.toString()} sub={stats.reports > 0 ? "Action Req" : "Clear"} chartColor="#f472b6" icon="fa-flag" />
                         </div>
 
-                        {/* Middle Section: Chart & Activity */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            
-                            {/* Large Chart */}
-                            <div className="lg:col-span-2 bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 shadow-xl relative overflow-hidden">
-                                <div className="flex justify-between items-center mb-8 relative z-10">
-                                    <div>
-                                        <h3 className="text-white font-black uppercase text-lg tracking-tight">Activity Volume</h3>
-                                        <p className="text-slate-500 text-xs font-bold">Real-time performance metrics</p>
-                                    </div>
-                                    <div className="flex bg-[#0b1120] rounded-lg p-1">
-                                        <button className="px-3 py-1 bg-cyan-500 text-[#0b1120] text-[10px] font-black rounded uppercase">Live</button>
-                                        <button className="px-3 py-1 text-slate-500 text-[10px] font-black rounded uppercase hover:text-white">Week</button>
-                                    </div>
-                                </div>
-                                
-                                {/* Big Gradient Chart (Visual Only) */}
-                                <div className="h-48 w-full relative z-10">
-                                    <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                        <defs>
-                                            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.5" />
-                                                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-                                            </linearGradient>
-                                        </defs>
-                                        <path d="M0,80 C50,80 50,40 100,40 C150,40 150,70 200,60 C250,50 250,20 300,30 C350,40 350,10 400,20 V100 H0 Z" fill="url(#chartGrad)" />
-                                        <path d="M0,80 C50,80 50,40 100,40 C150,40 150,70 200,60 C250,50 250,20 300,30 C350,40 350,10 400,20" fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" />
-                                        {/* Points */}
-                                        <circle cx="400" cy="20" r="4" fill="#22d3ee" stroke="#fff" strokeWidth="2" className="animate-pulse" />
-                                    </svg>
-                                </div>
-                                
-                                <div className="flex justify-between text-slate-500 text-[10px] font-black uppercase mt-4 px-2 opacity-50">
-                                    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-                                </div>
-                            </div>
-
-                            {/* Recent Activity List */}
+                        {/* Recent Activity List */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="bg-[#1e293b] rounded-[2.5rem] p-6 border border-slate-700/50 shadow-xl flex flex-col">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-white font-black uppercase text-sm tracking-widest">Live Arena Feed</h3>
                                     <button onClick={() => setActiveTab('arena')} className="text-[10px] font-black text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded-full hover:bg-cyan-500/10">VIEW ALL</button>
                                 </div>
-                                <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 max-h-[250px]">
-                                    {matches.slice(0, 5).map(m => (
+                                <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 max-h-[350px]">
+                                    {matches.slice(0, 10).map(m => (
                                         <div key={m.matchId} className="bg-[#0b1120] p-3 rounded-2xl flex items-center gap-3 border border-slate-800 hover:border-slate-600 transition-colors">
                                             <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-cyan-400">
                                                 <i className="fas fa-gamepad"></i>
@@ -377,7 +387,7 @@ const SuperAdminPage: React.FC = () => {
                             </div>
                         </div>
                         <div className="space-y-3">
-                            {filteredUsers.slice(0, 20).map(u => (
+                            {filteredUsers.slice(0, 50).map(u => (
                                 <div key={u.uid} className="bg-[#0b1120] p-4 rounded-2xl flex items-center justify-between group hover:border-cyan-500/30 border border-transparent transition-all">
                                     <div className="flex items-center gap-4">
                                         <Avatar src={u.avatar} size="sm" isVerified={u.isVerified} />
@@ -385,7 +395,8 @@ const SuperAdminPage: React.FC = () => {
                                             <div className="text-white font-bold text-sm flex items-center gap-2">
                                                 {u.name}
                                                 {u.banned && <span className="text-[8px] bg-red-500 px-1.5 rounded text-white uppercase font-black">Banned</span>}
-                                                {u.isSupport && <span className="text-[8px] bg-purple-500 px-1.5 rounded text-white uppercase font-black">Staff</span>}
+                                                {u.roles?.superAdmin && <span className="text-[8px] bg-purple-500 px-1.5 rounded text-white uppercase font-black">Super Admin</span>}
+                                                {u.roles?.support && !u.roles?.superAdmin && <span className="text-[8px] bg-orange-500 px-1.5 rounded text-white uppercase font-black">Staff</span>}
                                             </div>
                                             <div className="text-slate-500 text-xs font-mono">@{u.username || 'guest'} • <span className="text-cyan-400">{u.points} PTS</span></div>
                                         </div>
@@ -394,7 +405,7 @@ const SuperAdminPage: React.FC = () => {
                                         onClick={() => { setSelectedUser(u); setUserPointsEdit(String(u.points)); }} 
                                         className="bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 px-4 py-2 rounded-xl text-xs font-black uppercase transition-colors"
                                     >
-                                        View / Edit
+                                        Manage
                                     </button>
                                 </div>
                             ))}
@@ -519,25 +530,52 @@ const SuperAdminPage: React.FC = () => {
                         </div>
                         <div className="bg-[#0b1120] p-3 rounded-xl text-center border border-slate-800">
                             <div className="text-[10px] text-slate-500 uppercase font-black">Role</div>
-                            <div className="text-sm text-white font-bold">{selectedUser.isSupport ? 'Staff' : selectedUser.role || 'User'}</div>
+                            <div className="text-sm text-white font-bold">{selectedUser.roles?.superAdmin ? 'Super Admin' : selectedUser.roles?.support ? 'Staff' : 'User'}</div>
                         </div>
                     </div>
 
-                    <div className="w-full space-y-3">
+                    <div className="w-full space-y-4">
+                        {/* ROLE MANAGEMENT */}
+                        <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Role Assignment</label>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.support ? 'bg-orange-500 border-orange-500 text-black' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.support && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.support} onChange={() => setEditingRoles(prev => ({ ...prev, support: !prev.support }))} />
+                                    <span className="text-sm font-bold text-white">Support Staff</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.admin ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.admin && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.admin} onChange={() => setEditingRoles(prev => ({ ...prev, admin: !prev.admin }))} />
+                                    <span className="text-sm font-bold text-white">Admin (Content Manager)</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.superAdmin ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.superAdmin && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.superAdmin} onChange={() => setEditingRoles(prev => ({ ...prev, superAdmin: !prev.superAdmin }))} />
+                                    <span className="text-sm font-bold text-white">Super Admin (Full Access)</span>
+                                </label>
+                            </div>
+                            <Button size="sm" onClick={saveUserRoles} className="mt-4 !py-2 !text-xs !bg-slate-700 hover:!bg-slate-600 border-none w-full">Update Roles</Button>
+                        </div>
+
+                        {/* QUICK ACTIONS */}
                         <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Quick Actions</label>
                             <div className="grid grid-cols-2 gap-2">
                                 <button onClick={() => toggleUserProp(selectedUser.uid, 'isVerified', selectedUser.isVerified)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.isVerified ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'}`}>
                                     {selectedUser.isVerified ? 'Unverify' : 'Verify'}
                                 </button>
-                                <button onClick={() => toggleUserProp(selectedUser.uid, 'isSupport', selectedUser.isSupport)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.isSupport ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'}`}>
-                                    {selectedUser.isSupport ? 'Demote' : 'Make Staff'}
-                                </button>
                                 <button onClick={() => toggleUserProp(selectedUser.uid, 'banned', selectedUser.banned)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.banned ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
                                     {selectedUser.banned ? 'Unban' : 'Ban User'}
                                 </button>
-                                <button onClick={() => deleteUser(selectedUser.uid)} className="py-2 rounded-lg text-xs font-black uppercase bg-red-600 text-white hover:bg-red-700">
-                                    Delete
+                                <button onClick={() => deleteUser(selectedUser.uid)} className="py-2 rounded-lg text-xs font-black uppercase bg-red-600 text-white hover:bg-red-700 col-span-2">
+                                    Delete User
                                 </button>
                             </div>
                         </div>
