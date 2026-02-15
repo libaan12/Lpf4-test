@@ -1,34 +1,36 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ref, update, onValue, off, set, remove, get, push } from 'firebase/database';
+import { ref, update, onValue, off, set, remove, get, push, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport } from '../types';
-import { Button, Card, Input, Modal, Avatar } from '../components/UI';
+import { Button, Card, Input, Modal, Avatar, VerificationBadge } from '../components/UI';
 import { showAlert, showToast, showConfirm, showPrompt } from '../services/alert';
 import { useNavigate } from 'react-router-dom';
 
 const SuperAdminPage: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'users' | 'quizzes' | 'arena' | 'social' | 'reports'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'users' | 'quizzes' | 'arena' | 'reports'>('home');
   const navigate = useNavigate();
   
   // --- DATA STATES ---
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [matches, setMatches] = useState<MatchState[]>([]);
+  const [reports, setReports] = useState<QuestionReport[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [matches, setMatches] = useState<MatchState[]>([]);
-  const [reports, setReports] = useState<QuestionReport[]>([]);
-  const [emojis, setEmojis] = useState<{id: string, value: string}[]>([]);
-  const [pttMessages, setPttMessages] = useState<{id: string, value: string}[]>([]);
+  
+  // --- UI STATES ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [fabOpen, setFabOpen] = useState(false);
   
   // Selection States
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  const [reportFilter, setReportFilter] = useState<'all' | 'wrong_answer' | 'typo' | 'other'>('all');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null); // For Detailed User Modal
+  const [userPointsEdit, setUserPointsEdit] = useState<string>('');
 
   // --- AUTHENTICATION ---
   const checkPin = (e: React.FormEvent) => {
@@ -49,13 +51,6 @@ const SuperAdminPage: React.FC = () => {
       { path: 'matches', setter: (data: any) => setMatches(Object.keys(data || {}).map(k => ({ ...data[k], matchId: k })).reverse()) },
       { path: 'reports', setter: (data: any) => setReports(Object.keys(data || {}).map(k => ({ ...data[k], id: k })).reverse()) },
       { path: 'subjects', setter: (data: any) => setSubjects(Object.values(data || {}).filter((s: any) => s && s.id && s.name) as Subject[]) },
-      { 
-        path: 'settings/reactions', 
-        setter: (val: any) => {
-          if (val?.emojis) setEmojis(Object.entries(val.emojis).map(([k, v]) => ({id: k, value: v as string})));
-          if (val?.messages) setPttMessages(Object.entries(val.messages).map(([k, v]) => ({id: k, value: v as string})));
-        } 
-      }
     ];
 
     const unsubs = syncRefs.map(r => {
@@ -84,16 +79,47 @@ const SuperAdminPage: React.FC = () => {
     }
   }, [selectedChapter]);
 
-  // --- ACTIONS (Retained Logic) ---
+  // --- COMPOTED METRICS ---
+  const stats = useMemo(() => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const newUsers = users.filter(u => (u.createdAt || 0) > now - day).length;
+      const activeMatches = matches.filter(m => m.status === 'active').length;
+      return {
+          totalUsers: users.length,
+          activeMatches,
+          newUsers,
+          reports: reports.length
+      };
+  }, [users, matches, reports]);
+
+  // --- ACTIONS ---
   const toggleUserProp = async (uid: string, prop: string, current: any) => {
     try {
       await update(ref(db, `users/${uid}`), { [prop]: !current });
-      showToast("User updated");
+      // Update local state if selected
+      if (selectedUser && selectedUser.uid === uid) {
+          setSelectedUser({ ...selectedUser, [prop]: !current });
+      }
+      showToast(`User ${prop} updated`);
     } catch(e) { showAlert("Error", "Action failed", "error"); }
   };
 
-  const adjustPoints = async (uid: string, current: number, delta: number) => {
-    await update(ref(db, `users/${uid}`), { points: Math.max(0, current + delta) });
+  const saveUserPoints = async () => {
+      if (!selectedUser) return;
+      const pts = parseInt(userPointsEdit);
+      if (isNaN(pts)) return;
+      await update(ref(db, `users/${selectedUser.uid}`), { points: pts });
+      showToast("Points updated", "success");
+      setSelectedUser({ ...selectedUser, points: pts });
+  };
+
+  const deleteUser = async (uid: string) => {
+      if (await showConfirm("Delete User?", "This action is irreversible.", "Delete", "Cancel", "danger")) {
+          await remove(ref(db, `users/${uid}`));
+          setSelectedUser(null);
+          showToast("User deleted", "success");
+      }
   };
 
   const terminateMatch = async (matchId: string) => {
@@ -119,12 +145,17 @@ const SuperAdminPage: React.FC = () => {
     showToast("Updated");
   };
 
-  const handleDeleteQuestion = async (id: string | number) => {
-    if (!selectedChapter) return;
-    if (await showConfirm("Delete?", "Permanently remove question?")) {
-      await remove(ref(db, `questions/${selectedChapter}/${id}`));
-      showToast("Deleted");
-    }
+  const handleFABAction = (action: 'quiz' | 'user' | 'alert') => {
+      setFabOpen(false);
+      if (action === 'quiz') {
+          setActiveTab('quizzes');
+          // Ideally open "Add Question" modal, but simply navigating is good for quick action
+      } else if (action === 'user') {
+          setActiveTab('users');
+          document.getElementById('user-search')?.focus();
+      } else if (action === 'alert') {
+          showToast("System Alert Broadcasted (Simulated)", "info");
+      }
   };
 
   // --- FILTERS ---
@@ -133,13 +164,7 @@ const SuperAdminPage: React.FC = () => {
     return users.filter(u => u.name?.toLowerCase().includes(term) || u.username?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term));
   }, [users, searchTerm]);
 
-  const filteredReports = useMemo(() => {
-    if (reportFilter === 'all') return reports;
-    return reports.filter(r => r.reason === reportFilter);
-  }, [reports, reportFilter]);
-
-  // --- UI COMPONENTS ---
-
+  // --- UI HELPERS ---
   const SidebarItem = ({ id, icon, active }: { id: string, icon: string, active: boolean }) => (
       <button 
         onClick={() => setActiveTab(id as any)}
@@ -150,20 +175,26 @@ const SuperAdminPage: React.FC = () => {
       </button>
   );
 
-  const StatCard = ({ title, value, sub, chartColor }: { title: string, value: string, sub: string, chartColor: string }) => (
-      <div className="bg-[#1e293b] rounded-[2rem] p-5 relative overflow-hidden border border-slate-700/50 shadow-lg">
-          <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{title}</h3>
+  const StatCard = ({ title, value, sub, chartColor, icon }: { title: string, value: string, sub: string, chartColor: string, icon: string }) => (
+      <div className="bg-[#1e293b] rounded-[2rem] p-5 relative overflow-hidden border border-slate-700/50 shadow-lg group hover:border-slate-600 transition-colors">
+          <div className="flex justify-between items-start mb-2">
+              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</h3>
+              <div className={`w-8 h-8 rounded-lg bg-${chartColor === '#22d3ee' ? 'cyan' : chartColor === '#4ade80' ? 'green' : chartColor === '#fb923c' ? 'orange' : 'pink'}-500/10 flex items-center justify-center`} style={{color: chartColor}}>
+                  <i className={`fas ${icon}`}></i>
+              </div>
+          </div>
           <div className="text-2xl font-black text-white mb-4">{value}</div>
           
           {/* SVG Chart Simulation */}
           <div className="absolute bottom-4 left-0 right-0 h-10 px-4 opacity-80">
              <svg viewBox="0 0 100 25" className="w-full h-full overflow-visible">
                  <path 
-                    d="M0,25 C20,25 20,10 40,10 C60,10 60,20 80,20 C90,20 95,5 100,0" 
+                    d="M0,25 Q25,20 50,15 T100,5" 
                     fill="none" 
                     stroke={chartColor} 
                     strokeWidth="3" 
                     strokeLinecap="round"
+                    className="drop-shadow-md"
                  />
              </svg>
           </div>
@@ -200,17 +231,16 @@ const SuperAdminPage: React.FC = () => {
     <div className="flex h-screen bg-[#0b1120] text-white font-sans overflow-hidden select-none">
         
         {/* SIDEBAR */}
-        <div className="w-24 border-r border-slate-800 flex flex-col items-center py-8 z-20 bg-[#0b1120]">
+        <div className="w-24 border-r border-slate-800 flex flex-col items-center py-8 z-20 bg-[#0b1120] hidden md:flex">
             <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center mb-10 shadow-lg shadow-cyan-500/20">
                 <i className="fas fa-bolt text-xl text-white"></i>
             </div>
             
             <div className="flex-1 w-full flex flex-col items-center custom-scrollbar overflow-y-auto">
                 <SidebarItem id="home" icon="fa-th-large" active={activeTab === 'home'} />
-                <SidebarItem id="quizzes" icon="fa-layer-group" active={activeTab === 'quizzes'} />
                 <SidebarItem id="users" icon="fa-users" active={activeTab === 'users'} />
+                <SidebarItem id="quizzes" icon="fa-layer-group" active={activeTab === 'quizzes'} />
                 <SidebarItem id="arena" icon="fa-gamepad" active={activeTab === 'arena'} />
-                <SidebarItem id="social" icon="fa-comments" active={activeTab === 'social'} />
                 <SidebarItem id="reports" icon="fa-flag" active={activeTab === 'reports'} />
             </div>
 
@@ -229,29 +259,35 @@ const SuperAdminPage: React.FC = () => {
                     <p className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.3em]">LP-F4 Systems</p>
                 </div>
                 <div className="flex items-center gap-6">
-                    <div className="relative">
-                        <i className="fas fa-bell text-slate-400 text-xl"></i>
-                        {reports.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>}
+                    <div className="relative cursor-pointer" onClick={() => setActiveTab('reports')}>
+                        <i className="fas fa-bell text-slate-400 text-xl hover:text-white transition-colors"></i>
+                        {stats.reports > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]"></span>}
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-cyan-500/20 border-2 border-cyan-500 flex items-center justify-center">
-                        <span className="font-black text-cyan-400 text-xs">LP</span>
+                    <div className="flex items-center gap-3">
+                        <div className="text-right hidden sm:block">
+                            <div className="text-white font-bold text-sm">Administrator</div>
+                            <div className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Level 99</div>
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-cyan-500/20 border-2 border-cyan-500 flex items-center justify-center overflow-hidden">
+                            <span className="font-black text-cyan-400 text-xs">LP</span>
+                        </div>
                     </div>
                 </div>
             </header>
 
             {/* SCROLLABLE AREA */}
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                 
                 {/* --- DASHBOARD HOME --- */}
                 {activeTab === 'home' && (
-                    <div className="max-w-6xl mx-auto space-y-8 animate__animated animate__fadeIn">
+                    <div className="max-w-7xl mx-auto space-y-8 animate__animated animate__fadeIn">
                         
                         {/* 4 Stats Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <StatCard title="Total Users" value={users.length.toLocaleString()} sub="+12.5%" chartColor="#22d3ee" />
-                            <StatCard title="Live Matches" value={matches.length.toString()} sub="Active" chartColor="#4ade80" />
-                            <StatCard title="New Signups" value="24" sub="+5 Today" chartColor="#fb923c" />
-                            <StatCard title="Reports" value={reports.length.toString()} sub={reports.length > 0 ? "Action Req" : "All Good"} chartColor="#f472b6" />
+                            <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} sub="+12.5%" chartColor="#22d3ee" icon="fa-users" />
+                            <StatCard title="Live Battles" value={stats.activeMatches.toString()} sub="Active" chartColor="#4ade80" icon="fa-gamepad" />
+                            <StatCard title="New Recruits" value={stats.newUsers.toString()} sub="+24h" chartColor="#fb923c" icon="fa-user-plus" />
+                            <StatCard title="Pending Reports" value={stats.reports.toString()} sub={stats.reports > 0 ? "Action Req" : "Clear"} chartColor="#f472b6" icon="fa-flag" />
                         </div>
 
                         {/* Middle Section: Chart & Activity */}
@@ -261,16 +297,16 @@ const SuperAdminPage: React.FC = () => {
                             <div className="lg:col-span-2 bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 shadow-xl relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-8 relative z-10">
                                     <div>
-                                        <h3 className="text-white font-black uppercase text-lg tracking-tight">Activity Growth</h3>
+                                        <h3 className="text-white font-black uppercase text-lg tracking-tight">Activity Volume</h3>
                                         <p className="text-slate-500 text-xs font-bold">Real-time performance metrics</p>
                                     </div>
                                     <div className="flex bg-[#0b1120] rounded-lg p-1">
-                                        <button className="px-3 py-1 bg-cyan-500 text-[#0b1120] text-[10px] font-black rounded uppercase">Week</button>
-                                        <button className="px-3 py-1 text-slate-500 text-[10px] font-black rounded uppercase hover:text-white">Month</button>
+                                        <button className="px-3 py-1 bg-cyan-500 text-[#0b1120] text-[10px] font-black rounded uppercase">Live</button>
+                                        <button className="px-3 py-1 text-slate-500 text-[10px] font-black rounded uppercase hover:text-white">Week</button>
                                     </div>
                                 </div>
                                 
-                                {/* Big Gradient Chart */}
+                                {/* Big Gradient Chart (Visual Only) */}
                                 <div className="h-48 w-full relative z-10">
                                     <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
                                         <defs>
@@ -282,30 +318,30 @@ const SuperAdminPage: React.FC = () => {
                                         <path d="M0,80 C50,80 50,40 100,40 C150,40 150,70 200,60 C250,50 250,20 300,30 C350,40 350,10 400,20 V100 H0 Z" fill="url(#chartGrad)" />
                                         <path d="M0,80 C50,80 50,40 100,40 C150,40 150,70 200,60 C250,50 250,20 300,30 C350,40 350,10 400,20" fill="none" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" />
                                         {/* Points */}
-                                        <circle cx="400" cy="20" r="4" fill="#22d3ee" stroke="#fff" strokeWidth="2" />
+                                        <circle cx="400" cy="20" r="4" fill="#22d3ee" stroke="#fff" strokeWidth="2" className="animate-pulse" />
                                     </svg>
                                 </div>
                                 
-                                <div className="flex justify-between text-slate-500 text-[10px] font-black uppercase mt-4 px-2">
+                                <div className="flex justify-between text-slate-500 text-[10px] font-black uppercase mt-4 px-2 opacity-50">
                                     <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
                                 </div>
                             </div>
 
                             {/* Recent Activity List */}
-                            <div className="bg-[#1e293b] rounded-[2.5rem] p-6 border border-slate-700/50 shadow-xl">
+                            <div className="bg-[#1e293b] rounded-[2.5rem] p-6 border border-slate-700/50 shadow-xl flex flex-col">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-white font-black uppercase text-sm tracking-widest">Recent Battles</h3>
-                                    <button className="text-[10px] font-black text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded-full hover:bg-cyan-500/10">VIEW ALL</button>
+                                    <h3 className="text-white font-black uppercase text-sm tracking-widest">Live Arena Feed</h3>
+                                    <button onClick={() => setActiveTab('arena')} className="text-[10px] font-black text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded-full hover:bg-cyan-500/10">VIEW ALL</button>
                                 </div>
-                                <div className="space-y-4">
-                                    {matches.slice(0, 4).map(m => (
-                                        <div key={m.matchId} className="bg-[#0b1120] p-3 rounded-2xl flex items-center gap-3 border border-slate-800">
+                                <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 max-h-[250px]">
+                                    {matches.slice(0, 5).map(m => (
+                                        <div key={m.matchId} className="bg-[#0b1120] p-3 rounded-2xl flex items-center gap-3 border border-slate-800 hover:border-slate-600 transition-colors">
                                             <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-cyan-400">
                                                 <i className="fas fa-gamepad"></i>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-white font-bold text-xs truncate">#{String(m.matchId).substring(6)}</div>
-                                                <div className="text-[10px] text-slate-500 truncate">{m.subjectTitle}</div>
+                                                <div className="text-white font-bold text-xs truncate">Match #{String(m.matchId).substring(6)}</div>
+                                                <div className="text-[10px] text-slate-500 truncate">{m.subjectTitle || 'Battle'}</div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-white font-black text-sm">{Object.keys(m.players || {}).length}P</div>
@@ -322,145 +358,208 @@ const SuperAdminPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* --- OTHER TABS (Simplified Views) --- */}
-                {activeTab !== 'home' && (
+                {/* --- USERS TAB --- */}
+                {activeTab === 'users' && (
                     <div className="bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
-                        {activeTab === 'users' && (
-                            <div>
-                                <div className="flex gap-4 mb-6">
-                                    <div className="relative flex-1">
-                                        <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                                        <input 
-                                            value={searchTerm}
-                                            onChange={e => setSearchTerm(e.target.value)}
-                                            className="w-full bg-[#0b1120] border-none rounded-xl py-3 pl-12 pr-4 text-white text-sm font-bold focus:ring-1 focus:ring-cyan-500"
-                                            placeholder="Search users..."
-                                        />
+                        <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between items-center">
+                            <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                                <i className="fas fa-users text-cyan-400"></i> User Database
+                            </h2>
+                            <div className="relative w-full md:w-64">
+                                <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                                <input 
+                                    id="user-search"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full bg-[#0b1120] border border-slate-700 rounded-xl py-3 pl-12 pr-4 text-white text-sm font-bold focus:ring-2 focus:ring-cyan-500 outline-none"
+                                    placeholder="Search users..."
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            {filteredUsers.slice(0, 20).map(u => (
+                                <div key={u.uid} className="bg-[#0b1120] p-4 rounded-2xl flex items-center justify-between group hover:border-cyan-500/30 border border-transparent transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <Avatar src={u.avatar} size="sm" isVerified={u.isVerified} />
+                                        <div>
+                                            <div className="text-white font-bold text-sm flex items-center gap-2">
+                                                {u.name}
+                                                {u.banned && <span className="text-[8px] bg-red-500 px-1.5 rounded text-white uppercase font-black">Banned</span>}
+                                                {u.isSupport && <span className="text-[8px] bg-purple-500 px-1.5 rounded text-white uppercase font-black">Staff</span>}
+                                            </div>
+                                            <div className="text-slate-500 text-xs font-mono">@{u.username || 'guest'} • <span className="text-cyan-400">{u.points} PTS</span></div>
+                                        </div>
                                     </div>
-                                    <div className="bg-[#0b1120] px-4 py-3 rounded-xl text-white font-black text-sm flex items-center gap-2">
-                                        {users.length} <span className="text-slate-500">USERS</span>
+                                    <button 
+                                        onClick={() => { setSelectedUser(u); setUserPointsEdit(String(u.points)); }} 
+                                        className="bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 px-4 py-2 rounded-xl text-xs font-black uppercase transition-colors"
+                                    >
+                                        View / Edit
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- QUIZZES TAB --- */}
+                {activeTab === 'quizzes' && (
+                    <div className="bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
+                        <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2">
+                            <i className="fas fa-layer-group text-purple-400"></i> Content Manager
+                        </h2>
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <select 
+                                value={selectedSubject} 
+                                onChange={e => setSelectedSubject(e.target.value)}
+                                className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500"
+                            >
+                                <option value="">Select Subject</option>
+                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            <select 
+                                value={selectedChapter} 
+                                onChange={e => setSelectedChapter(e.target.value)}
+                                className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500"
+                                disabled={!selectedSubject}
+                            >
+                                <option value="">Select Chapter</option>
+                                {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-3">
+                            {questions.map((q, idx) => (
+                                <div key={q.id} className="bg-[#0b1120] p-4 rounded-2xl border border-slate-800 flex justify-between items-start hover:border-purple-500/30 transition-colors">
+                                    <div className="flex gap-3">
+                                        <div className="text-cyan-500 font-black text-lg w-8 pt-1">Q{idx+1}</div>
+                                        <div>
+                                            <div className="text-white font-bold text-sm mb-2">{q.question}</div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {q.options.map((o, i) => (
+                                                    <span key={i} className={`text-[10px] px-2 py-1 rounded ${i === q.answer ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-500'}`}>{o}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => setEditingQuestion(q)} className="text-cyan-400 hover:text-white"><i className="fas fa-edit"></i></button>
                                     </div>
                                 </div>
-                                <div className="space-y-3">
-                                    {filteredUsers.slice(0, 20).map(u => (
-                                        <div key={u.uid} className="bg-[#0b1120] p-4 rounded-2xl flex items-center justify-between group hover:border-cyan-500/30 border border-transparent transition-all">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar src={u.avatar} size="sm" />
-                                                <div>
-                                                    <div className="text-white font-bold text-sm flex items-center gap-2">
-                                                        {u.name}
-                                                        {u.banned && <span className="text-[8px] bg-red-500 px-1.5 rounded text-white uppercase">Banned</span>}
-                                                    </div>
-                                                    <div className="text-slate-500 text-xs">@{u.username || 'guest'} • {u.points} PTS</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => toggleUserProp(u.uid, 'isVerified', u.isVerified)} className="w-8 h-8 rounded-lg bg-slate-800 text-blue-400 hover:bg-blue-500 hover:text-white flex items-center justify-center"><i className="fas fa-check"></i></button>
-                                                <button onClick={() => toggleUserProp(u.uid, 'banned', u.banned)} className="w-8 h-8 rounded-lg bg-slate-800 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center"><i className="fas fa-ban"></i></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                            ))}
+                            {questions.length === 0 && <div className="text-center text-slate-600 py-10 font-bold">Select a chapter to view questions</div>}
+                        </div>
+                    </div>
+                )}
 
-                        {activeTab === 'quizzes' && (
-                            <div>
-                                <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest">Content Manager</h2>
-                                <div className="grid grid-cols-2 gap-4 mb-6">
-                                    <select 
-                                        value={selectedSubject} 
-                                        onChange={e => setSelectedSubject(e.target.value)}
-                                        className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500"
-                                    >
-                                        <option value="">Select Subject</option>
-                                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                    <select 
-                                        value={selectedChapter} 
-                                        onChange={e => setSelectedChapter(e.target.value)}
-                                        className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500"
-                                        disabled={!selectedSubject}
-                                    >
-                                        <option value="">Select Chapter</option>
-                                        {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-3">
-                                    {questions.map((q, idx) => (
-                                        <div key={q.id} className="bg-[#0b1120] p-4 rounded-2xl border border-slate-800 flex justify-between items-start">
-                                            <div className="flex gap-3">
-                                                <div className="text-cyan-500 font-black text-lg w-8 pt-1">Q{idx+1}</div>
-                                                <div>
-                                                    <div className="text-white font-bold text-sm mb-2">{q.question}</div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {q.options.map((o, i) => (
-                                                            <span key={i} className={`text-[10px] px-2 py-1 rounded ${i === q.answer ? 'bg-green-500/20 text-green-400' : 'bg-slate-800 text-slate-500'}`}>{o}</span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col gap-2">
-                                                <button onClick={() => setEditingQuestion(q)} className="text-cyan-400 hover:text-white"><i className="fas fa-edit"></i></button>
-                                                <button onClick={() => handleDeleteQuestion(q.id)} className="text-red-400 hover:text-white"><i className="fas fa-trash"></i></button>
-                                            </div>
+                {/* --- ARENA TAB --- */}
+                {activeTab === 'arena' && (
+                    <div className="bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
+                        <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2">
+                            <i className="fas fa-gamepad text-green-400"></i> Active Arena
+                        </h2>
+                        <div className="space-y-4">
+                            {matches.map(m => (
+                                <div key={m.matchId} className="bg-[#0b1120] p-5 rounded-2xl border border-slate-800 flex justify-between items-center group hover:border-green-500/30 transition-colors">
+                                    <div>
+                                        <div className="text-cyan-400 text-[10px] font-black uppercase tracking-widest mb-1">{m.subjectTitle}</div>
+                                        <div className="text-white font-bold text-sm flex items-center gap-2">
+                                            {Object.keys(m.players || {}).length} Players
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
                                         </div>
-                                    ))}
-                                    {questions.length === 0 && <div className="text-center text-slate-600 py-10 font-bold">Select a chapter to view questions</div>}
+                                        <div className="text-xs text-slate-500 mt-1">ID: {m.matchId}</div>
+                                    </div>
+                                    <Button size="sm" variant="danger" onClick={() => terminateMatch(m.matchId)} className="!py-2 !px-4 !text-[10px]">TERMINATE</Button>
                                 </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'arena' && (
-                            <div>
-                                <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest">Active Arena</h2>
-                                <div className="space-y-4">
-                                    {matches.map(m => (
-                                        <div key={m.matchId} className="bg-[#0b1120] p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
-                                            <div>
-                                                <div className="text-cyan-400 text-[10px] font-black uppercase tracking-widest mb-1">{m.subjectTitle}</div>
-                                                <div className="text-white font-bold text-sm flex items-center gap-2">
-                                                    {Object.keys(m.players || {}).length} Players
-                                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                                </div>
-                                            </div>
-                                            <Button size="sm" variant="danger" onClick={() => terminateMatch(m.matchId)} className="!py-2 !px-4 !text-[10px]">TERMINATE</Button>
-                                        </div>
-                                    ))}
-                                    {matches.length === 0 && <div className="text-center text-slate-600 py-20 font-bold">No live matches</div>}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {/* Add other tabs content here using similar styling */}
-                        {activeTab === 'reports' && (
-                            <div>
-                                <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest">Incident Reports</h2>
-                                <div className="space-y-3">
-                                    {reports.map(r => (
-                                        <div key={r.id} className="bg-[#0b1120] p-4 rounded-2xl border border-red-500/20">
-                                            <div className="flex justify-between mb-2">
-                                                <span className="text-red-400 text-[10px] font-black uppercase tracking-widest">{r.reason}</span>
-                                                <button onClick={() => remove(ref(db, `reports/${r.id}`))} className="text-slate-500 hover:text-white"><i className="fas fa-times"></i></button>
-                                            </div>
-                                            <p className="text-white text-sm font-medium">"{r.questionText}"</p>
-                                        </div>
-                                    ))}
-                                    {reports.length === 0 && <div className="text-center text-slate-600 py-20 font-bold">Clean record! No reports.</div>}
-                                </div>
-                            </div>
-                        )}
+                            ))}
+                            {matches.length === 0 && <div className="text-center text-slate-600 py-20 font-bold">No live matches</div>}
+                        </div>
                     </div>
                 )}
             </div>
 
-            {/* FLOATING ACTION BUTTON */}
-            <button className="fixed bottom-8 right-8 w-16 h-16 bg-cyan-500 rounded-full flex items-center justify-center text-[#0b1120] text-3xl shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-110 active:scale-95 transition-all z-30">
-                <i className="fas fa-plus"></i>
-            </button>
+            {/* EXPANDABLE FAB */}
+            <div className="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-50">
+                {fabOpen && (
+                    <div className="flex flex-col gap-3 items-end animate__animated animate__fadeInUp animate__faster">
+                        <button onClick={() => handleFABAction('quiz')} className="bg-[#1e293b] text-white px-4 py-2 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                            <span className="text-xs font-bold">New Question</span>
+                            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center"><i className="fas fa-plus"></i></div>
+                        </button>
+                        <button onClick={() => handleFABAction('user')} className="bg-[#1e293b] text-white px-4 py-2 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                            <span className="text-xs font-bold">Find User</span>
+                            <div className="w-8 h-8 rounded-full bg-cyan-500 flex items-center justify-center"><i className="fas fa-search"></i></div>
+                        </button>
+                        <button onClick={() => handleFABAction('alert')} className="bg-[#1e293b] text-white px-4 py-2 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                            <span className="text-xs font-bold">System Alert</span>
+                            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center"><i className="fas fa-bullhorn"></i></div>
+                        </button>
+                    </div>
+                )}
+                <button 
+                    onClick={() => setFabOpen(!fabOpen)}
+                    className={`w-16 h-16 rounded-full flex items-center justify-center text-[#0b1120] text-2xl shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-110 active:scale-95 transition-all z-30 ${fabOpen ? 'bg-slate-700 text-white rotate-45' : 'bg-cyan-500'}`}
+                >
+                    <i className="fas fa-plus"></i>
+                </button>
+            </div>
         </div>
 
-        {/* MODALS */}
+        {/* --- USER DETAIL MODAL --- */}
+        {selectedUser && (
+            <Modal isOpen={true} title="User Manager" onClose={() => setSelectedUser(null)}>
+                <div className="flex flex-col items-center mb-6 pt-2">
+                    <Avatar src={selectedUser.avatar} size="xl" isVerified={selectedUser.isVerified} className="mb-4 border-4 border-slate-700 shadow-xl" />
+                    <h2 className="text-2xl font-black text-white">{selectedUser.name}</h2>
+                    <p className="text-slate-500 text-sm font-bold mb-4">@{selectedUser.username || 'guest'}</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 w-full mb-6">
+                        <div className="bg-[#0b1120] p-3 rounded-xl text-center border border-slate-800">
+                            <div className="text-[10px] text-slate-500 uppercase font-black">Points</div>
+                            <div className="text-xl text-cyan-400 font-black">{selectedUser.points}</div>
+                        </div>
+                        <div className="bg-[#0b1120] p-3 rounded-xl text-center border border-slate-800">
+                            <div className="text-[10px] text-slate-500 uppercase font-black">Role</div>
+                            <div className="text-sm text-white font-bold">{selectedUser.isSupport ? 'Staff' : selectedUser.role || 'User'}</div>
+                        </div>
+                    </div>
+
+                    <div className="w-full space-y-3">
+                        <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Quick Actions</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => toggleUserProp(selectedUser.uid, 'isVerified', selectedUser.isVerified)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.isVerified ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'}`}>
+                                    {selectedUser.isVerified ? 'Unverify' : 'Verify'}
+                                </button>
+                                <button onClick={() => toggleUserProp(selectedUser.uid, 'isSupport', selectedUser.isSupport)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.isSupport ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'}`}>
+                                    {selectedUser.isSupport ? 'Demote' : 'Make Staff'}
+                                </button>
+                                <button onClick={() => toggleUserProp(selectedUser.uid, 'banned', selectedUser.banned)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.banned ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
+                                    {selectedUser.banned ? 'Unban' : 'Ban User'}
+                                </button>
+                                <button onClick={() => deleteUser(selectedUser.uid)} className="py-2 rounded-lg text-xs font-black uppercase bg-red-600 text-white hover:bg-red-700">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800 flex gap-2 items-end">
+                            <div className="flex-1">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Adjust Points</label>
+                                <Input 
+                                    value={userPointsEdit} 
+                                    onChange={e => setUserPointsEdit(e.target.value)} 
+                                    className="!bg-[#1e293b] !border-slate-700 !text-white !mb-0 !py-2" 
+                                    type="number"
+                                />
+                            </div>
+                            <Button size="sm" onClick={saveUserPoints} className="!py-3">Save</Button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        )}
+
+        {/* --- QUESTION EDITOR MODAL --- */}
         {editingQuestion && (
             <Modal isOpen={true} title="Edit Question" onClose={() => setEditingQuestion(null)}>
                 <div className="space-y-4 pt-4">
