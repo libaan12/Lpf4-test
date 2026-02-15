@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, update } from 'firebase/database';
@@ -234,25 +235,39 @@ const HomePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Library Card */}
-                <div onClick={() => handleNav('/library')} className="relative group cursor-pointer col-span-2">
+                {/* Library Card (Resized to 1 column) */}
+                <div onClick={() => handleNav('/library')} className="relative group cursor-pointer">
                     <div className="absolute inset-0 bg-indigo-500 rounded-[2.5rem] blur opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
-                    <div className="bg-[#0f172a]/60 backdrop-blur-md border border-indigo-500/30 p-6 rounded-[2.5rem] h-28 flex items-center justify-between hover:bg-[#1e293b]/80 transition-colors relative overflow-hidden shadow-xl">
+                    <div className="bg-[#0f172a]/60 backdrop-blur-md border border-indigo-500/30 p-6 rounded-[2.5rem] h-44 flex flex-col justify-between hover:bg-[#1e293b]/80 transition-colors relative overflow-hidden shadow-xl">
                         <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl"></div>
                         
-                        <div className="flex items-center gap-5 relative z-10">
-                            <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-2xl border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)] group-hover:scale-110 transition-transform">
-                                <i className="fas fa-book"></i>
-                            </div>
-                            <div>
-                                <h3 className="text-white font-black text-xl leading-none tracking-tight">Library</h3>
-                                <p className="text-indigo-400 text-[10px] font-bold mt-1 uppercase tracking-wider">Get Q&A PDFs</p>
-                            </div>
+                        <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-2xl border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)] group-hover:scale-110 transition-transform">
+                            <i className="fas fa-book"></i>
+                        </div>
+                        <div>
+                            <h3 className="text-white font-black text-xl leading-none tracking-tight">Library</h3>
+                            <p className="text-indigo-400 text-[10px] font-bold mt-1.5 uppercase tracking-wider">Archives</p>
                         </div>
                         
-                        <div className="relative z-10 bg-indigo-500/10 p-3 rounded-full border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                        <div className="absolute bottom-6 right-6 text-indigo-500 text-sm opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
                             <i className="fas fa-arrow-right"></i>
                         </div>
+                    </div>
+                </div>
+
+                {/* Calculator Card (New) */}
+                <div onClick={() => handleNav('/calculator')} className="relative group cursor-pointer">
+                    <div className="absolute inset-0 bg-blue-500 rounded-[2.5rem] blur opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
+                    <div className="bg-[#0f172a]/60 backdrop-blur-md border border-blue-500/30 p-6 rounded-[2.5rem] h-44 flex flex-col justify-between hover:bg-[#1e293b]/80 transition-colors relative overflow-hidden shadow-xl">
+                        <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-xl"></div>
+                        <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-400 text-2xl border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)] group-hover:scale-110 transition-transform">
+                            <i className="fas fa-calculator"></i>
+                        </div>
+                        <div>
+                            <h3 className="text-white font-black text-xl leading-none tracking-tight">Pro Calc</h3>
+                            <p className="text-blue-400 text-[10px] font-bold mt-1.5 uppercase tracking-wider">Sci Tools</p>
+                        </div>
+                        <div className="absolute bottom-6 right-6 text-blue-500 text-sm opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all"><i className="fas fa-arrow-right"></i></div>
                     </div>
                 </div>
 

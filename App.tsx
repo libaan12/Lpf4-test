@@ -31,6 +31,7 @@ import SocialPage from './pages/SocialPage';
 import ChatPage from './pages/ChatPage';
 import LibraryPage from './pages/LibraryPage';
 import { SupportDashboard } from './pages/SupportDashboard';
+import CalculatorPage from './pages/CalculatorPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
@@ -273,7 +274,7 @@ const AppContent: React.FC = () => {
   }
 
   const showNavbar = ['/', '/lobby', '/leaderboard', '/profile', '/about', '/social', '/library'].includes(location.pathname);
-  const showAssistant = user && !location.pathname.includes('/game') && !location.pathname.includes('/chat') && !location.pathname.includes('/support');
+  const showAssistant = user && !location.pathname.includes('/game') && !location.pathname.includes('/chat') && !location.pathname.includes('/support') && !location.pathname.includes('/calculator');
 
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
@@ -299,6 +300,7 @@ const AppContent: React.FC = () => {
                       <Route path="/lobby" element={<ProtectedRoute><LobbyPage /></ProtectedRoute>} />
                       <Route path="/social" element={<ProtectedRoute><SocialPage /></ProtectedRoute>} />
                       <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
+                      <Route path="/calculator" element={<ProtectedRoute><CalculatorPage /></ProtectedRoute>} />
                       <Route path="/chat/:uid" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
                       <Route path="/game/:matchId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
                       <Route path="/solo" element={<ProtectedRoute><SoloPage /></ProtectedRoute>} />
