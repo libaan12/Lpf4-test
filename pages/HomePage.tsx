@@ -137,6 +137,16 @@ const HomePage: React.FC = () => {
 
             {/* Currency / Stats / Admin Button */}
             <div className="flex items-center gap-3">
+                {/* Super Admin Button - Moved from Navbar */}
+                {profile?.roles?.superAdmin && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleNav('/adminlp'); }} 
+                        className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 border border-purple-400/50 flex items-center justify-center text-white shadow-[0_0_15px_rgba(147,51,234,0.4)] active:scale-95 transition-all z-20"
+                    >
+                        <i className="fas fa-user-astronaut"></i>
+                    </button>
+                )}
+
                 <div className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-full px-3 py-1.5 shadow-lg">
                     <i className="fas fa-star text-purple-400 text-xs animate-pulse"></i>
                     <span className="text-white font-black text-sm">{profile?.points}</span>

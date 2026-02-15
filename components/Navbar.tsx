@@ -28,12 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({ orientation = 'horizontal' }) =>
       }
   }
 
-  // Add Super Admin Dashboard if superAdmin role
-  if (profile?.roles?.superAdmin) {
-      if (!navItems.find(i => i.path === '/adminlp')) {
-          navItems.push({ path: '/adminlp', icon: 'fa-shield-alt', label: 'Super Admin', isNew: false });
-      }
-  }
+  // Super Admin is now accessed via the Home Page Header, not the Navbar.
 
   if (orientation === 'vertical') {
       return (
