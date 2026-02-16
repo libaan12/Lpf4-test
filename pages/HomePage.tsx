@@ -260,7 +260,7 @@ const HomePage: React.FC = () => {
                             <i className="fas fa-book"></i>
                         </div>
                         <div>
-                            <h3 className="text-white font-black text-xl leading-none tracking-tight">Library</h3>
+                            <h3 className="text-white font-black text-xl leading-none tracking-tight">PDFs</h3>
                             <p className="text-indigo-400 text-[10px] font-bold mt-1.5 uppercase tracking-wider">Archives</p>
                         </div>
                         

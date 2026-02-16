@@ -33,6 +33,7 @@ const SuperAdminPage: React.FC = () => {
   // UI State
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [visitorTab, setVisitorTab] = useState<'app' | 'library'>('app');
 
   // --- DATA STATES ---
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -389,18 +390,19 @@ const SuperAdminPage: React.FC = () => {
   );
 
   const StatCard = ({ title, value, sub, chartColor, icon }: { title: string, value: string, sub: string, chartColor: string, icon: string }) => (
-      <div className="bg-[#1e293b] rounded-[2rem] p-5 relative overflow-hidden border border-slate-700/50 shadow-lg group hover:border-slate-600 transition-colors">
-          <div className="flex justify-between items-start mb-2">
-              <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</h3>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white`} style={{backgroundColor: chartColor}}><i className={`fas ${icon}`}></i></div>
+      <div className="bg-[#1e293b]/50 backdrop-blur-md rounded-[2.5rem] p-6 relative overflow-hidden border border-white/5 shadow-xl group hover:border-white/10 transition-all hover:-translate-y-1">
+          <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity`}>
+              <i className={`fas ${icon} text-6xl`} style={{color: chartColor}}></i>
           </div>
-          <div className="text-2xl font-black text-white mb-4">{value}</div>
-          <div className="absolute bottom-4 left-0 right-0 h-10 px-4 opacity-80">
-             <svg viewBox="0 0 100 25" className="w-full h-full overflow-visible">
-                 <path d="M0,25 Q25,20 50,15 T100,5" fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" className="drop-shadow-md" />
-             </svg>
+          <div className="relative z-10">
+              <h3 className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">{title}</h3>
+              <div className="text-4xl font-black text-white mb-2">{value}</div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/50 border border-white/10">
+                  <span className="w-2 h-2 rounded-full" style={{backgroundColor: chartColor}}></span>
+                  <span className="text-[10px] font-bold text-slate-300 uppercase">{sub}</span>
+              </div>
           </div>
-          <div className="absolute top-5 right-5 text-[10px] font-black" style={{ color: chartColor }}>{sub}</div>
+          <div className="absolute bottom-0 left-0 right-0 h-1" style={{background: `linear-gradient(90deg, ${chartColor}22, ${chartColor})`}}></div>
       </div>
   );
 
@@ -423,6 +425,17 @@ const SuperAdminPage: React.FC = () => {
       activeMatches: activeMatches.length,
       newUsers: users.filter(u => (u.createdAt || 0) > Date.now() - 86400000).length,
       reports: reports.length
+  };
+
+  // Calculate Library Stats
+  const libraryStats = {
+      totalViews: libraryLogs.length,
+      uniqueReaders: new Set(libraryLogs.map(l => l.uid)).size,
+      topResource: (() => {
+          const counts: Record<string, number> = {};
+          libraryLogs.forEach(l => { counts[l.fileName] = (counts[l.fileName] || 0) + 1; });
+          return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
+      })()
   };
 
   return (
@@ -454,7 +467,7 @@ const SuperAdminPage: React.FC = () => {
         </div>
 
         {/* MAIN CONTENT */}
-        <div className="flex-1 flex flex-col relative overflow-hidden w-full">
+        <div className="flex-1 flex flex-col relative overflow-hidden w-full bg-[#0b1120]">
             <header className="px-4 md:px-8 py-4 md:py-6 flex justify-between items-center border-b border-slate-800/50 bg-[#0b1120]/95 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-4">
                     <button onClick={() => { setIsMobileMenuOpen(true); setIsSidebarExpanded(true); }} className="md:hidden w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center active:scale-95 transition-transform"><i className="fas fa-bars"></i></button>
@@ -469,11 +482,50 @@ const SuperAdminPage: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar w-full">
                 {activeTab === 'home' && (
                     <div className="max-w-7xl mx-auto space-y-8 animate__animated animate__fadeIn">
+                        {/* Welcome Header */}
+                        <div className="relative rounded-[2.5rem] overflow-hidden p-8 md:p-10 shadow-2xl">
+                            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-90"></div>
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div>
+                                    <h2 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">Welcome back, Admin</h2>
+                                    <p className="text-indigo-200 font-bold max-w-md">System is running optimally. Check pending reports and live user activity.</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setActiveTab('users')} className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-transform">Manage Users</button>
+                                    <button onClick={() => setActiveTab('reports')} className="bg-indigo-900/30 text-white border border-white/20 px-6 py-3 rounded-xl font-black text-xs uppercase hover:bg-white/10 transition-colors">View Reports</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stats Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                             <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} sub="+12.5%" chartColor="#22d3ee" icon="fa-users" />
                             <StatCard title="Live Battles" value={stats.activeMatches.toString()} sub="Active" chartColor="#4ade80" icon="fa-gamepad" />
                             <StatCard title="New Recruits" value={stats.newUsers.toString()} sub="+24h" chartColor="#fb923c" icon="fa-user-plus" />
                             <StatCard title="Pending Reports" value={stats.reports.toString()} sub={stats.reports > 0 ? "Action Req" : "Clear"} chartColor="#f472b6" icon="fa-flag" />
+                        </div>
+
+                        {/* Recent Activity Mini-List */}
+                        <div className="bg-[#1e293b]/50 backdrop-blur-md rounded-[2.5rem] border border-white/5 p-6 md:p-8">
+                            <h3 className="font-black text-white uppercase tracking-widest text-sm mb-6 flex items-center gap-2"><i className="fas fa-history text-cyan-500"></i> Recent Signups</h3>
+                            <div className="space-y-4">
+                                {users.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5).map(u => (
+                                    <div key={u.uid} className="flex items-center justify-between bg-slate-900/50 p-4 rounded-2xl border border-white/5">
+                                        <div className="flex items-center gap-4">
+                                            <Avatar src={u.avatar} seed={u.uid} size="sm" />
+                                            <div>
+                                                <div className="text-white font-bold text-sm">{u.name}</div>
+                                                <div className="text-slate-500 text-xs font-mono">@{u.username || 'guest'}</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-cyan-400 font-black text-xs">{formatRelativeTime(u.createdAt)}</div>
+                                            <div className="text-slate-600 text-[10px] font-bold uppercase">Joined</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -555,45 +607,180 @@ const SuperAdminPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* --- VISITORS TAB --- */}
+                {/* --- VISITORS TAB (Redesigned) --- */}
                 {activeTab === 'visitors' && (
                     <div className="animate__animated animate__fadeIn space-y-6">
-                        <div className="flex justify-between items-center mb-2 px-2">
-                            <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                                <i className="fas fa-shoe-prints text-indigo-400"></i> Library Logs
-                            </h2>
+                        {/* Sub-tab Navigation */}
+                        <div className="flex bg-[#1e293b]/50 backdrop-blur-md rounded-2xl p-1 gap-1 mb-6 border border-white/5 shadow-inner max-w-md mx-auto">
+                            <button
+                                onClick={() => setVisitorTab('app')}
+                                className={`flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${visitorTab === 'app' ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <i className="fas fa-users mr-2"></i> App Activity
+                            </button>
+                            <button
+                                onClick={() => setVisitorTab('library')}
+                                className={`flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${visitorTab === 'library' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <i className="fas fa-book-reader mr-2"></i> Library Logs
+                            </button>
                         </div>
-                        <div className="bg-[#1e293b] rounded-[2.5rem] p-6 border border-slate-700/50 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-slate-700 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                                            <th className="py-4 pl-4">User</th>
-                                            <th className="py-4">Resource</th>
-                                            <th className="py-4 text-right pr-4">Time</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-sm font-bold text-slate-300">
-                                        {libraryLogs.map(log => {
-                                            const u = getUserDetails(log.uid);
-                                            return (
-                                                <tr key={log.id} className="border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors">
-                                                    <td className="py-3 pl-4 flex items-center gap-3">
-                                                        <Avatar src={u.avatar} size="xs" />
-                                                        <span className="truncate max-w-[150px]">{u.name}</span>
-                                                    </td>
-                                                    <td className="py-3 text-cyan-400 truncate max-w-[200px]">{log.fileName}</td>
-                                                    <td className="py-3 text-right pr-4 text-slate-500 text-xs font-mono">{formatRelativeTime(log.timestamp)}</td>
+
+                        {visitorTab === 'app' && (
+                            <div className="space-y-6 animate__animated animate__fadeIn">
+                                {/* Stats Row */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-[#1e293b] p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center relative overflow-hidden group">
+                                        <div className="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors"></div>
+                                        <div className="text-3xl font-black text-white mb-1">{users.filter(u => u.isOnline).length}</div>
+                                        <div className="text-[10px] font-black text-green-400 uppercase tracking-widest flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Online Now</div>
+                                    </div>
+                                    <div className="bg-[#1e293b] p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center relative overflow-hidden group">
+                                         <div className="absolute inset-0 bg-cyan-500/5 group-hover:bg-cyan-500/10 transition-colors"></div>
+                                        <div className="text-3xl font-black text-white mb-1">{users.filter(u => (u.lastSeen || 0) > Date.now() - 86400000).length}</div>
+                                        <div className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Active Today</div>
+                                    </div>
+                                    <div className="bg-[#1e293b] p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center relative overflow-hidden group">
+                                         <div className="absolute inset-0 bg-blue-500/5 group-hover:bg-blue-500/10 transition-colors"></div>
+                                        <div className="text-3xl font-black text-white mb-1">{users.filter(u => (u.createdAt || 0) > Date.now() - 86400000).length}</div>
+                                        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest">New Today</div>
+                                    </div>
+                                    <div className="bg-[#1e293b] p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center justify-center relative overflow-hidden group">
+                                         <div className="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition-colors"></div>
+                                        <div className="text-3xl font-black text-white mb-1">{users.filter(u => u.roles?.support).length}</div>
+                                        <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Staff Online</div>
+                                    </div>
+                                </div>
+
+                                {/* List */}
+                                <div className="bg-[#1e293b] rounded-[2.5rem] border border-slate-700/50 overflow-hidden shadow-xl">
+                                    <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/30">
+                                        <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2"><i className="fas fa-clock text-cyan-500"></i> Recent Sessions</h3>
+                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live Feed</div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left table-auto">
+                                            <thead className="bg-slate-900/50 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                <tr>
+                                                    <th className="py-4 pl-6 whitespace-nowrap">User</th>
+                                                    <th className="py-4 whitespace-nowrap">Role</th>
+                                                    <th className="py-4 whitespace-nowrap">Status</th>
+                                                    <th className="py-4 text-right pr-6 whitespace-nowrap">Last Seen</th>
                                                 </tr>
-                                            );
-                                        })}
-                                        {libraryLogs.length === 0 && (
-                                            <tr><td colSpan={3} className="py-8 text-center text-slate-500 italic">No activity logs found.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800/50">
+                                                {users.sort((a,b) => (b.lastSeen || 0) - (a.lastSeen || 0)).slice(0, 50).map(u => (
+                                                    <tr key={u.uid} onClick={() => { setSelectedUser(u); setUserPointsEdit(String(u.points)); }} className="hover:bg-slate-800/30 transition-colors group cursor-pointer">
+                                                        <td className="py-3 pl-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="relative">
+                                                                    <Avatar src={u.avatar} seed={u.uid} size="sm" className="border border-slate-600" />
+                                                                    {u.isOnline && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1e293b]"></div>}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-white text-sm flex items-center gap-1">{u.name} {u.isVerified && <VerificationBadge size="xs" className="text-blue-400" />}</div>
+                                                                    <div className="text-xs text-slate-500 font-mono">@{u.username || 'guest'}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3">
+                                                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${u.roles?.superAdmin ? 'bg-purple-500/20 text-purple-400' : u.roles?.support ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-800 text-slate-500'}`}>
+                                                                {u.roles?.superAdmin ? 'Admin' : u.roles?.support ? 'Support' : 'User'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3">
+                                                            {u.isOnline ? <span className="text-green-400 font-bold text-xs bg-green-900/10 px-2 py-1 rounded">Online</span> : <span className="text-slate-600 font-bold text-xs">Offline</span>}
+                                                        </td>
+                                                        <td className="py-3 text-right pr-6">
+                                                            <div className="font-mono text-xs text-slate-400">{formatRelativeTime(u.lastSeen)}</div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {visitorTab === 'library' && (
+                            <div className="space-y-6 animate__animated animate__fadeIn">
+                                {/* Library Stats Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-[#1e293b] p-5 rounded-2xl border border-slate-700/50 flex items-center justify-between group hover:border-indigo-500/30 transition-colors">
+                                        <div>
+                                            <div className="text-3xl font-black text-white mb-1">{libraryStats.totalViews}</div>
+                                            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Total File Views</div>
+                                        </div>
+                                        <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                            <i className="fas fa-eye text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#1e293b] p-5 rounded-2xl border border-slate-700/50 flex items-center justify-between group hover:border-pink-500/30 transition-colors">
+                                        <div>
+                                            <div className="text-3xl font-black text-white mb-1">{libraryStats.uniqueReaders}</div>
+                                            <div className="text-[10px] font-black text-pink-400 uppercase tracking-widest">Unique Readers</div>
+                                        </div>
+                                        <div className="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400">
+                                            <i className="fas fa-user-check text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#1e293b] p-5 rounded-2xl border border-slate-700/50 flex items-center justify-between group hover:border-yellow-500/30 transition-colors">
+                                        <div className="min-w-0">
+                                            <div className="text-lg font-black text-white mb-1 truncate max-w-[150px]" title={libraryStats.topResource}>{libraryStats.topResource}</div>
+                                            <div className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">Top Resource</div>
+                                        </div>
+                                        <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-400 shrink-0">
+                                            <i className="fas fa-crown text-xl"></i>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Library Logs Table */}
+                                <div className="bg-[#1e293b] rounded-[2.5rem] border border-slate-700/50 overflow-hidden shadow-xl">
+                                    <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/30">
+                                        <h3 className="font-black text-white uppercase tracking-widest text-sm flex items-center gap-2"><i className="fas fa-list-alt text-indigo-500"></i> Access Logs</h3>
+                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Last 100 Actions</div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left table-auto">
+                                            <thead className="bg-slate-900/50 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                <tr>
+                                                    <th className="py-4 pl-6 whitespace-nowrap">Reader</th>
+                                                    <th className="py-4 whitespace-nowrap">File Accessed</th>
+                                                    <th className="py-4 text-right pr-6 whitespace-nowrap">Time</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800/50">
+                                                {libraryLogs.map(log => {
+                                                    const u = getUserDetails(log.uid);
+                                                    return (
+                                                        <tr key={log.id} onClick={() => { setSelectedUser(u); setUserPointsEdit(String(u.points)); }} className="hover:bg-slate-800/30 transition-colors cursor-pointer">
+                                                            <td className="py-3 pl-6">
+                                                                <div className="flex items-center gap-3">
+                                                                    <Avatar src={u.avatar} seed={u.uid} size="xs" />
+                                                                    <span className="truncate max-w-[150px] font-bold text-sm text-slate-300">{u.name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-6 h-6 rounded bg-red-900/20 text-red-400 flex items-center justify-center shrink-0"><i className="fas fa-file-pdf text-[10px]"></i></div>
+                                                                    <span className="text-indigo-300 font-bold text-xs truncate max-w-[180px]">{log.fileName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 text-right pr-6 text-slate-500 text-xs font-mono">{formatRelativeTime(log.timestamp)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {libraryLogs.length === 0 && (
+                                                    <tr><td colSpan={3} className="py-12 text-center text-slate-500 italic uppercase text-xs font-bold tracking-widest">No activity logs found.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
