@@ -31,6 +31,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
     // Admin Specific Permissions
     const canManageRoles = isSuperAdmin && targetUser.uid !== currentUser?.uid;
     const canDelete = isSuperAdmin && targetUser.uid !== currentUser?.uid;
+    const canEditPoints = isSuperAdmin || isAdmin;
 
     const toggleSection = (sec: string) => {
         setExpanded(expanded === sec ? null : sec);
@@ -122,6 +123,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                updates[`chats/${chatId}/participants/${targetUser.uid}`] = true;
                updates[`chats/${chatId}/lastMessage`] = "SECURE_CREDENTIALS";
                updates[`chats/${chatId}/lastTimestamp`] = serverTimestamp();
+               updates[`chats/${chatId}/unread/${targetUser.uid}/count`] = 1; 
                
                await update(ref(db), updates);
                showToast("Credentials Sent", "success");
@@ -140,13 +142,13 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
     };
 
     const AccordionItem = ({ id, label, icon, color, children }: any) => (
-        <div className="bg-[#0b1120] border border-slate-800 rounded-xl overflow-hidden mb-2">
+        <div className="bg-[#0b1120] border border-slate-800 rounded-xl overflow-hidden mb-2 shadow-sm">
             <button 
                 onClick={() => toggleSection(id)} 
                 className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
             >
-                <span className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
-                    <i className={`fas ${icon} ${color}`}></i> {label}
+                <span className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-3">
+                    <i className={`fas ${icon} ${color} text-sm`}></i> {label}
                 </span>
                 <i className={`fas fa-chevron-down text-slate-500 transition-transform duration-300 ${expanded === id ? 'rotate-180' : ''}`}></i>
             </button>
@@ -158,10 +160,11 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
         </div>
     );
 
-    // --- VIEW 1: ADMIN MODE (Complex) ---
+    // --- VIEW 1: ADMIN MODE (User Manager) ---
     if (hasAdminAccess) {
         return (
             <Modal isOpen={true} onClose={onClose} title="User Manager">
+                {/* Header Summary */}
                 <div className="flex flex-col items-center mb-6 pt-2">
                     <div className="relative">
                         <Avatar 
@@ -179,20 +182,23 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     <h2 className="text-xl font-black text-white text-center flex items-center gap-2">
                         {targetUser.name}
                         {targetUser.roles?.superAdmin && <i className="fas fa-user-astronaut text-purple-500" title="Super Admin"></i>}
+                        {targetUser.isSupport && !targetUser.roles?.superAdmin && <i className="fas fa-headset text-orange-500" title="Staff"></i>}
                     </h2>
-                    <div className="bg-slate-800 text-slate-400 font-mono text-[10px] px-3 py-1 rounded-full mt-1 border border-slate-700">
-                        ID: {targetUser.uid.substring(0, 12)}...
+                    <div className="bg-slate-800 text-slate-400 font-mono text-[10px] px-3 py-1 rounded-full mt-1 border border-slate-700 flex items-center gap-2">
+                        <span>ID: {targetUser.uid.substring(0, 8)}...</span>
+                        <i className="fas fa-copy cursor-pointer hover:text-white" onClick={() => { navigator.clipboard.writeText(targetUser.uid); showToast("ID Copied"); }}></i>
                     </div>
                 </div>
 
+                {/* Manager Controls */}
                 <div className="space-y-1">
                     <AccordionItem id="profile" label="Profile & Security" icon="fa-user-lock" color="text-blue-400">
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={handleUsername} className="bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-blue-500 transition-all flex flex-col items-center gap-1 group">
+                            <button onClick={handleUsername} className="bg-slate-800 p-3 rounded-xl border border-slate-700 hover:border-blue-500 transition-all flex flex-col items-center gap-1 group">
                                 <i className="fas fa-signature text-slate-500 group-hover:text-blue-400"></i>
                                 <span className="text-[9px] font-black uppercase text-slate-400">Edit Username</span>
                             </button>
-                            <button onClick={handleResetPass} className="bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-yellow-500 transition-all flex flex-col items-center gap-1 group">
+                            <button onClick={handleResetPass} className="bg-slate-800 p-3 rounded-xl border border-slate-700 hover:border-yellow-500 transition-all flex flex-col items-center gap-1 group">
                                 <i className="fas fa-key text-slate-500 group-hover:text-yellow-400"></i>
                                 <span className="text-[9px] font-black uppercase text-slate-400">Reset Pass</span>
                             </button>
@@ -202,11 +208,11 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     <AccordionItem id="roles" label="Roles & Privileges" icon="fa-user-shield" color="text-purple-400">
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={handleVerify} className={`py-2 px-3 rounded-lg text-[10px] font-black uppercase border transition-all ${targetUser.isVerified ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
-                                    {targetUser.isVerified ? 'Verified' : 'Verify User'}
+                                <button onClick={handleVerify} className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase border transition-all ${targetUser.isVerified ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                    {targetUser.isVerified ? 'Revoke Badge' : 'Verify User'}
                                 </button>
-                                <button onClick={handleBan} className={`py-2 px-3 rounded-lg text-[10px] font-black uppercase border transition-all ${targetUser.banned ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
-                                    {targetUser.banned ? 'Unban' : 'Ban User'}
+                                <button onClick={handleBan} className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase border transition-all ${targetUser.banned ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-red-500/20 text-red-400 border-red-500/50'}`}>
+                                    {targetUser.banned ? 'Unban User' : 'Ban User'}
                                 </button>
                             </div>
                             
@@ -235,14 +241,24 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                                 <span className="text-xs font-bold text-slate-400">Total XP</span>
                                 <span className="text-xl font-black text-white">{targetUser.points}</span>
                             </div>
-                            <div className="flex gap-2">
-                                <Input type="number" value={pointsVal} onChange={e => setPointsVal(e.target.value)} className="!bg-slate-800 !border-slate-700 !text-white !mb-0 text-center" />
-                                <Button size="sm" onClick={savePoints} className="!rounded-xl"><i className="fas fa-save"></i></Button>
-                            </div>
+                            
+                            {canEditPoints && (
+                                <div className="flex gap-2">
+                                    <Input 
+                                        type="number" 
+                                        value={pointsVal} 
+                                        onChange={e => setPointsVal(e.target.value)} 
+                                        className="!bg-slate-800 !border-slate-700 !text-white !mb-0 text-center" 
+                                        placeholder="Set Points"
+                                    />
+                                    <Button size="sm" onClick={savePoints} className="!rounded-xl shadow-none border-none bg-slate-700 hover:bg-green-600"><i className="fas fa-save"></i></Button>
+                                </div>
+                            )}
+                            
                             {targetUser.activeMatch && (
                                 <button 
                                     onClick={async () => { await update(ref(db, `users/${targetUser.uid}`), { activeMatch: null }); showToast('Match Cleared'); }}
-                                    className="w-full py-2 bg-red-900/20 text-red-400 text-[10px] font-black uppercase rounded-lg border border-red-900/30 hover:bg-red-900/40 transition-colors"
+                                    className="w-full py-3 bg-red-900/20 text-red-400 text-[10px] font-black uppercase rounded-xl border border-red-900/30 hover:bg-red-900/40 transition-colors"
                                 >
                                     Force Quit Active Match
                                 </button>
@@ -251,7 +267,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     </AccordionItem>
 
                     <AccordionItem id="activity" label="Activity Log" icon="fa-clock" color="text-cyan-400">
-                        <div className="space-y-2 text-xs text-slate-400 font-mono">
+                        <div className="space-y-3 text-xs text-slate-400 font-mono p-1">
                             <div className="flex justify-between border-b border-slate-800 pb-2">
                                 <span>Status</span>
                                 <span className={targetUser.isOnline ? "text-green-400 font-bold" : "text-slate-500"}>
@@ -270,13 +286,17 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     </AccordionItem>
                 </div>
 
+                {/* Footer Buttons */}
                 <div className="mt-6 space-y-3">
                     {canDelete && (
                         <button onClick={handleDeleteAccount} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-red-900/20 transition-all active:scale-95">
                             Delete Account
                         </button>
                     )}
-                    <Button fullWidth onClick={onClose} variant="secondary" className="!bg-slate-800 !border-slate-700 !text-slate-400 hover:!text-white hover:!bg-slate-700">Close</Button>
+                    
+                    <div className="flex gap-3">
+                        <Button fullWidth onClick={onClose} variant="secondary" className="!bg-slate-800 !border-slate-700 !text-slate-400 hover:!text-white hover:!bg-slate-700">Close</Button>
+                    </div>
                 </div>
             </Modal>
         );
