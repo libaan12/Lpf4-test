@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useContext, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ref, onValue, push, serverTimestamp, update, get, query, limitToLast, onChildAdded, off, increment, onChildChanged } from 'firebase/database';
+import { ref, onValue, push, serverTimestamp, update, get, query, limitToLast, onChildAdded, off, increment, onChildChanged, set } from 'firebase/database';
 import { Howler } from 'howler';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
@@ -9,7 +9,7 @@ import { ChatMessage, UserProfile, Subject, Chapter } from '../types';
 import { Avatar, Button, Modal, Card, VerificationBadge } from '../components/UI';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { playSound } from '../services/audioService';
-import { showToast, showAlert, showConfirm } from '../services/alert';
+import { showToast, showConfirm } from '../services/alert';
 import { chatCache } from '../services/chatCache';
 import confetti from 'canvas-confetti';
 
@@ -278,6 +278,39 @@ const ChatPage: React.FC = () => {
           chatCache.saveMessage({ ...finalMsg, chatId });
           setMessages(prev => prev.map(m => m.tempId === tempId ? { ...finalMsg, chatId } : m).sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0)));
       } catch (err) { showToast("Failed to send", "error"); }
+  };
+
+  const handleSendInvite = async () => {
+      if (!user || !selectedChapter || !chatId) return;
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      const subName = subjects.find(s => s.id === selectedSubject)?.name || "Battle";
+      
+      try {
+          // 1. Create Room first so it exists when opponent clicks join
+          const roomRef = ref(db, `rooms/${code}`);
+          // Calculate linked message path to update status later
+          // We can't know exact message ID yet, so we will update status via room logic in LobbyPage if needed, 
+          // or rely on LobbyPage updating room status which we listen to? 
+          // Actually, LobbyPage logic handles room deletion.
+          
+          await set(roomRef, { 
+              host: user.uid, 
+              sid: selectedSubject, 
+              lid: selectedChapter, 
+              questionLimit: 10, 
+              createdAt: Date.now(),
+              // We can store a reference here if we want sophisticated status tracking
+          });
+
+          // 2. Send Message
+          await sendMessage(undefined, 'invite', code, subName);
+          
+          setShowGameSetup(false);
+          // 3. Navigate to Lobby as Host
+          navigate('/lobby', { state: { hostedCode: code } });
+      } catch (e) {
+          showToast("Failed to create match", "error");
+      }
   };
 
   // --- Deletion Logic ---
@@ -554,13 +587,7 @@ const ChatPage: React.FC = () => {
                         {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
-                <Button fullWidth onClick={() => {
-                    const code = Math.floor(1000 + Math.random() * 9000).toString();
-                    const subName = subjects.find(s => s.id === selectedSubject)?.name || "Battle";
-                    sendMessage(undefined, 'invite', code, subName);
-                    setShowGameSetup(false);
-                    navigate('/lobby', { state: { hostedCode: code } });
-                }} disabled={!selectedChapter}>Send Challenge</Button>
+                <Button fullWidth onClick={handleSendInvite} disabled={!selectedChapter}>Send Challenge</Button>
             </div>
         </Modal>
 
