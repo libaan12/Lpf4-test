@@ -11,6 +11,7 @@ import { UserProfileModal } from '../components/UserProfileModal';
 import { playSound } from '../services/audioService';
 import { showToast, showConfirm, showAlert, showPrompt } from '../services/alert';
 import confetti from 'canvas-confetti';
+import { ReportModal } from '../components/ReportModal';
 
 const DEFAULT_EMOJIS = ['😂', '😡', '👏', '😱', '🥲', '🔥', '🏆', '🤯'];
 const DEFAULT_MESSAGES = ['Nasiib wacan!', 'Aad u fiican', 'Iska jir!', 'Hala soo baxo!', 'Mahadsanid'];
@@ -72,6 +73,7 @@ const GamePage: React.FC = () => {
   
   // Opponent Details Modal
   const [showOpponentModal, setShowOpponentModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   
   // Reaction States
   const [showReactionMenu, setShowReactionMenu] = useState(false);
@@ -717,26 +719,7 @@ const GamePage: React.FC = () => {
   const handleReport = async () => {
       if (!currentQuestion || !user) return;
       playSound('click');
-      
-      const reason = await showPrompt('Report Question', 'Type reason (e.g. wrong answer, typo)');
-
-      if (reason) {
-          try {
-              const reportRef = push(ref(db, 'reports'));
-              await set(reportRef, {
-                  id: reportRef.key,
-                  questionId: currentQuestion.id,
-                  chapterId: match?.subject || 'unknown',
-                  reason: reason,
-                  reporterUid: user.uid,
-                  timestamp: serverTimestamp(),
-                  questionText: currentQuestion.question
-              });
-              showToast("Waad ku mahadsantahay soo sheegidda!", "success");
-          } catch (e) {
-              showToast("Waan ka xumahay, cilad ayaa dhacday.", "error");
-          }
-      }
+      setShowReportModal(true);
   };
 
   const handleLeave = async () => {
@@ -1187,7 +1170,7 @@ const GamePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Report Icon */}
+                {/* Report Icon - Wired to Modal */}
                 <button onClick={handleReport} className="absolute top-4 right-5 text-slate-600 hover:text-red-500 transition-colors">
                     <i className="fas fa-flag"></i>
                 </button>
@@ -1295,6 +1278,10 @@ const GamePage: React.FC = () => {
 
         {showOpponentModal && (
             <UserProfileModal user={rightProfile} onClose={() => setShowOpponentModal(false)} />
+        )}
+        
+        {showReportModal && currentQuestion && (
+            <ReportModal question={currentQuestion} chapterId={match?.subject || 'unknown'} onClose={() => setShowReportModal(false)} />
         )}
     </div>
   );

@@ -250,7 +250,7 @@ const HomePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Library Card (Resized to 1 column) */}
+                {/* Library Card */}
                 <div onClick={() => handleNav('/library')} className="relative group cursor-pointer">
                     <div className="absolute inset-0 bg-indigo-500 rounded-[2.5rem] blur opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
                     <div className="bg-[#0f172a]/60 backdrop-blur-md border border-indigo-500/30 p-6 rounded-[2.5rem] h-44 flex flex-col justify-between hover:bg-[#1e293b]/80 transition-colors relative overflow-hidden shadow-xl">
@@ -270,7 +270,7 @@ const HomePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Calculator Card (New) */}
+                {/* Calculator Card */}
                 <div onClick={() => handleNav('/calculator')} className="relative group cursor-pointer">
                     <div className="absolute inset-0 bg-blue-500 rounded-[2.5rem] blur opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
                     <div className="bg-[#0f172a]/60 backdrop-blur-md border border-blue-500/30 p-6 rounded-[2.5rem] h-44 flex flex-col justify-between hover:bg-[#1e293b]/80 transition-colors relative overflow-hidden shadow-xl">
@@ -279,8 +279,8 @@ const HomePage: React.FC = () => {
                             <i className="fas fa-calculator"></i>
                         </div>
                         <div>
-                            <h3 className="text-white font-black text-xl leading-none tracking-tight">Pro Calc</h3>
-                            <p className="text-blue-400 text-[10px] font-bold mt-1.5 uppercase tracking-wider">Sci Tools</p>
+                            <h3 className="text-white font-black text-xl leading-none tracking-tight">Calculator</h3>
+                            <p className="text-blue-400 text-[10px] font-bold mt-1.5 uppercase tracking-wider">Tools</p>
                         </div>
                         <div className="absolute bottom-6 right-6 text-blue-500 text-sm opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all"><i className="fas fa-arrow-right"></i></div>
                     </div>

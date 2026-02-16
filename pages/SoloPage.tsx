@@ -6,8 +6,9 @@ import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { Button, Card } from '../components/UI';
 import { playSound } from '../services/audioService';
-import { showToast, showPrompt } from '../services/alert';
+import { showToast } from '../services/alert';
 import { Question, Subject, Chapter } from '../types';
+import { ReportModal } from '../components/ReportModal';
 
 // Utility to shuffle array
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -42,6 +43,7 @@ const SoloPage: React.FC = () => {
   const [finished, setFinished] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // 1. Fetch Subjects on Load
   useEffect(() => {
@@ -190,29 +192,9 @@ const SoloPage: React.FC = () => {
   };
 
   const handleReport = async () => {
-    const currentQ = questions[currentQIndex];
-    if (!currentQ || !user) return;
+    if (!questions[currentQIndex] || !user) return;
     playSound('click');
-    
-    const reason = await showPrompt('Report Question', 'Tell us what is wrong with this question.');
-
-    if (reason) {
-        try {
-            const reportRef = push(ref(db, 'reports'));
-            await set(reportRef, {
-                id: reportRef.key,
-                questionId: currentQ.id,
-                chapterId: selectedChapterId,
-                reason: reason,
-                reporterUid: user.uid,
-                timestamp: serverTimestamp(),
-                questionText: currentQ.question
-            });
-            showToast("Waad ku mahadsantahay soo sheegidda!", "success");
-        } catch (e) {
-            showToast("Waan ka xumahay, cilad ayaa dhacday.", "error");
-        }
-    }
+    setShowReportModal(true);
   };
 
   // --- Render Selection Screens ---
@@ -400,6 +382,14 @@ const SoloPage: React.FC = () => {
           </>
         )}
       </div>
+      
+      {showReportModal && questions[currentQIndex] && (
+          <ReportModal 
+            question={questions[currentQIndex]} 
+            chapterId={selectedChapterId} 
+            onClose={() => setShowReportModal(false)} 
+          />
+      )}
     </div>
   );
 };
