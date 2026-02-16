@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useContext } from 'react';
-import { ref, update, onValue, off, set, remove, get, push, serverTimestamp, query, limitToLast } from 'firebase/database';
+import { ref, update, onValue, off, set, remove, get, push, serverTimestamp, query, limitToLast, increment } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport, LibraryViewLog } from '../types';
 import { Button, Card, Input, Modal, Avatar, VerificationBadge } from '../components/UI';
 import { showAlert, showToast, showConfirm, showPrompt } from '../services/alert';
 import { useNavigate } from 'react-router-dom';
+import { playSound } from '../services/audioService';
 
 const formatRelativeTime = (timestamp: number | undefined) => {
     if (!timestamp) return 'Unknown';
@@ -49,6 +50,9 @@ const SuperAdminPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  
+  // Report Handling State
+  const [activeReport, setActiveReport] = useState<QuestionReport | null>(null);
   
   // User Management
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -195,9 +199,30 @@ const SuperAdminPage: React.FC = () => {
   };
 
   const deleteReport = async (id: string) => {
-      if (!await showConfirm("Delete Report?", "Are you sure you want to dismiss this report?")) return;
+      if (!await showConfirm("Dismiss Report?", "This will remove it from the list.")) return;
       await remove(ref(db, `reports/${id}`));
       showToast("Report dismissed");
+  };
+
+  const handleEditReport = async (report: QuestionReport) => {
+      if (!report.chapterId || !report.questionId) {
+          showAlert("Error", "Question reference missing from report", "error");
+          return;
+      }
+      
+      try {
+          const qRef = ref(db, `questions/${report.chapterId}/${report.questionId}`);
+          const snapshot = await get(qRef);
+          
+          if (snapshot.exists()) {
+              setActiveReport(report);
+              setEditingQuestion({ id: report.questionId, ...snapshot.val() });
+          } else {
+              showAlert("Error", "Question no longer exists (it might have been deleted)", "error");
+          }
+      } catch (e) {
+          showAlert("Error", "Failed to load question details", "error");
+      }
   };
 
   const getUserDetails = (uid: string) => {
@@ -242,14 +267,71 @@ const SuperAdminPage: React.FC = () => {
 
   const handleUpdateQuestion = async () => {
     if (!editingQuestion) return;
-    const path = `questions/${editingQuestion.subject}/${editingQuestion.id}`;
-    await update(ref(db, path), {
-        question: editingQuestion.question,
-        options: editingQuestion.options,
-        answer: editingQuestion.answer
-    });
-    setEditingQuestion(null);
-    showToast("Updated");
+    
+    // Determine path. If activeReport exists, use its chapterId, otherwise use selectedChapter
+    const chapterId = activeReport ? activeReport.chapterId : editingQuestion.subject;
+    const path = `questions/${chapterId}/${editingQuestion.id}`;
+    
+    try {
+        await update(ref(db, path), {
+            question: editingQuestion.question,
+            options: editingQuestion.options,
+            answer: editingQuestion.answer
+        });
+
+        // NOTIFICATION LOGIC FOR REPORTER
+        if (activeReport && myProfile) {
+            const reporterUid = activeReport.reporterUid;
+            const participants = [myProfile.uid, reporterUid].sort();
+            const chatId = `${participants[0]}_${participants[1]}`;
+            
+            const msgRef = push(ref(db, `chats/${chatId}/messages`));
+            const msgId = msgRef.key!;
+            
+            const messageText = `✅ Report Resolved (ID: ${activeReport.id.slice(-4)})\n\nHello, we have reviewed your report regarding: "${activeReport.questionText.substring(0, 30)}..."\n\nThe question has been corrected by the Admin Team. Thank you for making LP-F4 better!`;
+
+            const updates: any = {};
+            // 1. Send Message
+            updates[`chats/${chatId}/messages/${msgId}`] = {
+                id: msgId,
+                sender: myProfile.uid,
+                text: messageText,
+                timestamp: serverTimestamp(),
+                msgStatus: 'sent',
+                type: 'text',
+                chatId: chatId
+            };
+            // 2. Update Chat Metadata
+            updates[`chats/${chatId}/lastMessage`] = messageText;
+            updates[`chats/${chatId}/lastTimestamp`] = serverTimestamp();
+            updates[`chats/${chatId}/lastMessageSender`] = myProfile.uid;
+            updates[`chats/${chatId}/unread/${reporterUid}/count`] = increment(1);
+            updates[`chats/${chatId}/participants/${myProfile.uid}`] = true;
+            updates[`chats/${chatId}/participants/${reporterUid}`] = true;
+
+            // 3. Delete Report automatically
+            updates[`reports/${activeReport.id}`] = null;
+
+            await update(ref(db), updates);
+            
+            showToast("Corrected & User Notified", "success");
+            setActiveReport(null);
+        } else {
+            showToast("Question Updated", "success");
+        }
+
+        setEditingQuestion(null);
+        playSound('correct');
+
+    } catch (e) {
+        console.error(e);
+        showAlert("Error", "Failed to update question.", "error");
+    }
+  };
+
+  const handleCloseEditor = () => {
+      setEditingQuestion(null);
+      setActiveReport(null);
   };
 
   const handleFABAction = (action: 'quiz' | 'user' | 'alert') => {
@@ -573,29 +655,71 @@ const SuperAdminPage: React.FC = () => {
 
                 {/* --- REPORTS TAB --- */}
                 {activeTab === 'reports' && (
-                    <div className="bg-[#1e293b] rounded-[2.5rem] p-4 md:p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
-                        <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2">
-                            <i className="fas fa-flag text-red-400"></i> Issue Reports
-                        </h2>
-                        <div className="space-y-4">
+                    <div className="animate__animated animate__fadeIn space-y-6">
+                        <div className="flex justify-between items-center mb-2 px-2">
+                            <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                                <i className="fas fa-clipboard-list text-red-400"></i> Issue Center
+                            </h2>
+                            <div className="text-slate-500 font-bold text-xs">{reports.length} Pending</div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {reports.length === 0 ? (
-                                <div className="text-center text-slate-500 py-10 font-bold">No active reports</div>
+                                <div className="col-span-full py-20 text-center bg-[#1e293b] rounded-[2.5rem] border border-slate-700/50">
+                                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600 text-3xl">
+                                        <i className="fas fa-check"></i>
+                                    </div>
+                                    <h3 className="text-white font-bold text-lg">All Clear</h3>
+                                    <p className="text-slate-500 text-xs font-bold mt-1">No pending reports to review.</p>
+                                </div>
                             ) : (
                                 reports.map(r => {
                                     const reporter = getUserDetails(r.reporterUid);
                                     return (
-                                        <div key={r.id} className="bg-[#0b1120] p-5 rounded-2xl border border-slate-800 hover:border-red-500/30 transition-all">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="text-[10px] font-black text-orange-400 uppercase tracking-widest">{r.reason || 'No Reason'}</div>
-                                                <div className="text-[10px] font-bold text-slate-500">{formatRelativeTime(r.timestamp)}</div>
+                                        <div key={r.id} className="bg-[#1e293b] rounded-[2rem] p-6 border border-slate-700/50 shadow-xl flex flex-col relative overflow-hidden group">
+                                            {/* Status Badge */}
+                                            <div className="absolute top-0 right-0 bg-orange-500/20 text-orange-400 px-4 py-1.5 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest border-l border-b border-orange-500/20">
+                                                Action Req
                                             </div>
-                                            <p className="text-white font-bold text-sm mb-3">"{r.questionText}"</p>
-                                            <div className="flex justify-between items-center border-t border-slate-800 pt-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar src={reporter.avatar} size="xs" />
-                                                    <span className="text-xs text-slate-400">{reporter.name}</span>
+
+                                            {/* Header */}
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <Avatar src={reporter.avatar} size="md" className="border-2 border-slate-600" />
+                                                <div>
+                                                    <div className="text-white font-bold text-sm">{reporter.name}</div>
+                                                    <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wide flex items-center gap-1">
+                                                        <span>Reported {formatRelativeTime(r.timestamp)}</span>
+                                                    </div>
                                                 </div>
-                                                <button onClick={() => deleteReport(r.id)} className="text-slate-500 hover:text-white text-xs font-black uppercase"><i className="fas fa-trash mr-1"></i> Dismiss</button>
+                                            </div>
+
+                                            {/* Content */}
+                                            <div className="flex-1 bg-[#0b1120] rounded-xl p-4 border border-slate-800 mb-4 relative">
+                                                <div className="absolute -left-1 top-4 w-1 h-8 bg-red-500 rounded-r-full"></div>
+                                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Category: {r.category || 'General'}</div>
+                                                <p className="text-white font-bold text-sm leading-relaxed line-clamp-3 italic">"{r.questionText}"</p>
+                                                {r.reason && (
+                                                    <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400 font-medium">
+                                                        <i className="fas fa-comment-alt mr-2 text-slate-600"></i>
+                                                        <span className="text-orange-400 font-bold">User Note:</span> {r.reason}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="grid grid-cols-2 gap-3 mt-auto">
+                                                <button 
+                                                    onClick={() => deleteReport(r.id)} 
+                                                    className="py-3 rounded-xl bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white font-black text-xs uppercase transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-times"></i> Dismiss
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleEditReport(r)} 
+                                                    className="py-3 rounded-xl bg-game-primary text-white hover:bg-orange-600 font-black text-xs uppercase transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-wrench"></i> Fix & Reply
+                                                </button>
                                             </div>
                                         </div>
                                     );
@@ -742,6 +866,60 @@ const SuperAdminPage: React.FC = () => {
                             </div>
                             <Button size="sm" onClick={saveUserPoints} className="!py-3">Save</Button>
                         </div>
+                    </div>
+                </div>
+            </Modal>
+        )}
+
+        {/* --- QUESTION EDITOR MODAL --- */}
+        {editingQuestion && (
+            <Modal isOpen={true} title="Correction Studio" onClose={handleCloseEditor}>
+                <div className="space-y-6 pt-4 pb-2">
+                    {activeReport && (
+                        <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-xl flex items-center gap-3">
+                            <i className="fas fa-info-circle text-orange-500 text-xl"></i>
+                            <div className="text-xs text-orange-200">
+                                <span className="font-bold uppercase tracking-wide block text-orange-400">Auto-Response Enabled</span>
+                                Saving changes will notify the reporter automatically.
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Question Text</label>
+                        <Input 
+                            value={editingQuestion.question} 
+                            onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
+                            className="!bg-[#0b1120] !border-slate-700 !text-white !p-4 !rounded-2xl"
+                        />
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 block">Answer Options</label>
+                        {editingQuestion.options.map((opt, i) => (
+                            <div key={i} className="flex gap-2">
+                                <button 
+                                    onClick={() => setEditingQuestion({...editingQuestion, answer: i})}
+                                    className={`w-12 h-12 shrink-0 rounded-xl bg-[#0b1120] border transition-all font-black ${editingQuestion.answer === i ? 'border-green-500 text-green-500 bg-green-500/10' : 'border-slate-700 text-slate-500'}`}
+                                >{String.fromCharCode(65+i)}</button>
+                                <Input 
+                                    value={opt} 
+                                    onChange={(e) => {
+                                        const newOpts = [...editingQuestion.options];
+                                        newOpts[i] = e.target.value;
+                                        setEditingQuestion({...editingQuestion, options: newOpts});
+                                    }}
+                                    className="!bg-[#0b1120] !border-slate-700 !text-white !mb-0"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <div className="flex gap-3 pt-2">
+                        <Button variant="secondary" fullWidth onClick={handleCloseEditor}>Cancel</Button>
+                        <Button fullWidth onClick={handleUpdateQuestion}>
+                            {activeReport ? 'Save & Notify User' : 'Save Changes'}
+                        </Button>
                     </div>
                 </div>
             </Modal>
