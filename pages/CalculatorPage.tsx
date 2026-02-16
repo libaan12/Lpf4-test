@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playSound } from '../services/audioService';
 
@@ -12,16 +11,14 @@ const CalculatorPage: React.FC = () => {
   const [expression, setExpression] = useState('');
   const [result, setResult] = useState('');
   const [prevAns, setPrevAns] = useState('0');
-  const [memory, setMemory] = useState('0'); // M+ logic
+  const [history, setHistory] = useState<string[]>([]);
   
   // Calculator State
   const [isShift, setIsShift] = useState(false);
   const [isAlpha, setIsAlpha] = useState(false);
   const [angleMode, setAngleMode] = useState<AngleMode>('DEG');
-  const [isMenuOpen, setIsMenuOpen] = useState(false); 
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Setup Menu
   const [cursorBlink, setCursorBlink] = useState(true);
-  const [hypMode, setHypMode] = useState(false);
-  const [sciMode, setSciMode] = useState(false); // Scientific Notation Toggle
 
   // Blink cursor effect
   useEffect(() => {
@@ -31,50 +28,21 @@ const CalculatorPage: React.FC = () => {
 
   const safeEval = (expr: string) => {
     try {
-      if (!expr) return '';
-
-      // 1. Pre-process text representations
+      // 1. Pre-process formatting
       let evalStr = expr
         .replace(/×/g, '*')
         .replace(/÷/g, '/')
         .replace(/π/g, 'Math.PI')
         .replace(/e/g, 'Math.E')
         .replace(/\^/g, '**')
-        .replace(/Ans/g, `(${prevAns})`)
-        .replace(/M/g, `(${memory})`)
-        .replace(/Ran#/g, 'Math.random()');
+        .replace(/Ans/g, prevAns);
 
-      // 2. Helper Functions
+      // 2. Handle Functions
+      // Helper to wrap trig inputs for DEG conversion
       const toRad = (n: number) => angleMode === 'DEG' ? n * (Math.PI / 180) : n;
       const toDeg = (n: number) => angleMode === 'DEG' ? n * (180 / Math.PI) : n;
 
-      // Factorial function
-      const factorial = (n: number): number => {
-          if (n < 0) return NaN;
-          if (n <= 1) return 1;
-          return n * factorial(n - 1);
-      };
-
-      // Permutations nPr
-      const nPr = (n: number, r: number) => factorial(n) / factorial(n - r);
-      
-      // Combinations nCr
-      const nCr = (n: number, r: number) => factorial(n) / (factorial(r) * factorial(n - r));
-
-      // Pol/Rec - Returns a string representation for display
-      const Pol = (x: number, y: number) => {
-          const r = Math.sqrt(x*x + y*y);
-          const theta = toDeg(Math.atan2(y, x));
-          return `r=${r.toFixed(4)}, θ=${theta.toFixed(4)}`;
-      };
-
-      const Rec = (r: number, theta: number) => {
-          const x = r * Math.cos(toRad(theta));
-          const y = r * Math.sin(toRad(theta));
-          return `x=${x.toFixed(4)}, y=${y.toFixed(4)}`;
-      };
-
-      // Scope Definition
+      // Define scope
       const scope = {
         sin: (x: number) => Math.sin(toRad(x)),
         cos: (x: number) => Math.cos(toRad(x)),
@@ -82,12 +50,6 @@ const CalculatorPage: React.FC = () => {
         asin: (x: number) => toDeg(Math.asin(x)),
         acos: (x: number) => toDeg(Math.acos(x)),
         atan: (x: number) => toDeg(Math.atan(x)),
-        sinh: Math.sinh,
-        cosh: Math.cosh,
-        tanh: Math.tanh,
-        asinh: Math.asinh,
-        acosh: Math.acosh,
-        atanh: Math.atanh,
         sqrt: Math.sqrt,
         cbrt: Math.cbrt,
         log: Math.log10,
@@ -95,60 +57,35 @@ const CalculatorPage: React.FC = () => {
         exp: Math.exp,
         pow: Math.pow,
         abs: Math.abs,
-        fact: factorial,
-        nPr: nPr,
-        nCr: nCr,
-        Pol: Pol,
-        Rec: Rec
+        fact: (n: number): number => n <= 1 ? 1 : n * scope.fact(n - 1)
       };
 
-      // 3. Replacement Regex
+      // 3. Replace text representations with JS calls
+      // Order matters: longer names first to avoid partial replacement
       evalStr = evalStr
-        // Hyperbolic
-        .replace(/sinh/g, 'scope.sinh')
-        .replace(/cosh/g, 'scope.cosh')
-        .replace(/tanh/g, 'scope.tanh')
-        // Inverse Trig
         .replace(/sin⁻¹/g, 'scope.asin')
         .replace(/cos⁻¹/g, 'scope.acos')
         .replace(/tan⁻¹/g, 'scope.atan')
-        // Standard Trig (must be after inverse to avoid partial match)
         .replace(/sin/g, 'scope.sin')
         .replace(/cos/g, 'scope.cos')
         .replace(/tan/g, 'scope.tan')
-        // Logs/Roots
         .replace(/log/g, 'scope.log')
         .replace(/ln/g, 'scope.ln')
         .replace(/√/g, 'scope.sqrt')
         .replace(/∛/g, 'scope.cbrt')
-        // Probability
-        .replace(/P/g, ',scope.nPr,') // nPr syntax tricky: 5P2 -> 5,scope.nPr,2 -> handled by helper function usually but here simplistic
-        .replace(/C/g, ',scope.nCr,') // Same issue. 
-        // Better approach for infix operators P and C:
-        // We need a parser or a simple replacement for eval like:
-        // Replace (\d+)P(\d+) with scope.nPr($1,$2). 
-        .replace(/(\d+(?:\.\d+)?)P(\d+(?:\.\d+)?)/g, 'scope.nPr($1,$2)')
-        .replace(/(\d+(?:\.\d+)?)C(\d+(?:\.\d+)?)/g, 'scope.nCr($1,$2)')
-        // Pol/Rec
-        .replace(/Pol\(/g, 'scope.Pol(')
-        .replace(/Rec\(/g, 'scope.Rec(')
-        // Factorial
-        .replace(/(\d+)!/g, 'scope.fact($1)');
+        .replace(/!/g, '') // Factorial handling would require a parser, simplistic approach here fails for 5!. 
+                           // For simple JS eval, factorial usually needs a function wrapper fact(5).
+                           // Let's assume user enters fact(5) via button logic or we handle simple postfix ! roughly:
+        .replace(/(\d+)!/g, 'scope.fact($1)'); 
 
       // eslint-disable-next-line no-new-func
       const func = new Function('scope', `with(scope) { return ${evalStr} }`);
       const res = func(scope);
       
-      // Handle String results (Pol/Rec)
-      if (typeof res === 'string') return res;
-
       if (isNaN(res) || !isFinite(res)) return 'Math Error';
       
       // Formatting
-      if (sciMode) {
-          return res.toExponential(4);
-      }
-      return parseFloat(res.toFixed(10)).toString(); 
+      return parseFloat(res.toFixed(10)).toString(); // Clean up floating point precision
     } catch (e) {
       return 'Syntax Error';
     }
@@ -162,10 +99,10 @@ const CalculatorPage: React.FC = () => {
       if (key === '1') { setAngleMode('DEG'); setIsMenuOpen(false); setIsShift(false); return; }
       if (key === '2') { setAngleMode('RAD'); setIsMenuOpen(false); setIsShift(false); return; }
       if (key === 'AC' || key === 'ON') { setIsMenuOpen(false); setIsShift(false); return; }
-      return; 
+      return; // Ignore other keys in menu
     }
 
-    // --- MODIFIERS ---
+    // --- SHIFT/ALPHA MODIFIERS ---
     if (key === 'SHIFT') {
       setIsShift(!isShift);
       setIsAlpha(false);
@@ -176,24 +113,19 @@ const CalculatorPage: React.FC = () => {
       setIsShift(false);
       return;
     }
-    if (key === 'hyp') {
-        setHypMode(!hypMode);
-        return;
-    }
 
-    // --- SETUP MENU ---
+    // --- SETUP MENU SHORTCUT ---
     if (isShift && key === 'MODE') {
       setIsMenuOpen(true);
       return;
     }
 
-    // --- ACTIONS ---
+    // --- STANDARD ACTIONS ---
     if (key === 'AC' || key === 'ON') {
       setExpression('');
       setResult('');
       setIsShift(false);
       setIsAlpha(false);
-      setHypMode(false);
       return;
     }
 
@@ -202,43 +134,22 @@ const CalculatorPage: React.FC = () => {
       return;
     }
 
-    if (key === 'ENG') {
-        setSciMode(!sciMode);
-        // Re-evaluate result with new mode
-        if (expression) {
-            const res = safeEval(expression);
-            setResult(res);
-        }
-        return;
-    }
-
-    // Memory Actions
-    if (key === 'STO') {
-        // Simple Store: Stores current result to M
-        if (result && result !== 'Math Error' && result !== 'Syntax Error') {
-            setMemory(result);
-            setIsShift(false);
-        }
-        return;
-    }
-    
     if (key === '=') {
       if (!expression) return;
       const res = safeEval(expression);
       setResult(res);
-      if (res !== 'Syntax Error' && res !== 'Math Error' && typeof res !== 'string') {
+      if (res !== 'Syntax Error' && res !== 'Math Error') {
         setPrevAns(res);
+        setHistory(prev => [expression + ' = ' + res, ...prev].slice(0, 5));
       }
-      setIsShift(false);
-      setIsAlpha(false);
-      setHypMode(false);
+      setIsShift(false); // Reset modifiers after calc
       return;
     }
 
-    // --- INPUT MAPPING ---
+    // --- INPUT HANDLING ---
     let valToAdd = key;
 
-    // Shift Logic
+    // Handle Shifted Functions
     if (isShift) {
       switch (key) {
         case 'sin': valToAdd = 'sin⁻¹('; break;
@@ -246,50 +157,20 @@ const CalculatorPage: React.FC = () => {
         case 'tan': valToAdd = 'tan⁻¹('; break;
         case 'log': valToAdd = '10^'; break;
         case 'ln': valToAdd = 'e^'; break;
-        case 'x²': valToAdd = '√('; break;
+        case 'x²': valToAdd = '√('; break; // Note: Button labels mapped differently in UI, logic here ensures correct insert
         case 'x^': valToAdd = '∛('; break;
-        case '.': valToAdd = 'Ran#'; break;
-        case '×': valToAdd = 'P'; break; // nPr
-        case '÷': valToAdd = 'C'; break; // nCr
-        case '+': valToAdd = 'Pol('; break;
-        case '-': valToAdd = 'Rec('; break;
-        case 'Ans': valToAdd = 'Pre'; break; // Just text? Or pre-ans logic? kept simple.
-        case 'x⁻¹': valToAdd = '!'; break;
+        case '(': valToAdd = '%'; break; // Percentage? or keep simple
+        case '.': valToAdd = 'Ran#'; break; // Random
+        // Add more shift mappings
       }
-      setIsShift(false);
-    } 
-    // Alpha Logic
-    else if (isAlpha) {
-        // Add specific alpha variables if needed, currently minimal
-        if (key === ')') valToAdd = 'X';
-        if (key === 'M+') valToAdd = 'M'; 
-        setIsAlpha(false);
-    }
-    // Normal Logic
-    else {
-      // Hyp Logic
-      if (hypMode) {
-          if (['sin','cos','tan'].includes(key)) {
-              valToAdd = key + 'h(';
-          }
-          setHypMode(false);
-      } else {
-          // Standard functions wrapping
-          if (['sin', 'cos', 'tan', 'log', 'ln', '√'].includes(key)) {
-            valToAdd = key + '(';
-          }
-          if (key === 'x²') valToAdd = '^2';
-          if (key === 'x^') valToAdd = '^';
-          if (key === 'x⁻¹') valToAdd = '^-1';
-          if (key === 'M+') {
-              // M+ adds current result to memory
-              if (result && result !== 'Syntax Error') {
-                  const newM = parseFloat(memory) + parseFloat(result);
-                  setMemory(newM.toString());
-                  return; // Don't add to expression
-              }
-          }
+      setIsShift(false); // Consume shift
+    } else {
+      // Standard Functions needing brackets
+      if (['sin', 'cos', 'tan', 'log', 'ln', '√'].includes(key)) {
+        valToAdd = key + '(';
       }
+      if (key === 'x²') valToAdd = '^2';
+      if (key === 'x^') valToAdd = '^';
     }
 
     setExpression(prev => prev + valToAdd);
@@ -301,37 +182,35 @@ const CalculatorPage: React.FC = () => {
     shiftLabel, 
     alphaLabel, 
     type = 'num', 
-    onClick,
-    className = ''
+    span = 1,
+    onClick 
   }: { 
     label: any, 
     shiftLabel?: string, 
     alphaLabel?: string, 
     type?: 'num' | 'op' | 'func' | 'action' | 'modifier', 
-    onClick: () => void,
-    className?: string
+    span?: number,
+    onClick: () => void 
   }) => {
-    let bg = "bg-[#333538] text-white shadow-[0_2px_0_#1a1a1a]"; // Dark Grey
-    if (type === 'num') bg = "bg-[#e0e0e0] text-black shadow-[0_2px_0_#999]"; // Light Grey
-    if (type === 'action') bg = "bg-[#ef4444] text-white shadow-[0_2px_0_#b91c1c]"; // Red
-    if (label === 'AC' || label === 'DEL') bg = "bg-[#d97706] text-white shadow-[0_2px_0_#92400e]"; // Orange
+    let bg = "bg-[#333538] text-white shadow-[0_3px_0_#222]"; // Standard
+    if (type === 'num') bg = "bg-[#e5e7eb] text-black shadow-[0_3px_0_#9ca3af]"; // Numbers Light
+    if (type === 'action') bg = "bg-[#ef4444] text-white shadow-[0_3px_0_#b91c1c]"; // AC/DEL
+    if (type === 'modifier' && label === 'SHIFT') bg = "bg-[#ca8a04] text-white shadow-[0_3px_0_#a16207]";
+    if (type === 'modifier' && label === 'ALPHA') bg = "bg-[#db2777] text-white shadow-[0_3px_0_#be185d]";
     
-    // Tiny buttons for top rows
-    const isSmall = type === 'modifier' || type === 'func';
+    // Check if active
+    if (label === 'SHIFT' && isShift) bg = "bg-[#facc15] text-black shadow-none translate-y-[3px]";
+    if (label === 'ALPHA' && isAlpha) bg = "bg-[#f472b6] text-black shadow-none translate-y-[3px]";
 
     return (
-      <div className={`flex flex-col items-center justify-end ${className}`}>
-        <div className="flex justify-between w-full px-0.5 text-[7px] font-bold h-3 overflow-hidden whitespace-nowrap">
-          <span className="text-[#d4af37]">{shiftLabel}</span>
-          <span className="text-[#ef4444]">{alphaLabel}</span>
+      <div className="flex flex-col items-center gap-1" style={{ gridColumn: span > 1 ? `span ${span}` : 'auto' }}>
+        <div className="flex justify-between w-full px-1 text-[8px] font-bold h-3">
+          <span className="text-yellow-500">{shiftLabel}</span>
+          <span className="text-pink-500">{alphaLabel}</span>
         </div>
         <button 
           onClick={onClick}
-          className={`w-full ${isSmall ? 'h-8 md:h-10 text-xs md:text-sm' : 'h-10 md:h-12 text-sm md:text-lg'} rounded-[4px] font-bold flex items-center justify-center transition-all active:translate-y-[2px] active:shadow-none ${bg} ${
-              (label === 'SHIFT' && isShift) ? 'bg-[#d4af37] text-black' : ''
-          } ${
-              (label === 'ALPHA' && isAlpha) ? 'bg-[#ef4444] text-white' : ''
-          }`}
+          className={`w-full h-12 md:h-14 rounded-md font-bold text-lg md:text-xl flex items-center justify-center transition-all active:translate-y-[3px] active:shadow-none ${bg}`}
         >
           {label}
         </button>
@@ -340,118 +219,107 @@ const CalculatorPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#e0e0e0] font-sans flex flex-col items-center justify-center p-2 md:p-4">
+    <div className="min-h-screen bg-[#e0e0e0] font-sans flex flex-col items-center justify-center p-4">
       
-      {/* Navbar Back */}
+      {/* Navbar Back Button (Absolute) */}
       <button onClick={() => navigate('/')} className="absolute top-4 left-4 z-20 w-10 h-10 bg-black/80 text-white rounded-full flex items-center justify-center shadow-lg">
         <i className="fas fa-arrow-left"></i>
       </button>
 
       {/* CALCULATOR BODY */}
-      <div className="w-full max-w-[400px] bg-[#222] rounded-[10px] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] border border-[#111] relative overflow-hidden">
+      <div className="w-full max-w-sm bg-[#1a1b1e] rounded-[2rem] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_2px_5px_rgba(255,255,255,0.1)] border border-[#333] relative overflow-hidden">
         
         {/* BRANDING */}
-        <div className="flex justify-between items-center mb-3 px-1">
-            <div className="text-gray-400 font-bold text-xs tracking-widest italic">CASIO <span className="text-white not-italic font-normal">LP-F4 v1.0</span></div>
-            <div className="flex gap-2">
-                <div className="h-3 w-12 bg-[#333] border border-[#444] rounded shadow-inner"></div> {/* Solar */}
-            </div>
+        <div className="flex justify-between items-center mb-4 px-2">
+            <div className="text-gray-400 font-bold text-xs tracking-widest italic">PRO-CALC <span className="text-yellow-500 not-italic">fx-991EX</span></div>
+            <div className="h-2 w-16 bg-gradient-to-r from-gray-700 to-gray-800 rounded-full border border-gray-900 shadow-inner"></div> {/* Solar Panel Fake */}
         </div>
 
-        {/* SCREEN - LCD Style */}
-        <div className="bg-[#9ca] p-2 rounded-sm shadow-[inset_0_2px_5px_rgba(0,0,0,0.3)] border-4 border-[#333] mb-4 min-h-[90px] relative font-digital text-black">
-            {/* Status Indicators */}
-            <div className="flex gap-2 text-[8px] font-bold border-b border-black/10 pb-0.5 mb-1 h-3.5">
-                <span className={isShift ? 'visible' : 'invisible'}>S</span>
-                <span className={isAlpha ? 'visible' : 'invisible'}>A</span>
-                <span className={angleMode === 'DEG' ? 'visible' : 'invisible'}>D</span>
-                <span className={angleMode === 'RAD' ? 'visible' : 'invisible'}>R</span>
-                <span className={hypMode ? 'visible' : 'invisible'}>HYP</span>
-                <span className={sciMode ? 'visible' : 'invisible'}>SCI</span>
-                <span className="ml-auto">M</span>
+        {/* SCREEN */}
+        <div className="bg-[#c2dcc0] p-4 rounded-lg shadow-[inset_0_4px_8px_rgba(0,0,0,0.2)] border-4 border-[#333] mb-6 min-h-[100px] relative font-mono text-slate-900">
+            {/* Status Bar */}
+            <div className="flex gap-3 text-[10px] font-bold border-b border-slate-900/10 pb-1 mb-1 h-5">
+                <span className={isShift ? 'bg-black text-white px-1' : 'opacity-20'}>S</span>
+                <span className={isAlpha ? 'bg-black text-white px-1' : 'opacity-20'}>A</span>
+                <span className={angleMode === 'DEG' ? 'bg-black text-white px-1' : 'opacity-20'}>D</span>
+                <span className={angleMode === 'RAD' ? 'bg-black text-white px-1' : 'opacity-20'}>R</span>
+                <span className="opacity-20">FIX</span>
             </div>
 
             {/* Menu Overlay */}
             {isMenuOpen && (
-                <div className="absolute inset-0 bg-[#9ca] z-20 p-2 flex flex-col text-[10px] font-bold space-y-1">
-                    <div className="w-full bg-black text-[#9ca] px-1 mb-1">SETUP MODE</div>
+                <div className="absolute inset-0 bg-[#c2dcc0] z-10 p-2 flex flex-col justify-center items-start text-xs font-bold space-y-1">
+                    <div className="w-full bg-black text-[#c2dcc0] px-1 mb-1">SETUP</div>
                     <div>1: Deg (Degrees)</div>
                     <div>2: Rad (Radians)</div>
                     <div>[AC] : Cancel</div>
                 </div>
             )}
 
-            {/* Expression */}
-            <div className="text-right text-sm md:text-base break-all h-6 overflow-hidden whitespace-nowrap font-mono tracking-tighter">
+            {/* Expression Line */}
+            <div className="text-right text-lg break-all h-8 overflow-hidden whitespace-nowrap">
                {expression}{cursorBlink ? '▌' : ''}
             </div>
 
-            {/* Result */}
-            <div className="text-right text-2xl md:text-3xl font-bold tracking-tight mt-1 h-8 overflow-hidden">
+            {/* Result Line */}
+            <div className="text-right text-3xl font-black tracking-tight mt-1 h-10 overflow-hidden text-black">
                 {result}
             </div>
         </div>
 
-        {/* KEYPAD GRID */}
-        <div className="grid grid-cols-5 gap-x-1.5 gap-y-2">
+        {/* KEYPAD */}
+        <div className="grid grid-cols-5 gap-x-2 gap-y-3">
             
-            {/* ROW 1: Small Fn Keys */}
+            {/* ROW 1: Controls */}
             <CalcBtn label="SHIFT" type="modifier" onClick={() => handlePress('SHIFT', 'menu')} />
             <CalcBtn label="ALPHA" type="modifier" onClick={() => handlePress('ALPHA', 'menu')} />
-            <CalcBtn label={<i className="fas fa-arrow-up"></i>} type="func" onClick={() => {}} /> 
-            <CalcBtn label="MODE" shiftLabel="SETUP" type="func" onClick={() => handlePress('MODE', 'menu')} />
-            <CalcBtn label="ON" type="action" onClick={() => handlePress('ON', 'action')} />
+            <CalcBtn label={<i className="fas fa-chevron-left"></i>} type="func" onClick={() => {}} /> 
+            <CalcBtn label={<i className="fas fa-chevron-right"></i>} type="func" onClick={() => {}} /> 
+            <CalcBtn label="MODE" shiftLabel="SETUP" onClick={() => handlePress('MODE', 'menu')} />
 
-            {/* ROW 2: Scientific */}
-            <CalcBtn label="x⁻¹" shiftLabel="x!" onClick={() => handlePress('x⁻¹', 'func')} />
-            <CalcBtn label="nCr" shiftLabel="nPr" onClick={() => handlePress(isShift ? '×' : '÷', 'op')} /> 
-            <CalcBtn label="Pol" shiftLabel="Rec" onClick={() => handlePress(isShift ? '-' : '+', 'func')} /> 
-            <CalcBtn label="x³" shiftLabel="x¹/³" onClick={() => handlePress('^3', 'func')} />
+            {/* ROW 2: Scientific 1 */}
+            <CalcBtn label="x⁻¹" shiftLabel="!" onClick={() => handlePress('^-1', 'func')} />
             <CalcBtn label="x²" shiftLabel="√" onClick={() => handlePress('x²', 'func')} />
-
-            {/* ROW 3: More Sci */}
-            <CalcBtn label="xⁿ" shiftLabel="ⁿ√" onClick={() => handlePress('x^', 'func')} />
+            <CalcBtn label="xⁿ" shiftLabel="∛" onClick={() => handlePress('x^', 'func')} />
             <CalcBtn label="log" shiftLabel="10ⁿ" onClick={() => handlePress('log', 'func')} />
             <CalcBtn label="ln" shiftLabel="eⁿ" onClick={() => handlePress('ln', 'func')} />
-            <CalcBtn label="(-)" shiftLabel="A" onClick={() => handlePress('-', 'num')} />
-            <CalcBtn label="hyp" shiftLabel="abs" onClick={() => handlePress('hyp', 'func')} />
 
-            {/* ROW 4: Trig */}
-            <CalcBtn label="STO" shiftLabel="RCL" onClick={() => handlePress('STO', 'func')} />
-            <CalcBtn label="sin" shiftLabel="sin⁻¹" alphaLabel="D" onClick={() => handlePress('sin', 'func')} />
-            <CalcBtn label="cos" shiftLabel="cos⁻¹" alphaLabel="E" onClick={() => handlePress('cos', 'func')} />
-            <CalcBtn label="tan" shiftLabel="tan⁻¹" alphaLabel="F" onClick={() => handlePress('tan', 'func')} />
+            {/* ROW 3: Trig */}
+            <CalcBtn label="(-)" shiftLabel="A" onClick={() => handlePress('-', 'num')} />
+            <CalcBtn label="hyp" shiftLabel="B" onClick={() => {}} />
+            <CalcBtn label="sin" shiftLabel="sin⁻¹" onClick={() => handlePress('sin', 'func')} />
+            <CalcBtn label="cos" shiftLabel="cos⁻¹" onClick={() => handlePress('cos', 'func')} />
+            <CalcBtn label="tan" shiftLabel="tan⁻¹" onClick={() => handlePress('tan', 'func')} />
+
+            {/* ROW 4: Memory/Parens */}
+            <CalcBtn label="RCL" shiftLabel="STO" onClick={() => {}} />
+            <CalcBtn label="ENG" shiftLabel="←" onClick={() => {}} />
+            <CalcBtn label="(" onClick={() => handlePress('(', 'num')} />
+            <CalcBtn label=")" onClick={() => handlePress(')', 'num')} />
             <CalcBtn label="S⇔D" onClick={() => {}} />
 
-            {/* ROW 5: Main */}
-            <CalcBtn label="(" onClick={() => handlePress('(', 'num')} />
-            <CalcBtn label=")" alphaLabel="X" onClick={() => handlePress(')', 'num')} />
-            <CalcBtn label="," alphaLabel="Y" onClick={() => handlePress(',', 'num')} />
-            <CalcBtn label="M+" alphaLabel="M" onClick={() => handlePress('M+', 'func')} />
-            <CalcBtn label="ENG" shiftLabel="←" onClick={() => handlePress('ENG', 'func')} />
-
-            {/* ROW 6: Numpad 7-9 */}
+            {/* ROW 5: Numbers / DEL / AC */}
             <CalcBtn label="7" onClick={() => handlePress('7', 'num')} />
             <CalcBtn label="8" onClick={() => handlePress('8', 'num')} />
             <CalcBtn label="9" onClick={() => handlePress('9', 'num')} />
             <CalcBtn label="DEL" shiftLabel="INS" type="action" onClick={() => handlePress('DEL', 'action')} />
             <CalcBtn label="AC" shiftLabel="OFF" type="action" onClick={() => handlePress('AC', 'action')} />
 
-            {/* ROW 7: Numpad 4-6 */}
+            {/* ROW 6: Numbers / Ops */}
             <CalcBtn label="4" onClick={() => handlePress('4', 'num')} />
             <CalcBtn label="5" onClick={() => handlePress('5', 'num')} />
             <CalcBtn label="6" onClick={() => handlePress('6', 'num')} />
-            <CalcBtn label="×" shiftLabel="P" onClick={() => handlePress('×', 'op')} />
-            <CalcBtn label="÷" shiftLabel="C" onClick={() => handlePress('÷', 'op')} />
+            <CalcBtn label="×" shiftLabel="nPr" onClick={() => handlePress('×', 'op')} />
+            <CalcBtn label="÷" shiftLabel="nCr" onClick={() => handlePress('÷', 'op')} />
 
-            {/* ROW 8: Numpad 1-3 */}
+            {/* ROW 7: Numbers / Ops */}
             <CalcBtn label="1" onClick={() => handlePress('1', 'num')} />
             <CalcBtn label="2" onClick={() => handlePress('2', 'num')} />
             <CalcBtn label="3" onClick={() => handlePress('3', 'num')} />
             <CalcBtn label="+" shiftLabel="Pol" onClick={() => handlePress('+', 'op')} />
             <CalcBtn label="-" shiftLabel="Rec" onClick={() => handlePress('-', 'op')} />
 
-            {/* ROW 9: Bottom */}
+            {/* ROW 8: Bottom */}
             <CalcBtn label="0" onClick={() => handlePress('0', 'num')} />
             <CalcBtn label="." shiftLabel="Ran#" onClick={() => handlePress('.', 'num')} />
             <CalcBtn label="×10ⁿ" shiftLabel="π" onClick={() => handlePress(isShift ? 'π' : '*10^', 'num')} />

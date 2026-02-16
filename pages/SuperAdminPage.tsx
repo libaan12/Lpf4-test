@@ -1,26 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useContext } from 'react';
-import { ref, update, onValue, off, set, remove, get, push, serverTimestamp, query, limitToLast, increment } from 'firebase/database';
+import { ref, update, onValue, off, set, remove, get, push, serverTimestamp, query, limitToLast } from 'firebase/database';
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { UserProfile, Subject, Chapter, Question, MatchState, QuestionReport, LibraryViewLog } from '../types';
 import { Button, Card, Input, Modal, Avatar, VerificationBadge } from '../components/UI';
 import { showAlert, showToast, showConfirm, showPrompt } from '../services/alert';
 import { useNavigate } from 'react-router-dom';
-import { playSound } from '../services/audioService';
-
-const formatRelativeTime = (timestamp: number | undefined) => {
-    if (!timestamp) return 'Unknown';
-    const now = Date.now();
-    const diff = Math.floor((now - timestamp) / 1000); // seconds
-
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
-    
-    return new Date(timestamp).toLocaleDateString();
-};
 
 const SuperAdminPage: React.FC = () => {
   const { profile: myProfile, loading: profileLoading } = useContext(UserContext);
@@ -50,9 +36,6 @@ const SuperAdminPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedChapter, setSelectedChapter] = useState<string>('');
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
-  
-  // Report Handling State
-  const [activeReport, setActiveReport] = useState<QuestionReport | null>(null);
   
   // User Management
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -93,7 +76,7 @@ const SuperAdminPage: React.FC = () => {
       return () => off(dbRef, 'value', listener);
     });
 
-    // Special listener for Library Views
+    // Special listener for Library Views (Limit to last 100 for performance)
     const logsQuery = query(ref(db, 'analytics/libraryViews'), limitToLast(100));
     const logsUnsub = onValue(logsQuery, (snap) => {
         if (snap.exists()) {
@@ -128,35 +111,25 @@ const SuperAdminPage: React.FC = () => {
     }
   }, [selectedChapter]);
 
-  // --- REAL-TIME USER SYNC ---
+  // --- USER SELECTION LOGIC ---
   useEffect(() => {
-      if (selectedUser && users.length > 0) {
-          const freshUser = users.find(u => u.uid === selectedUser.uid);
-          if (freshUser) {
-              // Update local state without triggering infinite loops
-              // Only update if something changed that affects the modal UI
-              if (
-                  freshUser.isVerified !== selectedUser.isVerified ||
-                  freshUser.banned !== selectedUser.banned ||
-                  freshUser.points !== selectedUser.points ||
-                  freshUser.roles?.admin !== selectedUser.roles?.admin
-              ) {
-                  setSelectedUser(freshUser);
-              }
-              
-              setEditingRoles({
-                  superAdmin: freshUser.roles?.superAdmin || false,
-                  admin: freshUser.roles?.admin || (freshUser.role === 'admin') || false,
-                  support: freshUser.roles?.support || freshUser.isSupport || false
-              });
-          }
+      if (selectedUser) {
+          // Sync local role state with selected user
+          setEditingRoles({
+              superAdmin: selectedUser.roles?.superAdmin || false,
+              admin: selectedUser.roles?.admin || (selectedUser.role === 'admin') || false,
+              support: selectedUser.roles?.support || selectedUser.isSupport || false
+          });
       }
-  }, [users, selectedUser]);
+  }, [selectedUser]);
 
   // --- ACTIONS ---
   const toggleUserProp = async (uid: string, prop: string, current: any) => {
     try {
       await update(ref(db, `users/${uid}`), { [prop]: !current });
+      if (selectedUser && selectedUser.uid === uid) {
+          setSelectedUser({ ...selectedUser, [prop]: !current });
+      }
       showToast(`User ${prop} updated`);
     } catch(e) { showAlert("Error", "Action failed", "error"); }
   };
@@ -188,6 +161,7 @@ const SuperAdminPage: React.FC = () => {
       if (isNaN(pts)) return;
       await update(ref(db, `users/${selectedUser.uid}`), { points: pts });
       showToast("Points updated", "success");
+      setSelectedUser({ ...selectedUser, points: pts });
   };
 
   const deleteUser = async (uid: string) => {
@@ -196,43 +170,6 @@ const SuperAdminPage: React.FC = () => {
           setSelectedUser(null);
           showToast("User deleted", "success");
       }
-  };
-
-  const deleteReport = async (id: string) => {
-      if (!await showConfirm("Dismiss Report?", "This will remove it from the list.")) return;
-      await remove(ref(db, `reports/${id}`));
-      showToast("Report dismissed");
-  };
-
-  const handleEditReport = async (report: QuestionReport) => {
-      if (!report.chapterId || !report.questionId) {
-          showAlert("Error", "Question reference missing from report", "error");
-          return;
-      }
-      
-      try {
-          const qRef = ref(db, `questions/${report.chapterId}/${report.questionId}`);
-          const snapshot = await get(qRef);
-          
-          if (snapshot.exists()) {
-              setActiveReport(report);
-              setEditingQuestion({ id: report.questionId, ...snapshot.val() });
-          } else {
-              showAlert("Error", "Question no longer exists (it might have been deleted)", "error");
-          }
-      } catch (e) {
-          showAlert("Error", "Failed to load question details", "error");
-      }
-  };
-
-  const getUserDetails = (uid: string) => {
-      return users.find(u => u.uid === uid) || { 
-          uid, 
-          name: 'Unknown User', 
-          avatar: '', 
-          points: 0,
-          isVerified: false 
-      } as UserProfile;
   };
 
   const terminateMatch = async (matchId: string) => {
@@ -248,13 +185,27 @@ const SuperAdminPage: React.FC = () => {
 
   const terminateAllMatches = async () => {
       if (matches.length === 0) return;
-      const confirm = await showConfirm("NUKE ARENA?", `Force end ${matches.length} matches?`);
+      
+      const confirm = await showConfirm(
+          "NUKE ARENA?", 
+          `This will forcefully end all ${matches.length} active matches. Players will be kicked.`, 
+          "CLEAR ALL", 
+          "Cancel", 
+          "danger"
+      );
+
       if (!confirm) return;
 
       const updates: any = {};
       matches.forEach(m => {
+          // Delete match from DB
           updates[`matches/${m.matchId}`] = null;
-          if (m.players) Object.keys(m.players).forEach(uid => updates[`users/${uid}/activeMatch`] = null);
+          // Reset players activeMatch status
+          if (m.players) {
+              Object.keys(m.players).forEach(uid => {
+                  updates[`users/${uid}/activeMatch`] = null;
+              });
+          }
       });
 
       try {
@@ -267,71 +218,14 @@ const SuperAdminPage: React.FC = () => {
 
   const handleUpdateQuestion = async () => {
     if (!editingQuestion) return;
-    
-    // Determine path. If activeReport exists, use its chapterId, otherwise use selectedChapter
-    const chapterId = activeReport ? activeReport.chapterId : editingQuestion.subject;
-    const path = `questions/${chapterId}/${editingQuestion.id}`;
-    
-    try {
-        await update(ref(db, path), {
-            question: editingQuestion.question,
-            options: editingQuestion.options,
-            answer: editingQuestion.answer
-        });
-
-        // NOTIFICATION LOGIC FOR REPORTER
-        if (activeReport && myProfile) {
-            const reporterUid = activeReport.reporterUid;
-            const participants = [myProfile.uid, reporterUid].sort();
-            const chatId = `${participants[0]}_${participants[1]}`;
-            
-            const msgRef = push(ref(db, `chats/${chatId}/messages`));
-            const msgId = msgRef.key!;
-            
-            const messageText = `✅ Report Resolved (ID: ${activeReport.id.slice(-4)})\n\nHello, we have reviewed your report regarding: "${activeReport.questionText.substring(0, 30)}..."\n\nThe question has been corrected by the Admin Team. Thank you for making LP-F4 better!`;
-
-            const updates: any = {};
-            // 1. Send Message
-            updates[`chats/${chatId}/messages/${msgId}`] = {
-                id: msgId,
-                sender: myProfile.uid,
-                text: messageText,
-                timestamp: serverTimestamp(),
-                msgStatus: 'sent',
-                type: 'text',
-                chatId: chatId
-            };
-            // 2. Update Chat Metadata
-            updates[`chats/${chatId}/lastMessage`] = messageText;
-            updates[`chats/${chatId}/lastTimestamp`] = serverTimestamp();
-            updates[`chats/${chatId}/lastMessageSender`] = myProfile.uid;
-            updates[`chats/${chatId}/unread/${reporterUid}/count`] = increment(1);
-            updates[`chats/${chatId}/participants/${myProfile.uid}`] = true;
-            updates[`chats/${chatId}/participants/${reporterUid}`] = true;
-
-            // 3. Delete Report automatically
-            updates[`reports/${activeReport.id}`] = null;
-
-            await update(ref(db), updates);
-            
-            showToast("Corrected & User Notified", "success");
-            setActiveReport(null);
-        } else {
-            showToast("Question Updated", "success");
-        }
-
-        setEditingQuestion(null);
-        playSound('correct');
-
-    } catch (e) {
-        console.error(e);
-        showAlert("Error", "Failed to update question.", "error");
-    }
-  };
-
-  const handleCloseEditor = () => {
-      setEditingQuestion(null);
-      setActiveReport(null);
+    const path = `questions/${editingQuestion.subject}/${editingQuestion.id}`;
+    await update(ref(db, path), {
+        question: editingQuestion.question,
+        options: editingQuestion.options,
+        answer: editingQuestion.answer
+    });
+    setEditingQuestion(null);
+    showToast("Updated");
   };
 
   const handleFABAction = (action: 'quiz' | 'user' | 'alert') => {
@@ -352,11 +246,12 @@ const SuperAdminPage: React.FC = () => {
     return users.filter(u => u.name?.toLowerCase().includes(term) || u.username?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term));
   }, [users, searchTerm]);
 
+  // Recent Visitors (Sorted by Last Seen descending)
   const recentVisitors = useMemo(() => {
       return [...users]
-        .filter(u => u.lastSeen) 
+        .filter(u => u.lastSeen) // Must have visited at least once
         .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
-        .slice(0, 50); 
+        .slice(0, 50); // Show top 50
   }, [users]);
 
   // --- COMPUTED METRICS ---
@@ -373,12 +268,23 @@ const SuperAdminPage: React.FC = () => {
       };
   }, [users, matches, reports]);
 
+  // --- HELPERS ---
+  const formatTime = (ts?: number) => {
+      if (!ts) return 'N/A';
+      return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getUserDetails = (uid: string) => {
+      const u = users.find(user => user.uid === uid);
+      return u ? { name: u.name, avatar: u.avatar, username: u.username } : { name: 'Unknown User', avatar: '', username: 'unknown' };
+  };
+
   // --- UI HELPERS ---
   const SidebarItem = ({ id, icon, label, active }: { id: string, icon: string, label: string, active: boolean }) => (
       <button 
         onClick={() => {
             setActiveTab(id as any);
-            setIsMobileMenuOpen(false); 
+            setIsMobileMenuOpen(false); // Close mobile menu on select
         }}
         className={`w-full mb-2 rounded-2xl flex items-center transition-all duration-300 relative group overflow-hidden ${isSidebarExpanded ? 'px-4 py-3 gap-4' : 'justify-center py-3 w-12 h-12 mx-auto'} ${active ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800/50'}`}
       >
@@ -449,7 +355,7 @@ const SuperAdminPage: React.FC = () => {
             ></div>
         )}
 
-        {/* SIDEBAR */}
+        {/* SIDEBAR - Responsive Drawer */}
         <div className={`
             fixed inset-y-0 left-0 z-30 bg-[#0b1120] border-r border-slate-800 flex flex-col items-center py-8 transition-all duration-300
             md:static md:translate-x-0
@@ -497,12 +403,17 @@ const SuperAdminPage: React.FC = () => {
             {/* HEADER */}
             <header className="px-4 md:px-8 py-4 md:py-6 flex justify-between items-center border-b border-slate-800/50 bg-[#0b1120]/95 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-4">
+                    {/* Hamburger Button (Mobile Only) */}
                     <button 
-                        onClick={() => { setIsMobileMenuOpen(true); setIsSidebarExpanded(true); }} 
+                        onClick={() => {
+                            setIsMobileMenuOpen(true);
+                            setIsSidebarExpanded(true); // Ensure expanded on mobile open for better view
+                        }} 
                         className="md:hidden w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center active:scale-95 transition-transform"
                     >
                         <i className="fas fa-bars"></i>
                     </button>
+
                     <div>
                         <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">SUPER ADMIN</h1>
                         <p className="text-[9px] font-black text-cyan-500 uppercase tracking-[0.3em]">Central Command</p>
@@ -531,11 +442,43 @@ const SuperAdminPage: React.FC = () => {
                 {/* --- DASHBOARD HOME --- */}
                 {activeTab === 'home' && (
                     <div className="max-w-7xl mx-auto space-y-8 animate__animated animate__fadeIn">
+                        
+                        {/* 4 Stats Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                             <StatCard title="Total Users" value={stats.totalUsers.toLocaleString()} sub="+12.5%" chartColor="#22d3ee" icon="fa-users" />
                             <StatCard title="Live Battles" value={stats.activeMatches.toString()} sub="Active" chartColor="#4ade80" icon="fa-gamepad" />
                             <StatCard title="New Recruits" value={stats.newUsers.toString()} sub="+24h" chartColor="#fb923c" icon="fa-user-plus" />
                             <StatCard title="Pending Reports" value={stats.reports.toString()} sub={stats.reports > 0 ? "Action Req" : "Clear"} chartColor="#f472b6" icon="fa-flag" />
+                        </div>
+
+                        {/* Recent Activity List */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="bg-[#1e293b] rounded-[2.5rem] p-6 border border-slate-700/50 shadow-xl flex flex-col">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-white font-black uppercase text-sm tracking-widest">Live Arena Feed</h3>
+                                    <button onClick={() => setActiveTab('arena')} className="text-[10px] font-black text-cyan-400 border border-cyan-500/30 px-3 py-1 rounded-full hover:bg-cyan-500/10">VIEW ALL</button>
+                                </div>
+                                <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2 max-h-[350px]">
+                                    {matches.slice(0, 10).map(m => (
+                                        <div key={m.matchId} className="bg-[#0b1120] p-3 rounded-2xl flex items-center gap-3 border border-slate-800 hover:border-slate-600 transition-colors">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-cyan-400">
+                                                <i className="fas fa-gamepad"></i>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-white font-bold text-xs truncate">Match #{String(m.matchId).substring(6)}</div>
+                                                <div className="text-[10px] text-slate-500 truncate">{m.subjectTitle || 'Battle'}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-white font-black text-sm">{Object.keys(m.players || {}).length}P</div>
+                                                <div className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${m.status === 'active' ? 'bg-green-500 text-[#0b1120]' : 'bg-slate-700 text-slate-400'}`}>
+                                                    {m.status === 'active' ? 'LIVE' : 'DONE'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {matches.length === 0 && <div className="text-center text-slate-600 text-xs py-10">No recent activity</div>}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -559,15 +502,13 @@ const SuperAdminPage: React.FC = () => {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-center">
                                                 <h4 className="text-white font-bold text-sm truncate">{u.name}</h4>
-                                                <span className="text-[10px] font-black text-slate-500">{formatRelativeTime(u.lastSeen)}</span>
+                                                <span className="text-[10px] font-black text-slate-500">{formatTime(u.lastSeen)}</span>
                                             </div>
                                             <div className="flex justify-between items-center mt-1">
                                                 <p className="text-slate-500 text-xs font-mono truncate">@{u.username || 'guest'}</p>
                                                 <span className="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-cyan-400 font-bold">{u.points} XP</span>
                                             </div>
-                                            <div className="text-[10px] text-slate-600 mt-1 truncate">
-                                                Joined: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
-                                            </div>
+                                            {u.email && <div className="text-[10px] text-slate-600 mt-1 truncate">{u.email}</div>}
                                         </div>
                                     </div>
                                 ))}
@@ -598,7 +539,7 @@ const SuperAdminPage: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div className="text-[9px] font-black text-slate-600 uppercase tracking-wide text-right">
-                                                {formatRelativeTime(log.timestamp)}
+                                                {formatTime(log.timestamp)}
                                             </div>
                                         </div>
                                     );
@@ -637,6 +578,7 @@ const SuperAdminPage: React.FC = () => {
                                                 {u.name}
                                                 {u.banned && <span className="text-[8px] bg-red-500 px-1.5 rounded text-white uppercase font-black">Banned</span>}
                                                 {u.roles?.superAdmin && <span className="text-[8px] bg-purple-500 px-1.5 rounded text-white uppercase font-black">Super Admin</span>}
+                                                {u.roles?.support && !u.roles?.superAdmin && <span className="text-[8px] bg-orange-500 px-1.5 rounded text-white uppercase font-black">Staff</span>}
                                             </div>
                                             <div className="text-slate-500 text-xs font-mono">@{u.username || 'guest'} • <span className="text-cyan-400">{u.points} PTS</span></div>
                                         </div>
@@ -653,143 +595,83 @@ const SuperAdminPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* --- REPORTS TAB --- */}
-                {activeTab === 'reports' && (
-                    <div className="animate__animated animate__fadeIn space-y-6">
-                        <div className="flex justify-between items-center mb-2 px-2">
-                            <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                                <i className="fas fa-clipboard-list text-red-400"></i> Issue Center
-                            </h2>
-                            <div className="text-slate-500 font-bold text-xs">{reports.length} Pending</div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {reports.length === 0 ? (
-                                <div className="col-span-full py-20 text-center bg-[#1e293b] rounded-[2.5rem] border border-slate-700/50">
-                                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600 text-3xl">
-                                        <i className="fas fa-check"></i>
-                                    </div>
-                                    <h3 className="text-white font-bold text-lg">All Clear</h3>
-                                    <p className="text-slate-500 text-xs font-bold mt-1">No pending reports to review.</p>
-                                </div>
-                            ) : (
-                                reports.map(r => {
-                                    const reporter = getUserDetails(r.reporterUid);
-                                    return (
-                                        <div key={r.id} className="bg-[#1e293b] rounded-[2rem] p-6 border border-slate-700/50 shadow-xl flex flex-col relative overflow-hidden group">
-                                            {/* Status Badge */}
-                                            <div className="absolute top-0 right-0 bg-orange-500/20 text-orange-400 px-4 py-1.5 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest border-l border-b border-orange-500/20">
-                                                Action Req
-                                            </div>
-
-                                            {/* Header */}
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <Avatar src={reporter.avatar} size="md" className="border-2 border-slate-600" />
-                                                <div>
-                                                    <div className="text-white font-bold text-sm">{reporter.name}</div>
-                                                    <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wide flex items-center gap-1">
-                                                        <span>Reported {formatRelativeTime(r.timestamp)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Content */}
-                                            <div className="flex-1 bg-[#0b1120] rounded-xl p-4 border border-slate-800 mb-4 relative">
-                                                <div className="absolute -left-1 top-4 w-1 h-8 bg-red-500 rounded-r-full"></div>
-                                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Category: {r.category || 'General'}</div>
-                                                <p className="text-white font-bold text-sm leading-relaxed line-clamp-3 italic">"{r.questionText}"</p>
-                                                {r.reason && (
-                                                    <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400 font-medium">
-                                                        <i className="fas fa-comment-alt mr-2 text-slate-600"></i>
-                                                        <span className="text-orange-400 font-bold">User Note:</span> {r.reason}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="grid grid-cols-2 gap-3 mt-auto">
-                                                <button 
-                                                    onClick={() => deleteReport(r.id)} 
-                                                    className="py-3 rounded-xl bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white font-black text-xs uppercase transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <i className="fas fa-times"></i> Dismiss
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleEditReport(r)} 
-                                                    className="py-3 rounded-xl bg-game-primary text-white hover:bg-orange-600 font-black text-xs uppercase transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
-                                                >
-                                                    <i className="fas fa-wrench"></i> Fix & Reply
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* --- QUIZZES TAB --- */}
                 {activeTab === 'quizzes' && (
-                    // Reusing Admin Page Logic for Content Management
-                    // ... [Existing Quiz Management Logic] ...
-                    // Placeholder for brevity as it was not changed
-                    <div className="bg-[#1e293b] rounded-[2.5rem] p-8 border border-slate-700/50 text-center">
-                        <h2 className="text-2xl font-black text-white uppercase">Content Manager</h2>
-                        <p className="text-slate-500 text-sm mt-2">Use Admin Panel for detailed content editing.</p>
-                        <button onClick={() => navigate('/admin')} className="mt-6 bg-game-primary text-slate-900 px-6 py-3 rounded-xl font-black uppercase">Go to Admin</button>
+                    <div className="bg-[#1e293b] rounded-[2.5rem] p-4 md:p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
+                        <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest flex items-center gap-2">
+                            <i className="fas fa-layer-group text-purple-400"></i> Content Manager
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <select 
+                                value={selectedSubject} 
+                                onChange={e => setSelectedSubject(e.target.value)}
+                                className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500 w-full"
+                            >
+                                <option value="">Select Subject</option>
+                                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            <select 
+                                value={selectedChapter} 
+                                onChange={e => setSelectedChapter(e.target.value)}
+                                className="bg-[#0b1120] text-white p-4 rounded-xl font-bold border-none outline-none focus:ring-1 focus:ring-cyan-500 w-full"
+                                disabled={!selectedSubject}
+                            >
+                                <option value="">Select Chapter</option>
+                                {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-3">
+                            {questions.map((q, idx) => (
+                                <div key={q.id} className="bg-[#0b1120] p-4 rounded-2xl border border-slate-800 flex justify-between items-start hover:border-purple-500/30 transition-colors">
+                                    <div className="flex gap-3 min-w-0">
+                                        <div className="text-cyan-500 font-black text-lg w-8 pt-1 shrink-0">Q{idx+1}</div>
+                                        <div className="min-w-0">
+                                            <div className="text-white font-bold text-sm mb-2 break-words">{q.question}</div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {q.options.map((o, i) => (
+                                                    <span key={i} className={`text-[10px] px-2 py-1 rounded ${i === q.answer ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-500'}`}>{o}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2 ml-2">
+                                        <button onClick={() => setEditingQuestion(q)} className="text-cyan-400 hover:text-white"><i className="fas fa-edit"></i></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {questions.length === 0 && <div className="text-center text-slate-600 py-10 font-bold">Select a chapter to view questions</div>}
+                        </div>
                     </div>
                 )}
 
-                {/* --- LIVE ARENA TAB --- */}
+                {/* --- ARENA TAB --- */}
                 {activeTab === 'arena' && (
-                    <div className="animate__animated animate__fadeIn">
+                    <div className="bg-[#1e293b] rounded-[2.5rem] p-4 md:p-8 border border-slate-700/50 min-h-[500px] animate__animated animate__fadeIn">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                                <i className="fas fa-gamepad text-green-400"></i> Live Arena
+                            <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                <i className="fas fa-gamepad text-green-400"></i> Active Arena
                             </h2>
-                            <button onClick={terminateAllMatches} className="bg-red-900/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all">
-                                Terminate All
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {matches.length === 0 && (
-                                <div className="col-span-full text-center py-20 text-slate-500 font-bold">
-                                    No active matches found.
-                                </div>
+                            {matches.length > 0 && (
+                                <Button size="sm" variant="danger" onClick={terminateAllMatches} className="!py-2 !px-4 !text-[10px] shadow-red-500/20">
+                                    <i className="fas fa-bomb mr-2"></i> CLEAR ALL
+                                </Button>
                             )}
-                            {matches.map(m => {
-                                const pIds = Object.keys(m.players || {});
-                                const p1 = m.players?.[pIds[0]];
-                                const p2 = m.players?.[pIds[1]];
-                                const scores = m.scores || {};
-                                return (
-                                    <div key={m.matchId} className="bg-[#1e293b] rounded-3xl p-5 border border-slate-700/50 relative overflow-hidden group hover:border-green-500/30 transition-all">
-                                        <div className="absolute top-0 right-0 bg-green-500/10 text-green-400 text-[9px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-green-500/20">
-                                            LIVE Q{m.currentQ + 1}
+                        </div>
+                        <div className="space-y-4">
+                            {matches.map(m => (
+                                <div key={m.matchId} className="bg-[#0b1120] p-5 rounded-2xl border border-slate-800 flex justify-between items-center group hover:border-green-500/30 transition-colors flex-wrap gap-4">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-cyan-400 text-[10px] font-black uppercase tracking-widest mb-1">{m.subjectTitle}</div>
+                                        <div className="text-white font-bold text-sm flex items-center gap-2">
+                                            {Object.keys(m.players || {}).length} Players
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
                                         </div>
-                                        <div className="text-center mb-4">
-                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">{m.subjectTitle || 'Battle'}</div>
-                                        </div>
-                                        <div className="flex justify-between items-center mb-6">
-                                            <div className="text-center">
-                                                <Avatar src={p1?.avatar} size="sm" className="mx-auto mb-2" />
-                                                <div className="font-bold text-xs truncate w-20 text-white">{p1?.name}</div>
-                                                <div className="font-black text-lg text-cyan-400">{scores[pIds[0]] ?? 0}</div>
-                                            </div>
-                                            <div className="text-xl font-black text-slate-600 italic">VS</div>
-                                            <div className="text-center">
-                                                <Avatar src={p2?.avatar} size="sm" className="mx-auto mb-2" />
-                                                <div className="font-bold text-xs truncate w-20 text-white">{p2?.name}</div>
-                                                <div className="font-black text-lg text-orange-500">{scores[pIds[1]] ?? 0}</div>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => terminateMatch(m.matchId)} className="w-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white py-3 rounded-xl text-xs font-black uppercase transition-all">
-                                            Force Stop
-                                        </button>
+                                        <div className="text-xs text-slate-500 mt-1">ID: {m.matchId}</div>
                                     </div>
-                                );
-                            })}
+                                    <Button size="sm" variant="danger" onClick={() => terminateMatch(m.matchId)} className="!py-2 !px-4 !text-[10px]">TERMINATE</Button>
+                                </div>
+                            ))}
+                            {matches.length === 0 && <div className="text-center text-slate-600 py-20 font-bold">No live matches</div>}
                         </div>
                     </div>
                 )}
@@ -807,6 +689,10 @@ const SuperAdminPage: React.FC = () => {
                             <span className="text-xs font-bold">Find User</span>
                             <div className="w-8 h-8 rounded-full bg-cyan-500 flex items-center justify-center"><i className="fas fa-search"></i></div>
                         </button>
+                        <button onClick={() => handleFABAction('alert')} className="bg-[#1e293b] text-white px-4 py-2 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                            <span className="text-xs font-bold">System Alert</span>
+                            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center"><i className="fas fa-bullhorn"></i></div>
+                        </button>
                     </div>
                 )}
                 <button 
@@ -818,7 +704,7 @@ const SuperAdminPage: React.FC = () => {
             </div>
         </div>
 
-        {/* --- USER DETAIL MODAL (REALTIME) --- */}
+        {/* --- USER DETAIL MODAL (SUPER ADMIN VERSION) --- */}
         {selectedUser && (
             <Modal isOpen={true} title="User Manager" onClose={() => setSelectedUser(null)}>
                 <div className="flex flex-col items-center mb-6 pt-2">
@@ -838,14 +724,43 @@ const SuperAdminPage: React.FC = () => {
                     </div>
 
                     <div className="w-full space-y-4">
+                        {/* ROLE MANAGEMENT */}
+                        <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Role Assignment</label>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.support ? 'bg-orange-500 border-orange-500 text-black' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.support && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.support} onChange={() => setEditingRoles(prev => ({ ...prev, support: !prev.support }))} />
+                                    <span className="text-sm font-bold text-white">Support Staff</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.admin ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.admin && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.admin} onChange={() => setEditingRoles(prev => ({ ...prev, admin: !prev.admin }))} />
+                                    <span className="text-sm font-bold text-white">Admin (Content Manager)</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editingRoles.superAdmin ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-600 bg-slate-900'}`}>
+                                        {editingRoles.superAdmin && <i className="fas fa-check text-xs"></i>}
+                                    </div>
+                                    <input type="checkbox" className="hidden" checked={editingRoles.superAdmin} onChange={() => setEditingRoles(prev => ({ ...prev, superAdmin: !prev.superAdmin }))} />
+                                    <span className="text-sm font-bold text-white">Super Admin (Full Access)</span>
+                                </label>
+                            </div>
+                            <Button size="sm" onClick={saveUserRoles} className="mt-4 !py-2 !text-xs !bg-slate-700 hover:!bg-slate-600 border-none w-full">Update Roles</Button>
+                        </div>
+
                         {/* QUICK ACTIONS */}
                         <div className="p-4 bg-[#0b1120] rounded-2xl border border-slate-800">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Quick Actions</label>
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => toggleUserProp(selectedUser.uid, 'isVerified', selectedUser.isVerified)} className={`py-2 rounded-lg text-xs font-black uppercase transition-colors ${selectedUser.isVerified ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'}`}>
+                                <button onClick={() => toggleUserProp(selectedUser.uid, 'isVerified', selectedUser.isVerified)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.isVerified ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'}`}>
                                     {selectedUser.isVerified ? 'Unverify' : 'Verify'}
                                 </button>
-                                <button onClick={() => toggleUserProp(selectedUser.uid, 'banned', selectedUser.banned)} className={`py-2 rounded-lg text-xs font-black uppercase transition-colors ${selectedUser.banned ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
+                                <button onClick={() => toggleUserProp(selectedUser.uid, 'banned', selectedUser.banned)} className={`py-2 rounded-lg text-xs font-black uppercase ${selectedUser.banned ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
                                     {selectedUser.banned ? 'Unban' : 'Ban User'}
                                 </button>
                                 <button onClick={() => deleteUser(selectedUser.uid)} className="py-2 rounded-lg text-xs font-black uppercase bg-red-600 text-white hover:bg-red-700 col-span-2">
@@ -873,54 +788,31 @@ const SuperAdminPage: React.FC = () => {
 
         {/* --- QUESTION EDITOR MODAL --- */}
         {editingQuestion && (
-            <Modal isOpen={true} title="Correction Studio" onClose={handleCloseEditor}>
-                <div className="space-y-6 pt-4 pb-2">
-                    {activeReport && (
-                        <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-xl flex items-center gap-3">
-                            <i className="fas fa-info-circle text-orange-500 text-xl"></i>
-                            <div className="text-xs text-orange-200">
-                                <span className="font-bold uppercase tracking-wide block text-orange-400">Auto-Response Enabled</span>
-                                Saving changes will notify the reporter automatically.
-                            </div>
+            <Modal isOpen={true} title="Edit Question" onClose={() => setEditingQuestion(null)}>
+                <div className="space-y-4 pt-4">
+                    <Input 
+                        value={editingQuestion.question} 
+                        onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
+                        className="!bg-[#0b1120] !border-slate-700 !text-white"
+                    />
+                    {editingQuestion.options.map((opt, i) => (
+                        <div key={i} className="flex gap-2">
+                            <button 
+                                onClick={() => setEditingQuestion({...editingQuestion, answer: i})}
+                                className={`w-10 h-10 rounded bg-[#0b1120] border ${editingQuestion.answer === i ? 'border-green-500 text-green-500' : 'border-slate-700 text-slate-500'}`}
+                            >{String.fromCharCode(65+i)}</button>
+                            <Input 
+                                value={opt} 
+                                onChange={(e) => {
+                                    const newOpts = [...editingQuestion.options];
+                                    newOpts[i] = e.target.value;
+                                    setEditingQuestion({...editingQuestion, options: newOpts});
+                                }}
+                                className="!bg-[#0b1120] !border-slate-700 !text-white !mb-0"
+                            />
                         </div>
-                    )}
-
-                    <div>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Question Text</label>
-                        <Input 
-                            value={editingQuestion.question} 
-                            onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
-                            className="!bg-[#0b1120] !border-slate-700 !text-white !p-4 !rounded-2xl"
-                        />
-                    </div>
-
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 block">Answer Options</label>
-                        {editingQuestion.options.map((opt, i) => (
-                            <div key={i} className="flex gap-2">
-                                <button 
-                                    onClick={() => setEditingQuestion({...editingQuestion, answer: i})}
-                                    className={`w-12 h-12 shrink-0 rounded-xl bg-[#0b1120] border transition-all font-black ${editingQuestion.answer === i ? 'border-green-500 text-green-500 bg-green-500/10' : 'border-slate-700 text-slate-500'}`}
-                                >{String.fromCharCode(65+i)}</button>
-                                <Input 
-                                    value={opt} 
-                                    onChange={(e) => {
-                                        const newOpts = [...editingQuestion.options];
-                                        newOpts[i] = e.target.value;
-                                        setEditingQuestion({...editingQuestion, options: newOpts});
-                                    }}
-                                    className="!bg-[#0b1120] !border-slate-700 !text-white !mb-0"
-                                />
-                            </div>
-                        ))}
-                    </div>
-                    
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" fullWidth onClick={handleCloseEditor}>Cancel</Button>
-                        <Button fullWidth onClick={handleUpdateQuestion}>
-                            {activeReport ? 'Save & Notify User' : 'Save Changes'}
-                        </Button>
-                    </div>
+                    ))}
+                    <Button fullWidth onClick={handleUpdateQuestion}>Save Changes</Button>
                 </div>
             </Modal>
         )}

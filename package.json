@@ -18,8 +18,7 @@
     "canvas-confetti": "^1.9.4",
     "xlsx": "^0.18.5",
     "sweetalert2": "^11.26.17",
-    "howler": "^2.2.4",
-    "html2canvas": "^1.4.1"
+    "howler": "^2.2.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

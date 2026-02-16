@@ -5,11 +5,11 @@ import { ref, get, onValue, off, push, set, serverTimestamp } from 'firebase/dat
 import { db } from '../firebase';
 import { UserContext } from '../contexts';
 import { Button, Card } from '../components/UI';
-import { ReportModal } from '../components/ReportModal';
 import { playSound } from '../services/audioService';
-import { showToast } from '../services/alert';
+import { showToast, showPrompt } from '../services/alert';
 import { Question, Subject, Chapter } from '../types';
 
+// Utility to shuffle array
 const shuffleArray = <T,>(array: T[]): T[] => {
     const newArr = [...array];
     for (let i = newArr.length - 1; i > 0; i--) {
@@ -23,22 +23,29 @@ const SoloPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useContext(UserContext);
   
+  // State for Flow: 'subject' -> 'chapter' -> 'game'
   const [step, setStep] = useState<'subject' | 'chapter' | 'game'>('subject');
+  
+  // Data State
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  
+  // Selection State
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string>('');
 
+  // Game State
   const [loading, setLoading] = useState(true);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-  const [showReportModal, setShowReportModal] = useState(false);
 
+  // 1. Fetch Subjects on Load
   useEffect(() => {
+    // Cache Check
     const cachedSubjects = localStorage.getItem('subjects_cache');
     if (cachedSubjects) setSubjects(JSON.parse(cachedSubjects));
 
@@ -54,6 +61,7 @@ const SoloPage: React.FC = () => {
     return () => off(subRef);
   }, []);
 
+  // 2. Fetch Chapters when Subject Selected
   const handleSelectSubject = async (sub: Subject) => {
       setLoading(true);
       playSound('click');
@@ -63,9 +71,16 @@ const SoloPage: React.FC = () => {
       const snapshot = await get(chapRef);
       if (snapshot.exists()) {
           const loadedChapters = Object.values(snapshot.val()) as Chapter[];
-          const allOption: Chapter = { id: `ALL_${sub.id}`, name: 'All chapters', subjectId: sub.id };
+          
+          // Add All Chapters Option
+          const allOption: Chapter = {
+              id: `ALL_${sub.id}`,
+              name: 'All chapters',
+              subjectId: sub.id
+          };
+          
           setChapters([allOption, ...loadedChapters]);
-          setSelectedChapterId(allOption.id);
+          setSelectedChapterId(allOption.id); // Default to All
           setStep('chapter');
       } else {
           showToast("No chapters found for this subject.", "info");
@@ -73,6 +88,7 @@ const SoloPage: React.FC = () => {
       setLoading(false);
   };
 
+  // 3. Start Game
   const handleStartGame = async () => {
       if (!selectedChapterId) return;
       setLoading(true);
@@ -81,6 +97,7 @@ const SoloPage: React.FC = () => {
       let loadedQ: Question[] = [];
       const cacheKey = `questions_cache_${selectedChapterId}`;
 
+      // Check Cache First
       if (!selectedChapterId.startsWith('ALL_')) {
           const cached = localStorage.getItem(cacheKey);
           if(cached) {
@@ -90,6 +107,7 @@ const SoloPage: React.FC = () => {
 
       if (loadedQ.length === 0) {
           if (selectedChapterId.startsWith('ALL_')) {
+              // Fetch from ALL chapters
               const realChapters = chapters.filter(c => !c.id.startsWith('ALL_'));
               const promises = realChapters.map(c => get(ref(db, `questions/${c.id}`)));
               const snapshots = await Promise.all(promises);
@@ -101,20 +119,28 @@ const SoloPage: React.FC = () => {
                   }
               });
           } else {
+              // Fetch specific chapter
               const qRef = ref(db, `questions/${selectedChapterId}`);
               const snapshot = await get(qRef);
               if (snapshot.exists()) {
                   const data = snapshot.val();
                   loadedQ = Object.keys(data).map(key => ({ ...data[key], id: key }));
+                  // Update Cache
                   localStorage.setItem(cacheKey, JSON.stringify(loadedQ));
               }
           }
       }
 
       if (loadedQ.length > 0) {
+          // 1. Shuffle Questions
           let shuffledQ = shuffleArray(loadedQ);
+
+          // 2. Shuffle Options for each question
           shuffledQ = shuffledQ.map(q => {
-              const optionsWithIndex = q.options.map((opt, idx) => ({ text: opt, isCorrect: idx === q.answer }));
+              const optionsWithIndex = q.options.map((opt, idx) => ({ 
+                  text: opt, 
+                  isCorrect: idx === q.answer 
+              }));
               const shuffledOptions = shuffleArray(optionsWithIndex);
               return {
                   ...q,
@@ -123,8 +149,11 @@ const SoloPage: React.FC = () => {
               };
           });
 
+          // 3. Random Limit (10-20)
           const randomLimit = Math.floor(Math.random() * 11) + 10;
-          if (shuffledQ.length > randomLimit) shuffledQ = shuffledQ.slice(0, randomLimit);
+          if (shuffledQ.length > randomLimit) {
+              shuffledQ = shuffledQ.slice(0, randomLimit);
+          }
 
           setQuestions(shuffledQ);
           setStep('game');
@@ -136,6 +165,7 @@ const SoloPage: React.FC = () => {
 
   const handleAnswer = (index: number) => {
     if (selected !== null) return;
+    
     const currentQ = questions[currentQIndex];
     setSelected(index);
     if (index === currentQ.answer) {
@@ -159,8 +189,39 @@ const SoloPage: React.FC = () => {
     }, 1200);
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-800 dark:text-white font-bold animate-pulse">Loading Content...</div>;
+  const handleReport = async () => {
+    const currentQ = questions[currentQIndex];
+    if (!currentQ || !user) return;
+    playSound('click');
+    
+    const reason = await showPrompt('Report Question', 'Tell us what is wrong with this question.');
 
+    if (reason) {
+        try {
+            const reportRef = push(ref(db, 'reports'));
+            await set(reportRef, {
+                id: reportRef.key,
+                questionId: currentQ.id,
+                chapterId: selectedChapterId,
+                reason: reason,
+                reporterUid: user.uid,
+                timestamp: serverTimestamp(),
+                questionText: currentQ.question
+            });
+            showToast("Waad ku mahadsantahay soo sheegidda!", "success");
+        } catch (e) {
+            showToast("Waan ka xumahay, cilad ayaa dhacday.", "error");
+        }
+    }
+  };
+
+  // --- Render Selection Screens ---
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-800 dark:text-white font-bold animate-pulse">Loading Content...</div>;
+  }
+
+  // STEP 1: Select Subject
   if (step === 'subject') {
       return (
           <div className="min-h-full p-4 pt-20 max-w-4xl mx-auto w-full">
@@ -171,6 +232,7 @@ const SoloPage: React.FC = () => {
                   <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">Select Subject</h1>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {subjects.length === 0 && <div className="text-gray-500 text-center mt-10">No subjects available.</div>}
                   {subjects.map(sub => (
                       <Card key={sub.id} className="cursor-pointer hover:scale-105 transition-transform border-l-4 border-game-primary group">
                           <div onClick={() => handleSelectSubject(sub)} className="flex justify-between items-center">
@@ -185,10 +247,16 @@ const SoloPage: React.FC = () => {
                       </Card>
                   ))}
               </div>
+              <div className="mt-8 text-center animate__animated animate__fadeInUp">
+                  <p className="inline-block px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/20 text-game-primary dark:text-blue-300 text-xs font-bold border border-blue-100 dark:border-blue-800/50">
+                      <i className="fas fa-bullhorn mr-2"></i> More subjects will be added soon!
+                  </p>
+              </div>
           </div>
       );
   }
 
+  // STEP 2: Select Chapter (Dropdown)
   if (step === 'chapter') {
       return (
           <div className="min-h-full p-4 pt-20 max-w-4xl mx-auto w-full">
@@ -234,6 +302,7 @@ const SoloPage: React.FC = () => {
       );
   }
 
+  // STEP 3: Game Interface
   const currentQ = questions[currentQIndex];
 
   return (
@@ -264,14 +333,17 @@ const SoloPage: React.FC = () => {
           </Card>
         ) : (
           <>
+             {/* Progress Bar */}
              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mb-8 backdrop-blur-sm overflow-hidden">
                 <div className="bg-game-primary h-2.5 rounded-full transition-all duration-500 ease-out shadow-lg" style={{ width: `${((currentQIndex)/questions.length)*100}%` }}></div>
              </div>
 
+             {/* Question Card */}
              <div className="bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-[1.5rem] p-6 shadow-2xl text-center mb-6 min-h-[140px] flex items-center justify-center flex-col transition-colors border-2 border-slate-100 dark:border-slate-700 animate__animated animate__fadeIn relative">
                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-game-primary to-purple-600"></div>
                  
-                 <button onClick={() => setShowReportModal(true)} className="absolute top-4 right-6 text-slate-300 hover:text-red-500 transition-colors z-30" title="Report Question">
+                 {/* Report Icon */}
+                 <button onClick={handleReport} className="absolute top-4 right-6 text-slate-300 hover:text-red-500 transition-colors z-30" title="Report Question">
                     <i className="fas fa-flag text-lg"></i>
                  </button>
 
@@ -281,6 +353,7 @@ const SoloPage: React.FC = () => {
                  <h2 className="text-lg md:text-xl font-bold leading-relaxed drop-shadow-sm">{currentQ.question}</h2>
              </div>
 
+             {/* Options Grid */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                  {currentQ.options.map((opt, idx) => {
                     let btnClasses = "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-game-primary";
@@ -327,7 +400,6 @@ const SoloPage: React.FC = () => {
           </>
         )}
       </div>
-      {showReportModal && currentQ && <ReportModal question={currentQ} chapterId={selectedChapterId} onClose={() => setShowReportModal(false)} />}
     </div>
   );
 };
