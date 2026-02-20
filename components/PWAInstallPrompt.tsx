@@ -68,7 +68,7 @@ export const PWAInstallPrompt: React.FC = () => {
   return (
     <>
         <div className="fixed top-4 left-0 right-0 z-[100] px-4 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 shadow-2xl rounded-[1.5rem] p-4 w-full max-w-sm flex items-center gap-4 animate__animated animate__slideInDown">
+            <div className="pointer-events-auto bg-white/90 dark:bg-slate-100/90 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 shadow-2xl rounded-[1.5rem] p-4 w-full max-w-sm flex items-center gap-4 animate__animated animate__slideInDown">
                 
                 <div className="relative w-14 h-14 bg-gradient-to-br from-game-primary to-orange-600 rounded-2xl shadow-lg flex items-center justify-center shrink-0 overflow-hidden group">
                     <i className={`fas ${isIOS ? 'fa-apple' : 'fa-download'} text-white text-2xl animate-pulse`}></i>
@@ -87,7 +87,7 @@ export const PWAInstallPrompt: React.FC = () => {
                 <div className="flex gap-2">
                     <button 
                         onClick={handleDismiss}
-                        className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors"
+                        className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-200 text-slate-500 dark:text-slate-400 flex items-center justify-center hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors"
                     >
                         <i className="fas fa-times text-sm"></i>
                     </button>
@@ -104,7 +104,7 @@ export const PWAInstallPrompt: React.FC = () => {
         {/* iOS Instructions Modal */}
         <Modal isOpen={showIOSInstructions} title="Install on iOS" onClose={() => setShowIOSInstructions(false)}>
             <div className="space-y-6 text-center pt-2">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-slate-200 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                     <i className="fab fa-apple text-4xl text-gray-800 dark:text-white"></i>
                 </div>
                 
@@ -112,7 +112,7 @@ export const PWAInstallPrompt: React.FC = () => {
                     iOS does not support one-click installation. Follow these steps manually:
                 </p>
 
-                <div className="text-left space-y-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="text-left space-y-4 bg-slate-50 dark:bg-slate-100/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                     <div className="flex items-start gap-3">
                         <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-black text-xs shrink-0 mt-0.5">1</div>
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight">
