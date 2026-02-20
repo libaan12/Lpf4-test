@@ -245,7 +245,7 @@ const AuthPage: React.FC = () => {
          <div className={`text-center mb-8 transition-all duration-500 ${view !== 'welcome' ? 'scale-75 mb-4' : ''}`}>
              <div className="w-24 h-24 mx-auto mb-4 relative group">
                 <div className="absolute inset-0 bg-gradient-to-tr from-game-primary to-red-500 rounded-3xl rotate-6 blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="relative w-full h-full bg-white dark:bg-slate-800 rounded-3xl border border-white/50 dark:border-slate-600 flex items-center justify-center shadow-xl overflow-hidden p-4">
+                <div className="relative w-full h-full bg-white dark:bg-slate-200 rounded-3xl border border-white/50 dark:border-slate-600 flex items-center justify-center shadow-xl overflow-hidden p-4">
                     <img src="https://files.catbox.moe/1picoz.png" alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
                 </div>
              </div>
@@ -260,7 +260,7 @@ const AuthPage: React.FC = () => {
          {/* VIEW: WELCOME (GUEST FIRST) */}
          {view === 'welcome' && (
              <div className="animate__animated animate__fadeInUp">
-                 <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 p-8 rounded-[2.5rem] shadow-2xl text-center">
+                 <div className="bg-white/80 dark:bg-slate-200/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 p-8 rounded-[2.5rem] shadow-2xl text-center">
                      <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-2">Ready to Play?</h2>
                      <p className="text-slate-500 dark:text-slate-400 text-sm font-bold mb-8">Join the stage to compete with F4 students.</p>
                      
@@ -289,7 +289,7 @@ const AuthPage: React.FC = () => {
                         <button 
                             onClick={() => !loading && setView('login')}
                             disabled={loading}
-                            className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-700 hover:border-game-primary dark:hover:border-game-primary hover:bg-white dark:hover:bg-slate-800 transition-all group disabled:opacity-50"
+                            className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-100/50 border-2 border-slate-200 dark:border-slate-700 hover:border-game-primary dark:hover:border-game-primary hover:bg-white dark:hover:bg-slate-200 transition-all group disabled:opacity-50"
                         >
                             <i className="fas fa-sign-in-alt text-xl mb-2 text-slate-400 group-hover:text-game-primary transition-colors"></i>
                             <span className="font-bold text-slate-600 dark:text-slate-300 text-sm">Login</span>
@@ -297,7 +297,7 @@ const AuthPage: React.FC = () => {
                         <button 
                             onClick={() => !loading && setView('register')}
                             disabled={loading}
-                            className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-700 hover:border-game-accent dark:hover:border-game-accent hover:bg-white dark:hover:bg-slate-800 transition-all group disabled:opacity-50"
+                            className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-100/50 border-2 border-slate-200 dark:border-slate-700 hover:border-game-accent dark:hover:border-game-accent hover:bg-white dark:hover:bg-slate-200 transition-all group disabled:opacity-50"
                         >
                             <i className="fas fa-user-plus text-xl mb-2 text-slate-400 group-hover:text-game-accent transition-colors"></i>
                             <span className="font-bold text-slate-600 dark:text-slate-300 text-sm">Register</span>
@@ -317,7 +317,7 @@ const AuthPage: React.FC = () => {
          {/* VIEW: LOGIN & REGISTER FORMS */}
          {view !== 'welcome' && (
              <div className="animate__animated animate__fadeInUp">
-                 <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 p-8 rounded-[2.5rem] shadow-2xl relative">
+                 <div className="bg-white/80 dark:bg-slate-200/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 p-8 rounded-[2.5rem] shadow-2xl relative">
                      <button 
                         onClick={() => !loading && setView('welcome')}
                         disabled={loading}
@@ -364,7 +364,7 @@ const AuthPage: React.FC = () => {
                                             value={gender}
                                             onChange={(e) => setGender(e.target.value as 'male' | 'female')}
                                             disabled={loading}
-                                            className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl py-4 pl-12 pr-10 text-slate-900 dark:text-white font-bold appearance-none focus:border-game-primary focus:outline-none transition-all cursor-pointer disabled:opacity-50"
+                                            className="w-full bg-slate-100 dark:bg-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl py-4 pl-12 pr-10 text-slate-900 dark:text-white font-bold appearance-none focus:border-game-primary focus:outline-none transition-all cursor-pointer disabled:opacity-50"
                                         >
                                             <option value="male">Male</option>
                                             <option value="female">Female</option>
