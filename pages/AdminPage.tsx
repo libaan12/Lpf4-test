@@ -560,41 +560,41 @@ export const AdminPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050b14] text-white p-4 pb-24 pt-20 transition-colors max-w-4xl mx-auto w-full relative">
+    <div className="min-h-screen bg-white text-slate-900 p-4 pb-24 pt-20 transition-colors max-w-4xl mx-auto w-full relative">
       
       {/* Background Ambient Effects */}
       <div className="fixed inset-0 pointer-events-none z-0">
           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-900/10 rounded-full blur-[128px] animate-pulse"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-900/10 rounded-full blur-[128px] animate-pulse delay-1000"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-[linear-gradient(to_bottom,transparent_0%,#0f172a_100%),linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:40px_40px] [transform:perspective(500px)_rotateX(60deg)_translateY(100px)] opacity-30 origin-bottom"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-[linear-gradient(to_bottom,transparent_0%,#f1f5f9_100%),linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:40px_40px] [transform:perspective(500px)_rotateX(60deg)_translateY(100px)] opacity-30 origin-bottom"></div>
       </div>
 
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a]/80 backdrop-blur-xl border-b border-white/5 shadow-xl flex items-center justify-between px-4 py-3">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-slate-100/80 backdrop-blur-xl border-b border-white/5 shadow-xl flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-cyan-400 transition-colors shadow-lg active:scale-90">
+            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:text-cyan-400 transition-colors shadow-lg active:scale-90">
                 <i className="fas fa-arrow-left"></i>
             </button>
             <h1 className="text-xl md:text-2xl font-black text-white uppercase italic tracking-tighter">Command Center</h1>
         </div>
-        <div className="bg-slate-800/50 px-3 py-1 rounded-full border border-white/5 flex items-center gap-2">
+        <div className="bg-slate-200/50 px-3 py-1 rounded-full border border-white/5 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-slate-400">Live Sync</span>
+            <span className="text-[10px] font-black uppercase text-slate-500">Live Sync</span>
         </div>
       </div>
 
       <div className="relative z-10">
-          <div className="flex bg-[#1e293b]/50 backdrop-blur-md rounded-2xl p-1 gap-1 mb-6 border border-white/5 shadow-inner">
+          <div className="flex bg-slate-100/50 backdrop-blur-md rounded-2xl p-1 gap-1 mb-6 border border-white/5 shadow-inner">
               <button 
                 onClick={() => setActiveTab('quizzes')} 
-                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'quizzes' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'quizzes' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-600'}`}
               >
                 <i className="fas fa-database mr-2"></i> Quiz Bank
               </button>
               <button 
                 onClick={() => setActiveTab('pdfs')} 
-                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'pdfs' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`flex-1 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${activeTab === 'pdfs' ? 'bg-game-primary text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] border-b-4 border-game-primaryDark' : 'text-slate-500 hover:text-slate-600'}`}
               >
                 <i className="fas fa-file-pdf mr-2"></i> Library
               </button>
@@ -603,7 +603,7 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'quizzes' ? (
             <div className="space-y-6 animate__animated animate__fadeIn">
                 {/* Selector Section */}
-                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-6 shadow-2xl relative overflow-hidden group">
+                <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-6 shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-1 h-full bg-game-primary opacity-50"></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -620,7 +620,7 @@ export const AdminPage: React.FC = () => {
                                 <select 
                                     value={selectedSubject} 
                                     onChange={(e) => setSelectedSubject(e.target.value)}
-                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                    className="w-full p-4 bg-white/50 text-white border-2 border-slate-200 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
                                 >
                                     <option value="">-- Choose Subject --</option>
                                     {subjects.map(s => (
@@ -645,7 +645,7 @@ export const AdminPage: React.FC = () => {
                                 <select 
                                     value={selectedChapter} 
                                     onChange={(e) => setSelectedChapter(e.target.value)}
-                                    className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                    className="w-full p-4 bg-white/50 text-white border-2 border-slate-200 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
                                     disabled={!selectedSubject || chapters.length === 0}
                                 >
                                     {chapters.length === 0 && <option value="">No chapters available</option>}
@@ -660,16 +660,16 @@ export const AdminPage: React.FC = () => {
                 </Card>
 
                 {/* Input Card */}
-                <Card className={`!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl relative ${!selectedChapter ? 'opacity-30 pointer-events-none grayscale' : ''} transition-all`}>
+                <Card className={`!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl relative ${!selectedChapter ? 'opacity-30 pointer-events-none grayscale' : ''} transition-all`}>
                   <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
                         <i className={`fas ${inputMode === 'manual' ? 'fa-plus-circle' : inputMode === 'parser' ? 'fa-magic' : 'fa-file-excel'} text-game-primary`}></i>
                         {inputMode === 'manual' ? 'Manual Input' : inputMode === 'parser' ? 'Text Parser' : 'Excel Batch'}
                     </h2>
-                    <div className="flex bg-slate-900 rounded-xl p-1 shadow-inner border border-white/5">
-                        <button onClick={() => setInputMode('manual')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'manual' ? 'bg-game-primary text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Manual</button>
-                        <button onClick={() => setInputMode('parser')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'parser' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Parse</button>
-                        <button onClick={() => setInputMode('bulk')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'bulk' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Excel</button>
+                    <div className="flex bg-slate-100 rounded-xl p-1 shadow-inner border border-white/5">
+                        <button onClick={() => setInputMode('manual')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'manual' ? 'bg-game-primary text-slate-900 shadow-lg' : 'text-slate-500 hover:text-slate-600'}`}>Manual</button>
+                        <button onClick={() => setInputMode('parser')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'parser' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-600'}`}>Parse</button>
+                        <button onClick={() => setInputMode('bulk')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${inputMode === 'bulk' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-600'}`}>Excel</button>
                     </div>
                   </div>
                   
@@ -677,7 +677,7 @@ export const AdminPage: React.FC = () => {
                     <form onSubmit={handleAddQuestion} className="space-y-6">
                         <div>
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Question Content</label>
-                            <Input value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="Type the question here..." className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                            <Input value={questionText} onChange={(e) => setQuestionText(e.target.value)} placeholder="Type the question here..." className="!bg-white/50 !border-slate-200 !text-white" />
                         </div>
                         
                         <div className="space-y-4">
@@ -687,14 +687,14 @@ export const AdminPage: React.FC = () => {
                                     <div key={idx} className="flex items-center gap-3 group">
                                         <button 
                                             type="button"
-                                            className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center font-black transition-all border-2 ${idx === correctAnswer ? 'bg-green-500 border-green-400 text-slate-900 shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500'}`} 
+                                            className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center font-black transition-all border-2 ${idx === correctAnswer ? 'bg-green-500 border-green-400 text-slate-900 shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-slate-200 border-slate-300 text-slate-500 hover:border-slate-500'}`} 
                                             onClick={() => setCorrectAnswer(idx)}
                                         >
                                             {String.fromCharCode(65 + idx)}
                                         </button>
                                         <div className="flex-1 relative">
                                             <input 
-                                                className={`w-full p-4 bg-[#050b14]/50 text-white border-2 rounded-2xl transition-all font-bold focus:outline-none ${idx === correctAnswer ? 'border-green-500' : 'border-slate-800 focus:border-game-primary'}`}
+                                                className={`w-full p-4 bg-white/50 text-white border-2 rounded-2xl transition-all font-bold focus:outline-none ${idx === correctAnswer ? 'border-green-500' : 'border-slate-200 focus:border-game-primary'}`}
                                                 value={opt}
                                                 onChange={(e) => handleOptionChange(idx, e.target.value)}
                                                 placeholder={`Option ${idx + 1}`}
@@ -709,7 +709,7 @@ export const AdminPage: React.FC = () => {
                                 ))}
                             </div>
                             {options.length < 6 && (
-                                <button type="button" onClick={handleAddOption} className="text-[10px] font-black bg-slate-800/50 hover:bg-slate-800 text-game-primary uppercase tracking-[0.2em] px-5 py-3 rounded-xl border-2 border-dashed border-slate-700 transition-all active:scale-95">
+                                <button type="button" onClick={handleAddOption} className="text-[10px] font-black bg-slate-200/50 hover:bg-slate-200 text-game-primary uppercase tracking-[0.2em] px-5 py-3 rounded-xl border-2 border-dashed border-slate-300 transition-all active:scale-95">
                                     <i className="fas fa-plus-circle mr-1"></i> Add Option
                                 </button>
                             )}
@@ -726,7 +726,7 @@ export const AdminPage: React.FC = () => {
                               Format: 1. Question? a) Op 1 b) Op 2 Ans: a
                           </div>
                           <textarea 
-                            className="w-full h-48 p-5 rounded-2xl border-2 border-slate-800 bg-[#050b14]/50 text-white focus:outline-none focus:border-purple-500 font-mono text-sm resize-none shadow-inner"
+                            className="w-full h-48 p-5 rounded-2xl border-2 border-slate-200 bg-white/50 text-white focus:outline-none focus:border-purple-500 font-mono text-sm resize-none shadow-inner"
                             placeholder="Paste your questions here..."
                             value={rawText}
                             onChange={(e) => setRawText(e.target.value)}
@@ -745,7 +745,7 @@ export const AdminPage: React.FC = () => {
                                 <i className="fas fa-download mr-1"></i> Template
                              </button>
                          </div>
-                         <div className="border-4 border-dashed border-slate-800 rounded-[2rem] p-12 text-center hover:bg-slate-800/20 hover:border-green-500/50 transition-all relative group cursor-pointer shadow-inner">
+                         <div className="border-4 border-dashed border-slate-200 rounded-[2rem] p-12 text-center hover:bg-slate-200/20 hover:border-green-500/50 transition-all relative group cursor-pointer shadow-inner">
                              <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} disabled={loading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                              <i className="fas fa-file-excel text-6xl text-green-500 mb-4 group-hover:scale-110 transition-transform"></i>
                              <p className="font-black text-white uppercase tracking-tighter text-xl">Drop Batch File</p>
@@ -756,13 +756,13 @@ export const AdminPage: React.FC = () => {
                 </Card>
 
                 {/* List Card */}
-                <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
                   <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
                     <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter flex items-center gap-3">
                         <i className="fas fa-list text-game-primary"></i> 
                         Sync History
                     </h2>
-                    <span className="bg-slate-900 text-game-primary px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-game-primary/20">{questions.length} Questions</span>
+                    <span className="bg-slate-100 text-game-primary px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-game-primary/20">{questions.length} Questions</span>
                   </div>
                   
                   <div className="space-y-4 max-h-[600px] overflow-y-auto pr-3 custom-scrollbar">
@@ -773,7 +773,7 @@ export const AdminPage: React.FC = () => {
                         </div>
                     ) : (
                         questions.map((q, qidx) => (
-                        <div key={q.id} className="bg-slate-900/60 p-6 rounded-[2rem] border border-slate-800 relative group hover:border-slate-600 transition-all shadow-xl">
+                        <div key={q.id} className="bg-slate-100/60 p-6 rounded-[2rem] border border-slate-200 relative group hover:border-slate-600 transition-all shadow-xl">
                             <div className="absolute top-4 right-4 flex gap-2">
                                 <button onClick={() => setEditingQuestion(q)} className="w-10 h-10 rounded-xl bg-game-primary/10 text-game-primary hover:bg-game-primary hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
                                     <i className="fas fa-edit"></i>
@@ -783,13 +783,13 @@ export const AdminPage: React.FC = () => {
                                 </button>
                             </div>
                             <div className="flex items-start gap-4 mb-6">
-                                <span className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-black text-slate-500 text-sm border border-white/5 shrink-0">#{qidx+1}</span>
-                                <div className="pr-12"><p className="font-bold text-white text-lg leading-snug">{q.question}</p></div>
+                                <span className="w-12 h-12 rounded-xl bg-slate-200 flex items-center justify-center font-black text-slate-500 text-sm border border-white/5 shrink-0">#{qidx+1}</span>
+                                <div className="pr-12"><p className="font-bold text-slate-900 text-lg leading-snug">{q.question}</p></div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                             {q.options.map((opt, i) => (
-                                <div key={i} className={`p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${i === q.answer ? 'bg-green-500/10 border-green-500 text-white font-black' : 'bg-slate-800/50 border-slate-700 text-slate-400'}`}>
-                                   <span className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-black ${i === q.answer ? 'bg-green-500 text-slate-900' : 'bg-slate-700 text-slate-400'}`}>{String.fromCharCode(65 + i)}</span> 
+                                <div key={i} className={`p-4 rounded-xl border-2 flex items-center gap-3 transition-colors ${i === q.answer ? 'bg-green-500/10 border-green-500 text-slate-900 font-black' : 'bg-slate-200/50 border-slate-300 text-slate-500'}`}>
+                                   <span className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-black ${i === q.answer ? 'bg-green-500 text-slate-900' : 'bg-slate-700 text-slate-500'}`}>{String.fromCharCode(65 + i)}</span> 
                                    <span className="truncate">{opt}</span>
                                 </div>
                             ))}
@@ -803,7 +803,7 @@ export const AdminPage: React.FC = () => {
           ) : (
             <div className="space-y-6 animate__animated animate__fadeIn">
                 {/* Master Toggle Bar */}
-                <div className="bg-[#1e293b]/80 backdrop-blur-xl border-2 border-slate-800 rounded-3xl p-5 flex items-center justify-between shadow-2xl">
+                <div className="bg-slate-200/80 backdrop-blur-xl border-2 border-slate-200 rounded-3xl p-5 flex items-center justify-between shadow-2xl">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all shadow-lg ${isLibraryEnabled ? 'bg-game-success/10 text-game-success border border-game-success/20' : 'bg-game-danger/10 text-game-danger border border-game-danger/20'}`}>
                            <i className={`fas ${isLibraryEnabled ? 'fa-unlock' : 'fa-lock'}`}></i>
@@ -824,14 +824,14 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 {/* Lib Sub-tabs */}
-                <div className="flex gap-2 mb-4 bg-slate-800/40 p-1 rounded-xl">
-                    <button onClick={() => setLibSubTab('files')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'files' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Manage Files</button>
-                    <button onClick={() => setLibSubTab('metadata')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'metadata' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Edit Labels</button>
+                <div className="flex gap-2 mb-4 bg-slate-200/40 p-1 rounded-xl">
+                    <button onClick={() => setLibSubTab('files')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'files' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-600'}`}>Manage Files</button>
+                    <button onClick={() => setLibSubTab('metadata')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${libSubTab === 'metadata' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-600'}`}>Edit Labels</button>
                 </div>
 
                 {libSubTab === 'files' ? (
                   <>
-                    <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                    <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
                             <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white flex items-center gap-3">
                                 <i className="fas fa-file-upload text-game-primary"></i> 
@@ -842,14 +842,14 @@ export const AdminPage: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Resource Label (Title)</label>
-                                    <Input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Physics Formula Sheet" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                                    <Input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="e.g. Physics Formula Sheet" className="!bg-white/50 !border-slate-200 !text-white" />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Subject Label</label>
                                     <select 
                                         value={pdfSubject} 
                                         onChange={(e) => setPdfSubject(e.target.value)}
-                                        className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                        className="w-full p-4 bg-white/50 text-white border-2 border-slate-200 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
                                     >
                                         <option value="">Select Subject</option>
                                         {libSubjects.map(s => <option key={s} value={s}>{s}</option>)}
@@ -863,7 +863,7 @@ export const AdminPage: React.FC = () => {
                                     <select 
                                         value={pdfCategory} 
                                         onChange={(e) => setPdfCategory(e.target.value)}
-                                        className="w-full p-4 bg-[#050b14]/50 text-white border-2 border-slate-800 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
+                                        className="w-full p-4 bg-white/50 text-white border-2 border-slate-200 rounded-2xl appearance-none font-bold focus:border-game-primary transition-all cursor-pointer shadow-inner"
                                     >
                                         <option value="">Select Category</option>
                                         {libCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -871,13 +871,13 @@ export const AdminPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Keywords (comma separated)</label>
-                                    <Input value={pdfKeywords} onChange={(e) => setPdfKeywords(e.target.value)} placeholder="form4, exam, guide" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                                    <Input value={pdfKeywords} onChange={(e) => setPdfKeywords(e.target.value)} placeholder="form4, exam, guide" className="!bg-white/50 !border-slate-200 !text-white" />
                                 </div>
                             </div>
 
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Direct Access URL (Catbox/Cloud)</label>
-                                <Input value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://files.catbox.moe/xxxxxx.pdf" className="!bg-[#050b14]/50 !border-slate-800 !text-white" />
+                                <Input value={pdfExternalUrl} onChange={(e) => setPdfExternalUrl(e.target.value)} placeholder="https://files.catbox.moe/xxxxxx.pdf" className="!bg-white/50 !border-slate-200 !text-white" />
                             </div>
 
                             <Button type="submit" fullWidth isLoading={loading} disabled={!pdfTitle || !pdfSubject || !pdfCategory || !pdfExternalUrl} className="!py-5 !rounded-2xl shadow-xl">
@@ -886,7 +886,7 @@ export const AdminPage: React.FC = () => {
                         </form>
                     </Card>
 
-                    <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                    <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
                         <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
                             <i className="fas fa-book-open text-game-primary"></i> 
                             Live Resources Preview
@@ -899,7 +899,7 @@ export const AdminPage: React.FC = () => {
                                 </div>
                             ) : (
                                 studyMaterials.map(item => (
-                                    <div key={item.id} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl group hover:border-slate-600 transition-all">
+                                    <div key={item.id} className="bg-slate-100/60 p-5 rounded-2xl border border-slate-200 flex items-center justify-between shadow-xl group hover:border-slate-600 transition-all">
                                         <div className="flex items-center gap-4 min-w-0">
                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg border border-white/5 bg-cyan-900/20 text-cyan-400`}>
                                                 <i className={`fas fa-file-pdf`}></i>
@@ -924,14 +924,14 @@ export const AdminPage: React.FC = () => {
                   </>
                 ) : (
                   <div className="space-y-6 animate__animated animate__fadeIn">
-                      <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                      <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
                           <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
                             <h3 className="text-xl font-black uppercase italic tracking-tighter text-white">Categories</h3>
                             <button onClick={() => setModalType('lib_cat')} className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-lg">+ ADD</button>
                           </div>
                           <div className="flex flex-wrap gap-3">
                               {libCategories.map(cat => (
-                                  <div key={cat} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 shadow-sm">
+                                  <div key={cat} className="flex items-center gap-2 bg-slate-200 px-4 py-2 rounded-xl border border-slate-300 shadow-sm">
                                       <span className="text-sm font-bold">{cat}</span>
                                       <button onClick={() => handleDeleteLibMeta('categories', cat)} className="text-red-400 hover:text-red-500 transition-colors text-xs"><i className="fas fa-times"></i></button>
                                   </div>
@@ -939,14 +939,14 @@ export const AdminPage: React.FC = () => {
                           </div>
                       </Card>
 
-                      <Card className="!bg-[#0f172a]/40 border-2 border-slate-800 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
+                      <Card className="!bg-slate-50/40 border-2 border-slate-200 backdrop-blur-md rounded-[2.5rem] !p-8 shadow-2xl">
                           <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
                             <h3 className="text-xl font-black uppercase italic tracking-tighter text-white">Subjects (Labels)</h3>
                             <button onClick={() => setModalType('lib_sub')} className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-lg">+ ADD</button>
                           </div>
                           <div className="flex flex-wrap gap-3">
                               {libSubjects.map(sub => (
-                                  <div key={sub} className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 shadow-sm">
+                                  <div key={sub} className="flex items-center gap-2 bg-slate-200 px-4 py-2 rounded-xl border border-slate-300 shadow-sm">
                                       <span className="text-sm font-bold">{sub}</span>
                                       <button onClick={() => handleDeleteLibMeta('subjects', sub)} className="text-red-400 hover:text-red-500 transition-colors text-xs"><i className="fas fa-times"></i></button>
                                   </div>
@@ -968,7 +968,7 @@ export const AdminPage: React.FC = () => {
                     onChange={(e) => { setNewItemName(e.target.value); }} 
                     autoFocus 
                     placeholder="Enter name..." 
-                    className="!bg-slate-800 !border-slate-700 !text-white"
+                    className="!bg-slate-200 !border-slate-300 !text-white"
                   />
               </div>
               <div className="flex gap-4 pt-4">
@@ -985,7 +985,7 @@ export const AdminPage: React.FC = () => {
                     label="Question Content" 
                     value={editingQuestion.question} 
                     onChange={(e) => setEditingQuestion({...editingQuestion, question: e.target.value})}
-                    className="!bg-[#0f172a] !border-slate-800 !text-white !p-5 !rounded-2xl"
+                    className="!bg-slate-50 !border-slate-200 !text-white !p-5 !rounded-2xl"
                 />
                 <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Options (Tap letter to set correct)</label>
@@ -993,7 +993,7 @@ export const AdminPage: React.FC = () => {
                         <div key={idx} className="flex gap-3">
                             <button 
                                 onClick={() => setEditingQuestion({...editingQuestion, answer: idx})}
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-all border-2 ${editingQuestion.answer === idx ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/30' : 'bg-[#0f172a] border-slate-800 text-slate-600'}`}
+                                className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-all border-2 ${editingQuestion.answer === idx ? 'bg-game-primary border-white/20 text-slate-950 shadow-lg shadow-game-primary/30' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
                             >
                                 {String.fromCharCode(65+idx)}
                             </button>
@@ -1004,13 +1004,13 @@ export const AdminPage: React.FC = () => {
                                     newOpts[idx] = e.target.value;
                                     setEditingQuestion({...editingQuestion, options: newOpts});
                                 }}
-                                className="flex-1 bg-[#0f172a] border-2 border-slate-800 rounded-xl px-5 py-3 text-white font-bold focus:border-game-primary outline-none transition-colors"
+                                className="flex-1 bg-slate-50 border-2 border-slate-200 rounded-xl px-5 py-3 text-slate-800 font-bold focus:border-game-primary outline-none transition-colors"
                             />
                         </div>
                     ))}
                 </div>
                 <div className="pt-6 flex gap-4">
-                        <Button fullWidth variant="outline" onClick={() => setEditingQuestion(null)} className="!border-slate-800 !text-slate-500 !rounded-2xl">Cancel</Button>
+                        <Button fullWidth variant="outline" onClick={() => setEditingQuestion(null)} className="!border-slate-200 !text-slate-500 !rounded-2xl">Cancel</Button>
                         <Button fullWidth onClick={handleUpdateQuestion} className="!bg-game-primary !text-slate-950 !rounded-2xl shadow-xl shadow-game-primary/20">Sync Changes</Button>
                 </div>
             </div>
