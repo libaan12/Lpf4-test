@@ -142,10 +142,10 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
     };
 
     const AccordionItem = ({ id, label, icon, color, children }: any) => (
-        <div className="bg-[#0b1120] border border-slate-800 rounded-xl overflow-hidden mb-2 shadow-sm">
+        <div className="bg-slate-100 border border-slate-200 rounded-xl overflow-hidden mb-2 shadow-sm">
             <button 
                 onClick={() => toggleSection(id)} 
-                className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-200/50 transition-colors"
             >
                 <span className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-3">
                     <i className={`fas ${icon} ${color} text-sm`}></i> {label}
@@ -153,7 +153,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                 <i className={`fas fa-chevron-down text-slate-500 transition-transform duration-300 ${expanded === id ? 'rotate-180' : ''}`}></i>
             </button>
             {expanded === id && (
-                <div className="p-4 border-t border-slate-800 bg-slate-900/30 animate__animated animate__fadeIn">
+                <div className="p-4 border-t border-slate-800 bg-slate-100/30 animate__animated animate__fadeIn">
                     {children}
                 </div>
             )}
@@ -174,7 +174,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                             isVerified={targetUser.isVerified} 
                             isSupport={targetUser.isSupport} 
                             isOnline={targetUser.isOnline} 
-                            className="mb-3 shadow-2xl border-4 border-[#1e293b]" 
+                            className="mb-3 shadow-2xl border-4 border-slate-200" 
                         />
                         {targetUser.banned && <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase border border-red-800">Banned</div>}
                     </div>
@@ -184,7 +184,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                         {targetUser.roles?.superAdmin && <i className="fas fa-user-astronaut text-purple-500" title="Super Admin"></i>}
                         {targetUser.isSupport && !targetUser.roles?.superAdmin && <i className="fas fa-headset text-orange-500" title="Staff"></i>}
                     </h2>
-                    <div className="bg-slate-800 text-slate-400 font-mono text-[10px] px-3 py-1 rounded-full mt-1 border border-slate-700 flex items-center gap-2">
+                    <div className="bg-slate-200 text-slate-400 font-mono text-[10px] px-3 py-1 rounded-full mt-1 border border-slate-700 flex items-center gap-2">
                         <span>ID: {targetUser.uid.substring(0, 8)}...</span>
                         <i className="fas fa-copy cursor-pointer hover:text-white" onClick={() => { navigator.clipboard.writeText(targetUser.uid); showToast("ID Copied"); }}></i>
                     </div>
@@ -194,11 +194,11 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                 <div className="space-y-1">
                     <AccordionItem id="profile" label="Profile & Security" icon="fa-user-lock" color="text-blue-400">
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={handleUsername} className="bg-slate-800 p-3 rounded-xl border border-slate-700 hover:border-blue-500 transition-all flex flex-col items-center gap-1 group">
+                            <button onClick={handleUsername} className="bg-slate-200 p-3 rounded-xl border border-slate-700 hover:border-blue-500 transition-all flex flex-col items-center gap-1 group">
                                 <i className="fas fa-signature text-slate-500 group-hover:text-blue-400"></i>
                                 <span className="text-[9px] font-black uppercase text-slate-400">Edit Username</span>
                             </button>
-                            <button onClick={handleResetPass} className="bg-slate-800 p-3 rounded-xl border border-slate-700 hover:border-yellow-500 transition-all flex flex-col items-center gap-1 group">
+                            <button onClick={handleResetPass} className="bg-slate-200 p-3 rounded-xl border border-slate-700 hover:border-yellow-500 transition-all flex flex-col items-center gap-1 group">
                                 <i className="fas fa-key text-slate-500 group-hover:text-yellow-400"></i>
                                 <span className="text-[9px] font-black uppercase text-slate-400">Reset Pass</span>
                             </button>
@@ -208,7 +208,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     <AccordionItem id="roles" label="Roles & Privileges" icon="fa-user-shield" color="text-purple-400">
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={handleVerify} className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase border transition-all ${targetUser.isVerified ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                <button onClick={handleVerify} className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase border transition-all ${targetUser.isVerified ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-200 text-slate-500 border-slate-700'}`}>
                                     {targetUser.isVerified ? 'Revoke Badge' : 'Verify User'}
                                 </button>
                                 <button onClick={handleBan} className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase border transition-all ${targetUser.banned ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-red-500/20 text-red-400 border-red-500/50'}`}>
@@ -218,15 +218,15 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                             
                             {canManageRoles && (
                                 <>
-                                    <div className="h-px bg-slate-800 my-2"></div>
+                                    <div className="h-px bg-slate-200 my-2"></div>
                                     <div className="grid grid-cols-3 gap-2">
-                                        <button onClick={() => toggleRole('support')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.isSupport ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                        <button onClick={() => toggleRole('support')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.isSupport ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-slate-200 text-slate-500 border-slate-700'}`}>
                                             Support
                                         </button>
-                                        <button onClick={() => toggleRole('admin')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.roles?.admin ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                        <button onClick={() => toggleRole('admin')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.roles?.admin ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-200 text-slate-500 border-slate-700'}`}>
                                             Admin
                                         </button>
-                                        <button onClick={() => toggleRole('superAdmin')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.roles?.superAdmin ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                                        <button onClick={() => toggleRole('superAdmin')} className={`py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${targetUser.roles?.superAdmin ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-slate-200 text-slate-500 border-slate-700'}`}>
                                             Super
                                         </button>
                                     </div>
@@ -237,7 +237,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
 
                     <AccordionItem id="game" label="Game Data" icon="fa-gamepad" color="text-green-400">
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center bg-slate-800 p-3 rounded-xl border border-slate-700">
+                            <div className="flex justify-between items-center bg-slate-200 p-3 rounded-xl border border-slate-700">
                                 <span className="text-xs font-bold text-slate-400">Total XP</span>
                                 <span className="text-xl font-black text-white">{targetUser.points}</span>
                             </div>
@@ -248,7 +248,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                                         type="number" 
                                         value={pointsVal} 
                                         onChange={e => setPointsVal(e.target.value)} 
-                                        className="!bg-slate-800 !border-slate-700 !text-white !mb-0 text-center" 
+                                        className="!bg-slate-200 !border-slate-700 !text-white !mb-0 text-center" 
                                         placeholder="Set Points"
                                     />
                                     <Button size="sm" onClick={savePoints} className="!rounded-xl shadow-none border-none bg-slate-700 hover:bg-green-600"><i className="fas fa-save"></i></Button>
@@ -295,7 +295,7 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     )}
                     
                     <div className="flex gap-3">
-                        <Button fullWidth onClick={onClose} variant="secondary" className="!bg-slate-800 !border-slate-700 !text-slate-400 hover:!text-white hover:!bg-slate-700">Close</Button>
+                        <Button fullWidth onClick={onClose} variant="secondary" className="!bg-slate-200 !border-slate-700 !text-slate-400 hover:!text-white hover:!bg-slate-700">Close</Button>
                     </div>
                 </div>
             </Modal>
@@ -325,17 +325,17 @@ export const UserProfileModal: React.FC<Props> = ({ user: targetUser, onClose, a
                     {targetUser.isSupport && <i className="fas fa-headset text-orange-500 text-lg" title="Support Team"></i>}
                 </h2>
                 
-                <div className="text-slate-400 font-bold font-mono text-xs mt-1 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">
+                <div className="text-slate-400 font-bold font-mono text-xs mt-1 bg-slate-100 dark:bg-slate-200 px-3 py-1 rounded-full">
                     @{targetUser.username || 'guest'}
                 </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6 animate__animated animate__fadeIn">
-                <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+                <div className="bg-slate-50 dark:bg-slate-200 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Level</div>
                     <div className="text-2xl font-black text-slate-800 dark:text-white">{level}</div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+                <div className="bg-slate-50 dark:bg-slate-200 p-4 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">XP Points</div>
                     <div className="text-2xl font-black text-game-primary">{targetUser.points || 0}</div>
                 </div>
