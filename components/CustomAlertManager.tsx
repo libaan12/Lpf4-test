@@ -66,7 +66,7 @@ export const CustomAlertManager: React.FC = () => {
         {toasts.map(toast => (
           <div 
             key={toast.id}
-            className="pointer-events-auto bg-slate-900/90 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate__animated animate__slideInDown"
+            className="pointer-events-auto bg-slate-100/90 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate__animated animate__slideInDown"
           >
             <span className="text-lg">{getIcon(toast.icon)}</span>
             <span className="text-white font-black text-xs uppercase tracking-widest">{toast.title}</span>
@@ -80,7 +80,7 @@ export const CustomAlertManager: React.FC = () => {
           {alerts.map((alert, index) => (
             <div 
               key={alert.id}
-              className={`w-full max-w-sm bg-[#0f172a] border-2 border-white/10 p-8 rounded-[2.5rem] shadow-2xl animate__animated animate__zoomIn flex flex-col items-center text-center ${index === alerts.length - 1 ? 'block' : 'hidden'}`}
+              className={`w-full max-w-sm bg-slate-50 border-2 border-white/10 p-8 rounded-[2.5rem] shadow-2xl animate__animated animate__zoomIn flex flex-col items-center text-center ${index === alerts.length - 1 ? 'block' : 'hidden'}`}
             >
               <div className="text-5xl mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                 {getIcon(alert.icon)}
@@ -101,7 +101,7 @@ export const CustomAlertManager: React.FC = () => {
                     placeholder={alert.placeholder || 'Enter value...'}
                     value={inputValue}
                     onChange={e => setInputValue(e.target.value)}
-                    className="!bg-slate-800 !border-slate-700 !text-center !text-white"
+                    className="!bg-slate-200 !border-slate-700 !text-center !text-white"
                   />
                 </div>
               )}
