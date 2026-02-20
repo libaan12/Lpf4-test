@@ -54,7 +54,7 @@ export const ReportModal: React.FC<Props> = ({ question, chapterId, onClose }) =
     return (
         <Modal isOpen={true} title="Report Issue" onClose={onClose}>
             <div className="space-y-4">
-                <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-xl">
+                <div className="bg-slate-100 dark:bg-slate-100 p-3 rounded-xl">
                     <p className="text-xs text-slate-500 font-bold uppercase mb-1">Question</p>
                     <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-2">{question.question}</p>
                 </div>
@@ -65,7 +65,7 @@ export const ReportModal: React.FC<Props> = ({ question, chapterId, onClose }) =
                         <select 
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
-                            className="w-full p-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white appearance-none outline-none focus:border-game-primary"
+                            className="w-full p-3 bg-white dark:bg-slate-200 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white appearance-none outline-none focus:border-game-primary"
                         >
                             {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                         </select>
@@ -79,7 +79,7 @@ export const ReportModal: React.FC<Props> = ({ question, chapterId, onClose }) =
                         value={details}
                         onChange={(e) => setDetails(e.target.value)}
                         placeholder="Explain the issue..."
-                        className="w-full p-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-white outline-none focus:border-game-primary h-24 resize-none"
+                        className="w-full p-3 bg-white dark:bg-slate-200 border-2 border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-white outline-none focus:border-game-primary h-24 resize-none"
                     />
                 </div>
 
