@@ -61,11 +61,11 @@ const AppContent: React.FC = () => {
   // Verification Modal State
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   
-  // Enforce Dark Theme
+  // Enforce Light Theme
   useEffect(() => {
-    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('dark');
     // Ensure body background is set
-    document.body.style.backgroundColor = '#050b14';
+    document.body.style.backgroundColor = '#ffffff';
   }, []);
 
   const navigate = useNavigate();
@@ -278,7 +278,7 @@ const AppContent: React.FC = () => {
 
   return (
     <UserContext.Provider value={{ user, profile, loading }}>
-      <ThemeContext.Provider value={{ theme: 'dark', setTheme: () => {} }}>
+      <ThemeContext.Provider value={{ theme: 'light', setTheme: () => {} }}>
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-[#050b14]">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
             <div className="absolute top-0 left-0 w-[120vw] h-[120vw] sm:w-[80vw] sm:h-[80vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-transparent to-transparent blur-3xl transform -translate-x-1/3 -translate-y-1/3" />
