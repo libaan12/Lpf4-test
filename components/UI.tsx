@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 
 // --- Base Styles ---
-const CARD_BASE = "bg-white dark:bg-slate-800 rounded-3xl border-2 border-slate-200 dark:border-slate-700 shadow-xl transition-all";
-const INPUT_BASE = "bg-slate-100 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:border-game-primary dark:focus:border-game-primary focus:ring-4 focus:ring-game-primary/20 transition-all font-bold";
+const CARD_BASE = "bg-white dark:bg-slate-200 rounded-3xl border-2 border-slate-200 dark:border-slate-300 shadow-xl transition-all";
+const INPUT_BASE = "bg-slate-100 dark:bg-slate-100 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:border-game-primary dark:focus:border-game-primary focus:ring-4 focus:ring-game-primary/20 transition-all font-bold";
 
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -32,7 +32,7 @@ export const Button: React.FC<ButtonProps> = ({
     // Danger: Red
     danger: "bg-game-danger text-white border-b-4 border-game-dangerDark hover:brightness-110",
     // Outline: Transparent with border
-    outline: "bg-transparent border-2 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-none transform-none active:translate-y-0",
+    outline: "bg-transparent border-2 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-200 shadow-none transform-none active:translate-y-0",
     // Glass: Semi-transparent
     glass: "bg-white/20 backdrop-blur-md border border-white/40 text-white shadow-lg",
     // Ghost: No background
@@ -64,10 +64,10 @@ export const Input: React.FC<InputProps> = ({ label, icon, rightElement, classNa
 
   return (
     <div className="mb-4">
-      {label && <label className="block text-slate-600 dark:text-slate-300 text-xs font-black uppercase tracking-widest mb-2 ml-1">{label}</label>}
+      {label && <label className="block text-slate-600 dark:text-slate-600 text-xs font-black uppercase tracking-widest mb-2 ml-1">{label}</label>}
       <div className="relative group">
         {icon && (
-          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 group-focus-within:text-game-primary transition-colors z-10">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-game-primary transition-colors z-10">
             <i className={`fas ${icon} text-lg`}></i>
           </span>
         )}
@@ -80,7 +80,7 @@ export const Input: React.FC<InputProps> = ({ label, icon, rightElement, classNa
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-game-primary transition-colors z-10 focus:outline-none"
+              className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-500 hover:text-game-primary transition-colors z-10 focus:outline-none"
               tabIndex={-1}
             >
               <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-lg`}></i>
@@ -175,12 +175,12 @@ export const Modal: React.FC<{ isOpen: boolean; title?: string; children: React.
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate__animated animate__fadeIn">
       <div className="absolute inset-0" onClick={onClose}></div>
-      <div className={`relative w-full max-w-md bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl animate__animated animate__zoomIn border-4 border-white dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh]`}>
+      <div className={`relative w-full max-w-md bg-white dark:bg-slate-200 rounded-[2rem] shadow-2xl animate__animated animate__zoomIn border-4 border-white dark:border-slate-300 overflow-hidden flex flex-col max-h-[90vh]`}>
         {title && (
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 border-b-2 border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <div className="bg-slate-50 dark:bg-slate-100/50 p-5 border-b-2 border-slate-100 dark:border-slate-300 flex justify-between items-center">
                 <span className="font-black text-xl text-slate-800 dark:text-white uppercase tracking-tight">{title}</span>
                 {onClose && (
-                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center text-slate-500 dark:text-slate-400">
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center text-slate-500 dark:text-slate-500">
                         <i className="fas fa-times"></i>
                     </button>
                 )}
