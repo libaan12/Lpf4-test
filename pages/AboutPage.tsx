@@ -9,7 +9,7 @@ const AboutPage: React.FC = () => {
     <div className="min-h-full p-4 pb-8 pt-20 transition-colors max-w-4xl mx-auto w-full">
       
       {/* Sticky Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-100/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-slate-700/50 shadow-sm flex items-center gap-4 px-4 py-3 transition-colors duration-300">
           <button onClick={() => navigate('/')} className="text-gray-700 dark:text-gray-300 hover:text-somali-blue dark:hover:text-blue-400 transition-colors">
             <i className="fas fa-arrow-left fa-lg"></i>
           </button>
@@ -85,7 +85,7 @@ const AboutPage: React.FC = () => {
         <Card>
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-900 dark:text-white"><i className="fas fa-paper-plane text-somali-blue"></i> Get in Touch</h2>
             <div className="space-y-4">
-                <div className="flex items-center gap-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-xl transition-colors">
+                <div className="flex items-center gap-4 bg-gray-100 dark:bg-slate-200 p-3 rounded-xl transition-colors">
                     <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center shrink-0">
                         <i className="fas fa-envelope"></i>
                     </div>
@@ -94,7 +94,7 @@ const AboutPage: React.FC = () => {
                         <p className="font-bold text-gray-900 dark:text-white truncate">libaanpro5@gmail.com</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-xl transition-colors">
+                <div className="flex items-center gap-4 bg-gray-100 dark:bg-slate-200 p-3 rounded-xl transition-colors">
                     <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center shrink-0">
                         <i className="fas fa-phone"></i>
                     </div>
@@ -104,7 +104,7 @@ const AboutPage: React.FC = () => {
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mt-0.5">or +1 (250) 288-0729</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-xl transition-colors">
+                <div className="flex items-center gap-4 bg-gray-100 dark:bg-slate-200 p-3 rounded-xl transition-colors">
                     <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center shrink-0">
                         <i className="fas fa-map-marker-alt"></i>
                     </div>
