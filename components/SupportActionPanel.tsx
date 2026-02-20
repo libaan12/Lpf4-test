@@ -128,18 +128,18 @@ export const SupportActionPanel: React.FC<Props> = ({ targetUser }) => {
     };
 
     return (
-        <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl border-2 border-orange-200 dark:border-orange-900/50 w-full animate__animated animate__fadeIn">
+        <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-200 rounded-2xl border-2 border-orange-200 dark:border-orange-900/50 w-full animate__animated animate__fadeIn">
             <div className="flex items-center gap-2 mb-4">
                 <i className="fas fa-shield-alt text-game-primary"></i>
                 <h4 className="font-black text-xs uppercase text-slate-500 tracking-wider">Support Actions</h4>
             </div>
             
             <div className="grid grid-cols-2 gap-3 mb-3">
-                <button onClick={handleChangeUsername} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:border-game-primary transition-all flex flex-col items-center gap-2">
+                <button onClick={handleChangeUsername} className="bg-slate-50 dark:bg-slate-100 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:border-game-primary transition-all flex flex-col items-center gap-2">
                     <i className="fas fa-id-badge text-game-primary"></i>
                     Edit Username
                 </button>
-                <button onClick={handleResetPassword} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:border-game-primary transition-all flex flex-col items-center gap-2">
+                <button onClick={handleResetPassword} className="bg-slate-50 dark:bg-slate-100 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:border-game-primary transition-all flex flex-col items-center gap-2">
                     <i className="fas fa-key text-game-primary"></i>
                     Reset Pass
                 </button>
@@ -166,7 +166,7 @@ export const SupportActionPanel: React.FC<Props> = ({ targetUser }) => {
                             type="number" 
                             value={newPoints}
                             onChange={(e) => setNewPoints(e.target.value)}
-                            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm bg-white dark:bg-slate-900"
+                            className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm bg-white dark:bg-slate-100"
                         />
                         <button onClick={handleSavePoints} className="bg-green-500 text-white px-3 rounded-lg"><i className="fas fa-check"></i></button>
                         <button onClick={() => setPointsMode(false)} className="bg-gray-300 text-gray-700 px-3 rounded-lg"><i className="fas fa-times"></i></button>
